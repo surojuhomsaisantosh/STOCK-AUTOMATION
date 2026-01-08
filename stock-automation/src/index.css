@@ -1,0 +1,48 @@
+/* For Tailwind v4 - CORRECT SYNTAX */
+@import "tailwindcss";
+/* Optional custom theme */
+
+/* -----------------------------
+   GLOBAL RESETS (TAILWIND SAFE)
+------------------------------ */
+
+:root {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* REMOVE VITE DEFAULT CENTERING */
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #ffffff;
+}
+
+/* Links handled by Tailwind */
+a {
+  text-decoration: none;
+}
+
+/* Remove default button styles – Tailwind will handle */
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Optional: improve focus accessibility */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid rgb(0, 100, 55);
+  outline-offset: 2px;
+}
