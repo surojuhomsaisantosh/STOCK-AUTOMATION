@@ -1,6 +1,7 @@
-/* For Tailwind v4 - CORRECT SYNTAX */
-@import "tailwindcss";
-/* Optional custom theme */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 
 /* -----------------------------
    GLOBAL RESETS (TAILWIND SAFE)
@@ -18,7 +19,6 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* REMOVE VITE DEFAULT CENTERING */
 body {
   margin: 0;
   min-width: 320px;
@@ -26,12 +26,10 @@ body {
   background-color: #ffffff;
 }
 
-/* Links handled by Tailwind */
 a {
   text-decoration: none;
 }
 
-/* Remove default button styles – Tailwind will handle */
 button {
   background: none;
   border: none;
@@ -40,7 +38,6 @@ button {
   cursor: pointer;
 }
 
-/* Optional: improve focus accessibility */
 button:focus-visible,
 input:focus-visible {
   outline: 2px solid rgb(0, 100, 55);

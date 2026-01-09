@@ -1,127 +1,100 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../../supabase/supabaseClient";
-import { useAuth } from "../../context/AuthContext";
-import DashboardNavbar from "../../components/DashboardNavbar";
+import FranchiseSettingsCard from "../franchise/FranchiseSettingsCard";
 
 function FranchiseOwnerDashboard() {
+  const [showSettings, setShowSettings] = useState(false);
   const navigate = useNavigate();
-  const { logout } = useAuth();
-
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordMsg, setPasswordMsg] = useState("");
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    logout();
-    navigate("/");
-  };
-
-  const handleChangePassword = async () => {
-    setPasswordMsg("");
-
-    if (!newPassword || !confirmPassword) {
-      setPasswordMsg("⚠️ Please fill all fields");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setPasswordMsg("❌ Passwords do not match");
-      return;
-    }
-
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
-
-    if (error) {
-      setPasswordMsg("❌ " + error.message);
-    } else {
-      setPasswordMsg("✅ Password updated successfully");
-      setNewPassword("");
-      setConfirmPassword("");
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <DashboardNavbar />
+      <div className="p-8 max-w-7xl mx-auto">
 
-      <div className="p-8">
+        {/* SETTINGS PAGE */}
+        {showSettings ? (
+          <FranchiseSettingsCard />
+        ) : (
+          <div className="space-y-8">
 
-        {/* TAB BUTTONS */}
-        <div className="flex gap-4 mb-8">
-          <button
-            onClick={() => setActiveTab("dashboard")}
-            className={`px-6 py-3 rounded-xl font-bold ${
-              activeTab === "dashboard"
-                ? "bg-[rgb(0,100,55)] text-white"
-                : "bg-white text-gray-700"
-            }`}
-          >
-            📊 Dashboard
-          </button>
-
-          <button
-            onClick={() => setActiveTab("settings")}
-            className={`px-6 py-3 rounded-xl font-bold ${
-              activeTab === "settings"
-                ? "bg-[rgb(0,100,55)] text-white"
-                : "bg-white text-gray-700"
-            }`}
-          >
-            ⚙ Settings
-          </button>
-        </div>
-
-        {/* DASHBOARD */}
-        {activeTab === "dashboard" && (
-          <div className="bg-white p-10 rounded-2xl shadow-md">
-            <h2 className="text-2xl font-bold mb-4">
-              Franchise Owner Dashboard
-            </h2>
-
-          </div>
-        )}
-
-        {/* SETTINGS */}
-        {activeTab === "settings" && (
-          <div className="max-w-xl bg-white p-10 rounded-2xl shadow-md space-y-5">
-            <h3 className="text-xl font-bold">🔐 Change Password</h3>
-
-            <input
-              type="password"
-              placeholder="New Password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border-2 focus:outline-none focus:border-[rgb(0,100,55)]"
-            />
-
-            <input
-              type="password"
-              placeholder="Confirm New Password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border-2 focus:outline-none focus:border-[rgb(0,100,55)]"
-            />
-
-            {passwordMsg && (
-              <p className="text-sm font-semibold text-center">
-                {passwordMsg}
+            {/* HEADER */}
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">
+                Franchise Owner Dashboard
+              </h2>
+              <p className="text-gray-500 mt-1">
+                Overview of franchise operations
               </p>
-            )}
+            </div>
 
-            <button
-              onClick={handleChangePassword}
-              className="w-full py-4 rounded-xl font-bold text-white bg-[rgb(0,100,55)] hover:opacity-90 transition"
-            >
-              🔁 Update Password
-            </button>
+            {/* KPI / ACTION CARDS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+
+              {/* 1️⃣ Stock Orders */}
+              <div
+                onClick={() => navigate("/stock-orders")}
+                className="bg-white p-6 rounded-2xl shadow-sm hover:shadow hover:bg-gray-50 transition cursor-pointer"
+              >
+                <p className="text-sm text-gray-500">Stock Orders</p>
+                <h3 className="text-3xl font-bold mt-2">124</h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  Total orders placed
+                </p>
+              </div>
+
+              {/* 2️⃣ Invoices */}
+              <div
+              onClick={() => navigate("/franchise/franchiseinvoices")}    
+                className="bg-white p-6 rounded-2xl shadow-sm hover:shadow hover:bg-gray-50 transition cursor-pointer"
+              >
+                <p className="text-sm text-gray-500">Invoices</p>
+                <h3 className="text-3xl font-bold mt-2">98</h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  Generated invoices
+                </p>
+              </div>
+
+              {/* 3️⃣ Settings */}
+              <div
+                onClick={() => setShowSettings(true)}
+                className="bg-white p-6 rounded-2xl shadow-sm hover:shadow hover:bg-gray-50 transition cursor-pointer"
+              >
+                <p className="text-sm text-gray-500">Settings</p>
+                <h3 className="text-3xl font-bold mt-2">⚙️</h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  Manage preferences
+                </p>
+              </div>
+
+              {/* 4️⃣ Reports */}
+              <div className="bg-white p-6 rounded-2xl shadow-sm hover:shadow transition cursor-pointer">
+                <p className="text-sm text-gray-500">Reports</p>
+                <h3 className="text-3xl font-bold mt-2">15</h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  Available reports
+                </p>
+              </div>
+
+              {/* 5️⃣ Coming Soon */}
+              <div className="bg-white p-6 rounded-2xl shadow-sm opacity-70">
+                <p className="text-sm text-gray-500">Coming Soon</p>
+                <h3 className="text-3xl font-bold mt-2">🚀</h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  New features
+                </p>
+              </div>
+
+              {/* 6️⃣ Coming Soon */}
+              <div className="bg-white p-6 rounded-2xl shadow-sm opacity-70">
+                <p className="text-sm text-gray-500">Coming Soon</p>
+                <h3 className="text-3xl font-bold mt-2">🚀</h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  New features
+                </p>
+              </div>
+
+            </div>
           </div>
         )}
-
       </div>
     </div>
   );

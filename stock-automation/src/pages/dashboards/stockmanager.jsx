@@ -8,7 +8,7 @@ function StockManagerDashboard() {
       id: 1,
       title: "HOME",
       description: "Overview & actions",
-      onClick: () => window.scrollTo({ top: 0, behavior: "smooth" }),
+      onClick: () => navigate("/stock/orders"),
     },
     {
       id: 2,
@@ -20,7 +20,7 @@ function StockManagerDashboard() {
       id: 3,
       title: "BILLS",
       description: "Invoices & billing",
-      onClick: () => navigate("/bills"),
+      onClick: () => navigate("/stock/bills"), // ✅ FIXED ROUTE
     },
     {
       id: 4,
@@ -43,8 +43,8 @@ function StockManagerDashboard() {
   ];
 
   return (
-    <div className="min-h-screen w-full bg-white flex items-center justify-center px-16">
-      <div className="grid grid-cols-3 grid-rows-2 gap-10 w-full max-w-6xl h-[65vh]">
+    <div className="min-h-screen bg-white flex items-center justify-center px-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10 w-full max-w-6xl">
         {dashboardCards.map((card) => (
           <DashboardCard key={card.id} {...card} />
         ))}
@@ -59,33 +59,42 @@ function DashboardCard({ title, description, onClick, disabled }) {
       onClick={onClick}
       disabled={disabled}
       className={`
-        relative p-10 flex flex-col justify-between
-        bg-white border border-gray-200
-        transition-all duration-300
+        relative group h-56 p-9 text-left
+        flex flex-col justify-between
+        bg-white rounded-2xl
+        border border-gray-200
+        transition-all duration-300 ease-out
         ${
           disabled
             ? "opacity-40 cursor-not-allowed"
-            : "hover:border-[rgb(0,100,55)] hover:shadow-[0_12px_30px_rgba(0,100,55,0.12)]"
+            : `
+              hover:-translate-y-2 hover:scale-[1.02]
+              hover:border-[#0b3d2e]
+              hover:shadow-[0_25px_60px_rgba(11,61,46,0.25)]
+            `
         }
       `}
     >
-      {/* TOP — SECTION TITLE */}
+      {/* GLOW STRIP */}
+      {!disabled && (
+        <span className="absolute left-0 top-0 h-full w-[3px] bg-[#0b3d2e] opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-l-2xl" />
+      )}
+
+      {/* CONTENT */}
       <div>
-        <p className="text-[11px] tracking-[0.35em] text-gray-400 font-medium mb-3">
+        <p className="text-[11px] tracking-[0.35em] text-gray-400 font-semibold mb-4">
           {title}
         </p>
-        <p className="text-lg font-medium text-gray-900">
+        <p className="text-lg font-semibold text-black">
           {description}
         </p>
       </div>
 
-      {/* BOTTOM — ACTION */}
+      {/* ACTION */}
       {!disabled && (
-        <div className="mt-10">
-          <span className="text-[11px] tracking-widest font-semibold text-[rgb(0,100,55)]">
-            OPEN →
-          </span>
-        </div>
+        <span className="text-[11px] tracking-widest font-bold text-[#0b3d2e] opacity-70 group-hover:opacity-100 transition">
+          OPEN →
+        </span>
       )}
     </button>
   );
