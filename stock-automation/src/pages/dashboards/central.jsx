@@ -1,7 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
-import DashboardNavbar from "../../components/DashboardNavbar";
 
 function CentralDashboard() {
   const navigate = useNavigate();
@@ -15,8 +14,6 @@ function CentralDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <DashboardNavbar />
-
       <div className="p-8 max-w-7xl mx-auto space-y-8">
 
         {/* HEADER */}
@@ -44,19 +41,7 @@ function CentralDashboard() {
             </p>
           </div>
 
-          {/* 2️⃣ Settings */}
-          <div
-            onClick={() => navigate("/central/settings")}
-            className="bg-white p-6 rounded-2xl shadow-sm hover:shadow hover:bg-gray-50 transition cursor-pointer"
-          >
-            <p className="text-sm text-gray-500">Settings</p>
-            <h3 className="text-3xl font-bold mt-2">⚙️</h3>
-            <p className="text-xs text-gray-400 mt-1">
-              Configure system settings
-            </p>
-          </div>
-
-          {/* 3️⃣ Profiles */}
+          {/* 2️⃣ Profiles */}
           <div
             onClick={() => navigate("/central/profiles")}
             className="bg-white p-6 rounded-2xl shadow-sm hover:shadow hover:bg-gray-50 transition cursor-pointer"
@@ -68,19 +53,19 @@ function CentralDashboard() {
             </p>
           </div>
 
-          {/* 4️⃣ Reports */}
+          {/* 3️⃣ Settings */}
           <div
-            onClick={() => navigate("/central/reports")}
+            onClick={() => navigate("/central/settings")}
             className="bg-white p-6 rounded-2xl shadow-sm hover:shadow hover:bg-gray-50 transition cursor-pointer"
           >
-            <p className="text-sm text-gray-500">Reports</p>
-            <h3 className="text-3xl font-bold mt-2">📊</h3>
+            <p className="text-sm text-gray-500">Settings</p>
+            <h3 className="text-3xl font-bold mt-2">⚙️</h3>
             <p className="text-xs text-gray-400 mt-1">
-              Analytics & insights
+              Configure system settings
             </p>
           </div>
 
-          {/* 5️⃣ Coming Soon */}
+          {/* 4️⃣ Coming Soon */}
           <div className="bg-white p-6 rounded-2xl shadow-sm opacity-70 cursor-not-allowed">
             <p className="text-sm text-gray-500">Coming Soon</p>
             <h3 className="text-3xl font-bold mt-2">🚀</h3>
@@ -89,7 +74,7 @@ function CentralDashboard() {
             </p>
           </div>
 
-          {/* 6️⃣ Coming Soon */}
+          {/* 5️⃣ Coming Soon */}
           <div className="bg-white p-6 rounded-2xl shadow-sm opacity-70 cursor-not-allowed">
             <p className="text-sm text-gray-500">Coming Soon</p>
             <h3 className="text-3xl font-bold mt-2">🚀</h3>
@@ -98,16 +83,15 @@ function CentralDashboard() {
             </p>
           </div>
 
-        </div>
+          {/* 6️⃣ Coming Soon */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm opacity-70 cursor-not-allowed">
+            <p className="text-sm text-gray-500">Coming Soon</p>
+            <h3 className="text-3xl font-bold mt-2">🚀</h3>
+            <p className="text-xs text-gray-400 mt-1">
+              More features on the way
+            </p>
+          </div>
 
-        {/* LOGOUT */}
-        <div>
-          <button
-            onClick={handleLogout}
-            className="px-6 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition"
-          >
-            Logout
-          </button>
         </div>
 
       </div>
