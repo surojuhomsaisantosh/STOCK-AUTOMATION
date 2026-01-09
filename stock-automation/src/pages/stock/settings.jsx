@@ -21,12 +21,12 @@ function Settings() {
     setPasswordMsg("");
 
     if (!newPassword || !confirmPassword) {
-      setPasswordMsg("⚠️ Please fill all fields");
+      setPasswordMsg("Please fill all fields");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordMsg("❌ Passwords do not match");
+      setPasswordMsg("Passwords do not match");
       return;
     }
 
@@ -35,91 +35,118 @@ function Settings() {
     });
 
     if (error) {
-      setPasswordMsg("❌ " + error.message);
+      setPasswordMsg(error.message);
     } else {
-      setPasswordMsg("✅ Password updated successfully");
+      setPasswordMsg("Password updated successfully");
       setNewPassword("");
       setConfirmPassword("");
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-green-50 to-emerald-50">
-
+    <div className="min-h-screen bg-white p-10">
       {/* HEADER */}
-      <header className="w-full bg-[rgb(0,100,55)] text-white px-8 py-5 flex justify-between shadow-lg">
-        <h1 className="text-2xl font-bold">⚙ Settings</h1>
-
+      <div className="flex items-center justify-between mb-10">
         <button
           onClick={() => navigate("/dashboard/stockmanager")}
-          className="px-6 py-2 rounded-xl bg-gray-200 text-black font-bold hover:bg-gray-300"
+          className="text-sm font-medium text-gray-700 hover:text-black"
         >
-          ⬅ Back
+          ← Back
         </button>
-      </header>
+
+        <h1 className="text-xl font-semibold text-black">
+          Settings
+        </h1>
+      </div>
 
       {/* CONTENT */}
-      <main className="p-8">
+      <div className="max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* CHANGE PASSWORD */}
+        <div className="border border-gray-300 rounded-xl p-6">
+          <h3 className="text-sm font-semibold mb-4 text-black">
+            Change Password
+          </h3>
 
-        {/* SETTINGS GRID — 2 CARDS SIDE BY SIDE */}
-        <div className="grid grid-cols-3 gap-6 max-w-6xl">
+          <input
+            type="password"
+            placeholder="New password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="w-full mb-3 px-4 py-2.5 border border-gray-300 rounded-lg text-sm"
+          />
 
-          {/* CHANGE PASSWORD */}
-          <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-[rgb(0,100,55,0.3)] h-[220px]">
-            <h3 className="font-bold text-lg mb-4">🔐 Change Password</h3>
+          <input
+            type="password"
+            placeholder="Confirm password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="w-full mb-4 px-4 py-2.5 border border-gray-300 rounded-lg text-sm"
+          />
 
-            <input
-              type="password"
-              placeholder="New Password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full mb-2 px-4 py-2 border rounded-xl"
-            />
+          {passwordMsg && (
+            <p className="text-sm text-gray-700 mb-4">
+              {passwordMsg}
+            </p>
+          )}
 
-            <input
-              type="password"
-              placeholder="Confirm Password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full mb-2 px-4 py-2 border rounded-xl"
-            />
-
-            {passwordMsg && (
-              <p className="text-sm mb-2 font-semibold">{passwordMsg}</p>
-            )}
-
-            <button
-              onClick={handleChangePassword}
-              className="w-full py-2 rounded-xl bg-[rgb(0,100,55)] text-white font-bold"
-            >
-              Update Password
-            </button>
-          </div>
-
-          {/* LOGOUT */}
-          <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-red-300 h-[220px] flex flex-col justify-between">
-            <div>
-              <h3 className="font-bold text-lg mb-2">🚪 Logout</h3>
-              <p className="text-gray-600">
-                Securely log out of your account.
-              </p>
-            </div>
-
-            <button
-              onClick={handleLogout}
-              className="py-3 rounded-xl bg-red-500 text-white font-bold"
-            >
-              Logout
-            </button>
-          </div>
-
-          {/* RESERVED */}
-          <div className="bg-gray-100 rounded-2xl p-6 border-2 border-dashed h-[220px] flex items-center justify-center text-gray-500">
-            Future Settings
-          </div>
-
+          {/* PROPER PRIMARY BUTTON */}
+          <button
+            onClick={handleChangePassword}
+            style={{
+              backgroundColor: "#0b3d2e",
+              color: "#ffffff",
+            }}
+            className="
+              w-full
+              h-11
+              rounded-lg
+              text-sm
+              font-semibold
+              shadow-md
+              hover:shadow-lg
+              active:scale-[0.98]
+              transition
+            "
+          >
+            Update Password
+          </button>
         </div>
-      </main>
+
+        {/* LOGOUT */}
+        <div className="border border-gray-300 rounded-xl p-6 flex flex-col justify-between">
+          <div>
+            <h3 className="text-sm font-semibold mb-2 text-black">
+              Logout
+            </h3>
+            <p className="text-sm text-gray-600">
+              End your current session safely.
+            </p>
+          </div>
+
+          {/* PROPER DESTRUCTIVE BUTTON */}
+          <button
+            onClick={handleLogout}
+            style={{
+              backgroundColor: "#dc2626",
+              color: "#ffffff",
+            }}
+            className="
+              w-full
+              h-11
+              mt-6
+              rounded-lg
+              text-sm
+              font-semibold
+              shadow-md
+              hover:shadow-lg
+              active:scale-[0.98]
+              transition
+            "
+          >
+            Logout
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

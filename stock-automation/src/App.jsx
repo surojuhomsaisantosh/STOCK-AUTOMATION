@@ -1,15 +1,30 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+/* AUTH */
 import Login from "./pages/login/login";
 import RegisterUser from "./pages/register/Registeruser";
 
+/* DASHBOARDS */
 import StockManagerDashboard from "./pages/dashboards/stockmanager";
 import CentralDashboard from "./pages/dashboards/central";
 import FranchiseOwnerDashboard from "./pages/dashboards/franchiseowner";
 
+/* STOCK */
 import StockUpdate from "./pages/stock/StockUpdate";
+import StockOrders from "./pages/stock/stockorders";
+import InvoicesBilling from "./pages/stock/invoices_billing";
 import Settings from "./pages/stock/settings";
 
+/* FRANCHISE */
+import StockOrder from "./pages/franchise/stockorder";
+import FranchiseInvoices from "./pages/franchise/franchiseinvoices";
+
+/* CENTRAL PAGES */
+import CentralInvoices from "./pages/central/centralinvoices";
+import CentralSettings from "./pages/central/centralsettings";
+import CentralProfiles from "./pages/central/centralprofiles";
+
+/* AUTH CONTEXT */
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
@@ -19,7 +34,7 @@ function App() {
       <BrowserRouter>
         <Routes>
 
-          {/* ================= PUBLIC ROUTES ================= */}
+          {/* ================= PUBLIC ================= */}
           <Route path="/" element={<Login />} />
           <Route path="/register" element={<RegisterUser />} />
 
@@ -43,6 +58,24 @@ function App() {
           />
 
           <Route
+            path="/stock/orders"
+            element={
+              <ProtectedRoute allowedRoles={["stock"]}>
+                <StockOrders />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/stock/bills"
+            element={
+              <ProtectedRoute allowedRoles={["stock", "franchise"]}>
+                <InvoicesBilling />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/stock/settings"
             element={
               <ProtectedRoute allowedRoles={["stock"]}>
@@ -61,12 +94,57 @@ function App() {
             }
           />
 
-          {/* ================= FRANCHISE OWNER ================= */}
+          <Route
+            path="/central/invoices"
+            element={
+              <ProtectedRoute allowedRoles={["central"]}>
+                <CentralInvoices />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/central/settings"
+            element={
+              <ProtectedRoute allowedRoles={["central"]}>
+                <CentralSettings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/central/profiles"
+            element={
+              <ProtectedRoute allowedRoles={["central"]}>
+                <CentralProfiles />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ================= FRANCHISE ================= */}
           <Route
             path="/dashboard/franchiseowner"
             element={
               <ProtectedRoute allowedRoles={["franchise"]}>
                 <FranchiseOwnerDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/stock-orders"
+            element={
+              <ProtectedRoute allowedRoles={["franchise"]}>
+                <StockOrder />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/franchise/invoices"
+            element={
+              <ProtectedRoute allowedRoles={["franchise"]}>
+                <FranchiseInvoices />
               </ProtectedRoute>
             }
           />
