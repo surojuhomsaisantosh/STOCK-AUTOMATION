@@ -43,7 +43,7 @@ function FranchiseOwnerDashboard() {
 
               {/* 2️⃣ Invoices */}
               <div
-              onClick={() => navigate("/franchise/franchiseinvoices")}    
+              onClick={() => navigate("/franchise/invoices")}    
                 className="bg-white p-6 rounded-2xl shadow-sm hover:shadow hover:bg-gray-50 transition cursor-pointer"
               >
                 <p className="text-sm text-gray-500">Invoices</p>
