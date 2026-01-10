@@ -16,14 +16,16 @@ function CentralInvoices() {
   const [items, setItems] = useState([]);
   const [itemsLoading, setItemsLoading] = useState(false);
 
+  /* ======================
+     FETCH INVOICES
+  ====================== */
   useEffect(() => {
     fetchInvoices();
   }, []);
 
-  /* ======================
-     FETCH INVOICES
-  ====================== */
   const fetchInvoices = async () => {
+    setLoading(true);
+
     const { data, error } = await supabase
       .from("invoices")
       .select(`
@@ -39,7 +41,7 @@ function CentralInvoices() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("INVOICE ERROR:", error);
+      console.error("FETCH INVOICES ERROR:", error);
     }
 
     setInvoices(data || []);
@@ -48,10 +50,10 @@ function CentralInvoices() {
 
   /* ======================
      OPEN MODAL + LOAD ITEMS
-     (DEBUG VERSION)
   ====================== */
   const openInvoiceModal = async (invoice) => {
     setSelectedInvoice(invoice);
+    setItems([]);
     setShowModal(true);
     setItemsLoading(true);
 
@@ -60,7 +62,6 @@ function CentralInvoices() {
       .select("id, item_name, quantity, unit, price")
       .eq("invoice_id", invoice.id);
 
-    // 🔴 DEBUG LOGS (IMPORTANT)
     console.log("INVOICE ID:", invoice.id);
     console.log("ITEMS DATA:", data);
     console.log("ITEMS ERROR:", error);
@@ -69,13 +70,19 @@ function CentralInvoices() {
     setItemsLoading(false);
   };
 
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedInvoice(null);
+    setItems([]);
+  };
+
   /* ======================
      SEARCH FILTER
   ====================== */
   const filteredInvoices = useMemo(() => {
     if (!search) return invoices;
-    const q = search.toLowerCase();
 
+    const q = search.toLowerCase();
     return invoices.filter(
       (inv) =>
         inv.customer_name?.toLowerCase().includes(q) ||
@@ -146,7 +153,7 @@ function CentralInvoices() {
             <div className="col-span-1 text-right">
               <button
                 onClick={() => openInvoiceModal(inv)}
-                className="text-emerald-600 font-semibold"
+                className="text-emerald-600 font-semibold hover:underline"
               >
                 View
               </button>
@@ -158,13 +165,13 @@ function CentralInvoices() {
       {/* ======================
           MODAL
       ====================== */}
-      {showModal && (
+      {showModal && selectedInvoice && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl w-full max-w-3xl p-6 relative">
 
             {/* CLOSE */}
             <button
-              onClick={() => setShowModal(false)}
+              onClick={closeModal}
               className="absolute top-4 right-4 text-gray-500 hover:text-black"
             >
               ✕
@@ -205,7 +212,7 @@ function CentralInvoices() {
                         ₹{Number(item.price).toFixed(2)}
                       </td>
                       <td className="p-3 text-right font-medium">
-                        ₹{(item.quantity * item.price).toFixed(2)}
+                        ₹{(Number(item.quantity) * Number(item.price)).toFixed(2)}
                       </td>
                     </tr>
                   ))}
