@@ -84,55 +84,71 @@ function StockUpdate() {
 
       {/* ADD ITEM */}
       <div className="border border-gray-300 rounded-xl p-6 mb-10">
-        <h2 className="text-sm font-semibold mb-4 text-black">
+        <h2 className="text-sm font-semibold mb-6 text-black">
           Add Item
         </h2>
 
-        <div className="flex gap-4 flex-wrap items-end">
-          <input
-            value={itemName}
-            onChange={(e) => setItemName(e.target.value)}
-            placeholder="Item name"
-            className="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-sm"
-          />
+        {/* FORM GRID */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
 
-          <input
-            type="number"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            placeholder="Qty"
-            className="w-24 border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-center"
-          />
+          {/* ITEM NAME */}
+          <div className="lg:col-span-2">
+            <input
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+              placeholder="Item name"
+              className="w-full h-[44px] border border-gray-300 rounded-lg px-4 text-sm"
+            />
+          </div>
 
-          <select
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-            className="w-28 border border-gray-300 rounded-lg px-3 py-2.5 text-sm"
-          >
-            <option value="pcs">pcs</option>
-            <option value="kg">kg</option>
-            <option value="g">g</option>
-            <option value="litre">litre</option>
-            <option value="ml">ml</option>
-          </select>
+          {/* QTY */}
+          <div>
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              placeholder="Qty"
+              className="w-full h-[44px] border border-gray-300 rounded-lg px-3 text-sm text-center"
+            />
+          </div>
 
-          <input
-            type="number"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="Price / unit"
-            className="w-32 border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-center"
-          />
+          {/* UNIT (DROPDOWN – FIXED) */}
+          <div>
+            <select
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+              className="w-full h-[44px] border border-gray-300 rounded-lg px-3 text-sm bg-white"
+            >
+              <option value="pcs">pcs</option>
+              <option value="kg">kg</option>
+              <option value="g">g</option>
+              <option value="litre">litre</option>
+              <option value="ml">ml</option>
+            </select>
+          </div>
 
-          {/* PRIMARY BUTTON */}
-          <button
-            onClick={addItem}
-            disabled={loading}
-            style={{ backgroundColor: "#0b3d2e", color: "#fff" }}
-            className="h-[44px] px-8 rounded-[10px] text-sm font-semibold shadow-sm hover:opacity-90 active:scale-[0.98] transition"
-          >
-            Add Item
-          </button>
+          {/* PRICE */}
+          <div>
+            <input
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="Price / unit"
+              className="w-full h-[44px] border border-gray-300 rounded-lg px-3 text-sm text-center"
+            />
+          </div>
+
+          {/* BUTTON */}
+          <div>
+            <button
+              onClick={addItem}
+              disabled={loading}
+              style={{ backgroundColor: "#0b3d2e", color: "#fff" }}
+              className="w-full h-[44px] rounded-lg text-sm font-semibold shadow-sm hover:opacity-90 active:scale-[0.98] transition"
+            >
+              Add Item
+            </button>
+          </div>
         </div>
       </div>
 
@@ -175,32 +191,78 @@ function StockRow({ item, onUpdate, onDelete }) {
 
   return (
     <tr className="border-t">
-      <td className="p-4">{edit ? <input className="border rounded px-2 py-1 w-full" value={name} onChange={(e) => setName(e.target.value)} /> : name}</td>
-      <td className="p-4 text-center">{edit ? <input type="number" className="border rounded px-2 py-1 w-20 text-center" value={qty} onChange={(e) => setQty(e.target.value)} /> : qty}</td>
-      <td className="p-4 text-center">{edit ? (
-        <select className="border rounded px-2 py-1" value={unit} onChange={(e) => setUnit(e.target.value)}>
-          <option value="pcs">pcs</option>
-          <option value="kg">kg</option>
-          <option value="g">g</option>
-          <option value="litre">litre</option>
-          <option value="ml">ml</option>
-        </select>
-      ) : unit}</td>
-      <td className="p-4 text-center">{edit ? <input type="number" className="border rounded px-2 py-1 w-24 text-center" value={price} onChange={(e) => setPrice(e.target.value)} /> : price}</td>
+      <td className="p-4">
+        {edit ? (
+          <input
+            className="border rounded-lg h-9 px-2 text-sm w-full"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        ) : (
+          name
+        )}
+      </td>
+
+      <td className="p-4 text-center">
+        {edit ? (
+          <input
+            type="number"
+            className="border rounded-lg h-9 px-2 text-sm w-20 text-center"
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+          />
+        ) : (
+          qty
+        )}
+      </td>
+
+      <td className="p-4 text-center">
+        {edit ? (
+          <select
+            className="border rounded-lg h-9 px-2 text-sm bg-white"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+          >
+            <option value="pcs">pcs</option>
+            <option value="kg">kg</option>
+            <option value="g">g</option>
+            <option value="litre">litre</option>
+            <option value="ml">ml</option>
+          </select>
+        ) : (
+          unit
+        )}
+      </td>
+
+      <td className="p-4 text-center">
+        {edit ? (
+          <input
+            type="number"
+            className="border rounded-lg h-9 px-2 text-sm w-24 text-center"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+          />
+        ) : (
+          price
+        )}
+      </td>
 
       <td className="p-4 flex justify-center gap-3">
         {edit ? (
           <button
-            onClick={() => { onUpdate(item.id, name, qty, unit, price); setEdit(false); }}
+            onClick={() => {
+              onUpdate(item.id, name, qty, unit, price);
+              setEdit(false);
+            }}
             style={{ backgroundColor: "#0b3d2e", color: "#fff" }}
-            className="h-9 px-5 rounded-[8px] text-sm font-semibold shadow-sm hover:opacity-90 active:scale-[0.97] transition"
+            className="h-9 px-5 rounded-lg text-sm font-semibold shadow-sm hover:opacity-90 active:scale-[0.97] transition"
           >
             Save
           </button>
         ) : (
           <button
             onClick={() => setEdit(true)}
-            className="h-9 px-5 rounded-[8px] text-sm font-medium border border-gray-300 text-gray-700 hover:border-black transition"
+            className="h-9 px-5 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:border-black transition"
           >
             Edit
           </button>
@@ -209,7 +271,7 @@ function StockRow({ item, onUpdate, onDelete }) {
         <button
           onClick={() => onDelete(item.id)}
           style={{ backgroundColor: "#dc2626", color: "#fff" }}
-          className="h-9 px-5 rounded-[8px] text-sm font-semibold shadow-sm hover:opacity-90 active:scale-[0.97] transition"
+          className="h-9 px-5 rounded-lg text-sm font-semibold shadow-sm hover:opacity-90 active:scale-[0.97] transition"
         >
           Delete
         </button>

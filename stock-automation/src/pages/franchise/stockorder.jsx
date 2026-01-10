@@ -21,6 +21,7 @@ function StockOrder() {
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   /* FETCH STOCKS */
   useEffect(() => {
@@ -36,50 +37,64 @@ function StockOrder() {
     setStocks(data || []);
   };
 
-  /* ADD TO CART */
+  /* ADD TO CART — +1 AND SYNC */
   const addToCart = (item) => {
-    if (item.quantity <= 0) {
-      alert(`❌ "${item.item_name}" is out of stock`);
+    const currentQty = Number(qtyInput[item.id] || 0);
+    const newQty = currentQty + 1;
+
+    const conversion = UNIT_MAP[item.unit];
+    const desiredQty = newQty * conversion.factor;
+
+    if (desiredQty > item.quantity) {
+      alert(`You can only order up to ${item.quantity} ${item.unit}`);
       return;
     }
 
-    const inputQty = Number(qtyInput[item.id] || 0);
-    const selectedUnit = unitInput[item.id] || item.unit;
+    setQtyInput({ ...qtyInput, [item.id]: newQty });
 
-    if (inputQty <= 0) {
-      alert("⚠️ Please enter a valid quantity");
-      return;
-    }
+    const exists = cart.find((c) => c.id === item.id);
 
-    const conversion = UNIT_MAP[selectedUnit];
-    if (!conversion || conversion.base !== item.unit) {
-      alert("❌ Invalid unit selected");
-      return;
-    }
-
-    const finalQty = inputQty * conversion.factor;
-
-    const existing = cart.find((c) => c.id === item.id);
-    const alreadyInCartQty = existing ? existing.qty : 0;
-
-    if (alreadyInCartQty + finalQty > item.quantity) {
-      alert(
-        `❌ Cannot add more than available stock.\nAvailable: ${item.quantity} ${item.unit}`
-      );
-      return;
-    }
-
-    if (existing) {
+    if (exists) {
       setCart(
         cart.map((c) =>
-          c.id === item.id ? { ...c, qty: c.qty + finalQty } : c
+          c.id === item.id ? { ...c, qty: desiredQty } : c
         )
       );
     } else {
-      setCart([...cart, { ...item, qty: finalQty }]);
+      setCart([...cart, { ...item, qty: desiredQty }]);
+    }
+  };
+
+  /* REMOVE / UPDATE FROM CART */
+  const updateAfterMinus = (item) => {
+    const currentQty = Number(qtyInput[item.id] || 0);
+    const newQty = Math.max(currentQty - 1, 0);
+
+    const conversion = UNIT_MAP[item.unit];
+    const desiredQty = newQty * conversion.factor;
+
+    setQtyInput({ ...qtyInput, [item.id]: newQty });
+
+    if (newQty === 0) {
+      setCart(cart.filter((c) => c.id !== item.id));
+      return;
     }
 
-    setQtyInput({ ...qtyInput, [item.id]: "" });
+    setCart(
+      cart.map((c) =>
+        c.id === item.id ? { ...c, qty: desiredQty } : c
+      )
+    );
+  };
+
+  /* REMOVE FROM CART */
+  const removeFromCart = (id) => {
+    setCart(cart.filter((c) => c.id !== id));
+    setQtyInput((prev) => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
   };
 
   /* TOTAL */
@@ -94,41 +109,16 @@ function StockOrder() {
 
     setLoading(true);
 
-    /* RECHECK STOCK */
-    const { data: latestStocks } = await supabase
-      .from("stocks")
-      .select("id, quantity");
-
-    for (const item of cart) {
-      const currentStock = latestStocks.find((s) => s.id === item.id);
-      if (!currentStock || item.qty > currentStock.quantity) {
-        alert(
-          `❌ Stock changed for "${item.item_name}". Please refresh and try again.`
-        );
-        setLoading(false);
-        return;
-      }
-    }
-
-    /* AUTH USER */
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      alert("❌ User not authenticated");
-      setLoading(false);
-      return;
-    }
-
-    /* PROFILE SNAPSHOT */
     const { data: profile } = await supabase
       .from("profiles")
       .select("name, address, branch_location, phone, email")
       .eq("id", user.id)
       .single();
 
-    /* CREATE INVOICE */
     const { data: invoice } = await supabase
       .from("invoices")
       .insert([
@@ -145,7 +135,6 @@ function StockOrder() {
       .select()
       .single();
 
-    /* INSERT INVOICE ITEMS */
     await supabase.from("invoice_items").insert(
       cart.map((item) => ({
         invoice_id: invoice.id,
@@ -157,28 +146,21 @@ function StockOrder() {
       }))
     );
 
-    /* UPDATE STOCK */
-    for (const item of cart) {
-      await supabase
-        .from("stocks")
-        .update({
-          quantity: item.quantity - item.qty,
-        })
-        .eq("id", item.id);
-    }
+    await Promise.all(
+      cart.map((item) =>
+        supabase
+          .from("stocks")
+          .update({ quantity: item.quantity - item.qty })
+          .eq("id", item.id)
+      )
+    );
 
-    /* RESET STATE */
     setCart([]);
+    setQtyInput({});
     setIsCartOpen(false);
     setLoading(false);
     fetchStocks();
-
-    alert("✅ Invoice generated successfully");
-
-    /* 👉 NAVIGATE TO INVOICE PAGE */
-    navigate("/franchise/franchiseinvoices", {
-      state: { invoiceId: invoice.id },
-    });
+    setShowSuccessModal(true); // ✅ already here
   };
 
   const filteredStocks = stocks.filter((s) =>
@@ -187,121 +169,159 @@ function StockOrder() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-6">
-      {/* TOP BAR */}
-      <div className="max-w-7xl mx-auto flex justify-between items-center mb-6">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-slate-500 hover:text-emerald-600 font-medium"
-        >
+      {/* HEADER */}
+      <div className="relative max-w-7xl mx-auto flex items-center mb-6">
+        <button onClick={() => navigate(-1)} className="font-medium">
           ← Back
         </button>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-2xl font-bold">
+          Orders
+        </h1>
+      </div>
 
-        <div className="flex gap-4">
-          <input
-            placeholder="Search items..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="px-4 py-2 rounded-xl border"
-          />
+      {/* SEARCH + CART */}
+      <div className="max-w-7xl mx-auto flex justify-end gap-4 mb-6">
+        <input
+          placeholder="Search items..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="px-4 py-2 rounded-xl border w-64"
+        />
 
-          <button
-            onClick={() => setIsCartOpen(true)}
-            className="relative p-3 bg-white border rounded-xl shadow"
-          >
-            🛒
-            {cart.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-emerald-600 text-white text-xs px-2 rounded-full">
-                {cart.length}
-              </span>
-            )}
-          </button>
-        </div>
+        <button
+          onClick={() => setIsCartOpen(true)}
+          className="relative p-3 bg-white border rounded-xl"
+        >
+          🛒
+          {cart.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-emerald-600 text-white text-xs px-2 rounded-full">
+              {cart.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* PRODUCTS */}
       <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {filteredStocks.map((item) => (
           <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm">
-            <h3 className="font-bold truncate">{item.item_name}</h3>
+            <h3 className="font-bold">{item.item_name}</h3>
             <p className="text-emerald-600 font-black">₹{item.price}</p>
-            <p className="text-xs text-slate-400 mb-2">
-              Available: {item.quantity} {item.unit}
-            </p>
 
-            <div className="flex gap-2 my-3">
+            <div className="flex gap-2 items-center my-3">
+              <button
+                onClick={() => updateAfterMinus(item)}
+                className="px-3 py-2 border rounded-lg"
+              >
+                −
+              </button>
+
               <input
                 type="number"
-                placeholder="Qty"
                 value={qtyInput[item.id] || ""}
                 onChange={(e) =>
-                  setQtyInput({ ...qtyInput, [item.id]: e.target.value })
+                  setQtyInput({
+                    ...qtyInput,
+                    [item.id]: Number(e.target.value),
+                  })
                 }
-                className="w-2/3 px-3 py-2 rounded-xl border"
+                className="w-full text-center border rounded-lg py-2"
               />
 
-              <select
-                value={unitInput[item.id] || item.unit}
-                onChange={(e) =>
-                  setUnitInput({ ...unitInput, [item.id]: e.target.value })
+              <button
+                onClick={() =>
+                  setQtyInput({
+                    ...qtyInput,
+                    [item.id]: (qtyInput[item.id] || 0) + 1,
+                  })
                 }
-                className="w-1/3 px-2 py-2 rounded-xl border"
+                className="px-3 py-2 border rounded-lg"
               >
-                {Object.keys(UNIT_MAP)
-                  .filter((u) => UNIT_MAP[u].base === item.unit)
-                  .map((u) => (
-                    <option key={u}>{u}</option>
-                  ))}
-              </select>
+                +
+              </button>
             </div>
 
             <button
-              disabled={item.quantity <= 0}
               onClick={() => addToCart(item)}
-              className="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold disabled:bg-slate-300"
+              className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold"
             >
-              {item.quantity > 0 ? "Add to Cart" : "Out of Stock"}
+              Add to Cart
             </button>
           </div>
         ))}
       </div>
 
-      {/* CART */}
+      {/* CART POPUP */}
       {isCartOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
-          onClick={() => setIsCartOpen(false)}
-        >
-          <div
-            className="bg-white w-full max-w-lg rounded-2xl p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-xl font-black mb-4">
-              Cart ({cart.length})
-            </h3>
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-xl w-full max-w-4xl">
+            <button onClick={() => setIsCartOpen(false)} className="float-right">
+              ✕
+            </button>
 
-            {cart.map((item) => (
-              <div key={item.id} className="flex justify-between mb-2">
-                <span>
-                  {item.item_name} – {item.qty} {item.unit}
-                </span>
-                <span>₹{item.qty * item.price}</span>
-              </div>
-            ))}
+            <h3 className="text-xl font-bold mb-4">Cart</h3>
 
-            <div className="border-t mt-4 pt-4">
-              <div className="flex justify-between font-black mb-4">
-                <span>Total</span>
-                <span>₹{totalAmount.toFixed(2)}</span>
-              </div>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-slate-100">
+                  <th className="p-3 text-left">Item</th>
+                  <th className="p-3 text-center">Quantity</th>
+                  <th className="p-3 text-right">Total</th>
+                  <th className="p-3 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cart.map((item) => (
+                  <tr key={item.id} className="border-b">
+                    <td className="p-3">{item.item_name}</td>
+                    <td className="p-3 text-center">{item.qty}</td>
+                    <td className="p-3 text-right">
+                      ₹{item.price * item.qty}
+                    </td>
+                    <td className="p-3 text-center">
+                      <button
+                        onClick={() => removeFromCart(item.id)}
+                        className="text-red-500"
+                      >
+                        🗑
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
-              <button
-                onClick={handleCheckout}
-                disabled={loading}
-                className="w-full py-4 rounded-xl bg-emerald-600 text-white font-black"
-              >
-                {loading ? "Processing..." : "Place Order"}
-              </button>
+            <div className="flex justify-between mt-6 font-bold text-lg">
+              <span>Total</span>
+              <span>₹{totalAmount}</span>
             </div>
+
+            <button
+              onClick={handleCheckout}
+              className="mt-4 w-full bg-emerald-600 text-white py-3 rounded-xl font-bold"
+            >
+              Place Order
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ SUCCESS POPUP */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
+          <div className="bg-white p-8 rounded-2xl text-center w-full max-w-sm">
+            <h3 className="text-xl font-bold text-emerald-600">
+              Order Placed Successfully
+            </h3>
+            <p className="mt-2 text-slate-600">
+              Your order has been placed and processed.
+            </p>
+            <button
+              onClick={() => setShowSuccessModal(false)}
+              className="mt-6 px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold"
+            >
+              OK
+            </button>
           </div>
         </div>
       )}

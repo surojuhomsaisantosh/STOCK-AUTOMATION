@@ -11,6 +11,7 @@ function FranchiseInvoices() {
 
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [search, setSearch] = useState("");
 
   const [showModal, setShowModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -22,7 +23,9 @@ function FranchiseInvoices() {
   ====================== */
   useEffect(() => {
     const fetchInvoices = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data } = await supabase
@@ -39,10 +42,16 @@ function FranchiseInvoices() {
   }, []);
 
   /* ======================
-     INSTANT FILTER (MEMO)
+     FILTER (MEMO)
   ====================== */
   const filteredInvoices = useMemo(() => {
     let result = [...invoices];
+
+    if (search) {
+      result = result.filter(inv =>
+        inv.customer_name.toLowerCase().includes(search.toLowerCase())
+      );
+    }
 
     if (fromDate) {
       const from = new Date(fromDate);
@@ -57,7 +66,7 @@ function FranchiseInvoices() {
     }
 
     return result;
-  }, [invoices, fromDate, toDate]);
+  }, [invoices, fromDate, toDate, search]);
 
   /* ======================
      OPEN MODAL
@@ -77,7 +86,7 @@ function FranchiseInvoices() {
   };
 
   /* ======================
-     PRINT / DOWNLOAD PDF
+     PRINT
   ====================== */
   const handlePrint = () => {
     const total = selectedInvoice.total_amount;
@@ -132,9 +141,7 @@ function FranchiseInvoices() {
               <th>Total</th>
             </tr>
           </thead>
-          <tbody>
-            ${itemsHTML}
-          </tbody>
+          <tbody>${itemsHTML}</tbody>
         </table>
 
         <table>
@@ -165,18 +172,43 @@ function FranchiseInvoices() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-8">
+
       {/* HEADER */}
-      <div className="flex justify-between mb-6">
-        <button onClick={() => navigate(-1)} className="border px-4 py-2 rounded">
-          Back
+      <div className="relative flex items-center mb-6">
+        <button
+          onClick={() => navigate(-1)}
+          className="absolute left-0 text-sm font-medium"
+        >
+          ← Back
         </button>
-        <h1 className="text-2xl font-semibold">Invoices</h1>
+
+        <h1 className="mx-auto text-2xl font-semibold">
+          Invoices
+        </h1>
       </div>
 
-      {/* FILTER */}
-      <div className="bg-white p-4 mb-6 flex gap-4 border rounded">
-        <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-        <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+      {/* FILTER + SEARCH */}
+      <div className="flex justify-between items-center mb-6">
+        <div className="bg-white p-4 flex gap-4 border rounded w-fit">
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+          />
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+          />
+        </div>
+
+        <input
+          type="text"
+          placeholder="Search customer..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border rounded px-4 py-2 w-64"
+        />
       </div>
 
       {/* TABLE */}
@@ -184,33 +216,31 @@ function FranchiseInvoices() {
         <table className="w-full text-sm table-fixed">
           <thead className="bg-gray-100">
             <tr>
-              <th className="p-4 text-left w-[40%]">Customer</th>
-              <th className="p-4 text-center w-[20%]">Date</th>
-              <th className="p-4 text-right w-[20%]">Total</th>
-              <th className="p-4 text-center w-[20%]">Action</th>
+              <th className="p-4 text-left w-[50%]">Customer</th>
+              <th className="p-4 text-center w-[25%]">Date</th>
+              <th className="p-4 text-right w-[25%]">Total</th>
             </tr>
           </thead>
           <tbody>
             {filteredInvoices.map(inv => (
-              <tr key={inv.id} className="border-t">
+              <tr
+                key={inv.id}
+                onClick={() => openInvoiceDetails(inv)}
+                className="border-t cursor-pointer hover:bg-gray-50"
+              >
                 <td className="p-4">{inv.customer_name}</td>
                 <td className="p-4 text-center">
                   {new Date(inv.created_at).toLocaleDateString()}
                 </td>
-                <td className="p-4 text-right font-medium">₹{inv.total_amount}</td>
-                <td className="p-4 text-center">
-                  <button
-                    onClick={() => openInvoiceDetails(inv)}
-                    className="text-green-700 hover:underline"
-                  >
-                    View Details
-                  </button>
+                <td className="p-4 text-right font-medium">
+                  ₹{inv.total_amount}
                 </td>
               </tr>
             ))}
+
             {filteredInvoices.length === 0 && (
               <tr>
-                <td colSpan="4" className="p-6 text-center text-gray-500">
+                <td colSpan="3" className="p-6 text-center text-gray-500">
                   No invoices found
                 </td>
               </tr>
@@ -219,7 +249,7 @@ function FranchiseInvoices() {
         </table>
       </div>
 
-      {/* MODAL */}
+      {/* MODAL (UNCHANGED) */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
           <div className="bg-white p-6 rounded-xl w-full max-w-3xl">
@@ -283,7 +313,6 @@ function FranchiseInvoices() {
               </>
             )}
 
-            {/* PRINT BUTTON */}
             <div className="mt-6 text-right">
               <button
                 onClick={handlePrint}
@@ -300,3 +329,4 @@ function FranchiseInvoices() {
 }
 
 export default FranchiseInvoices;
+

@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useState, useEffect } from "react";
 import { supabase } from "../../supabase/supabaseClient";
@@ -9,6 +9,7 @@ function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [hover, setHover] = useState(false);
 
@@ -56,15 +57,61 @@ function Login() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           style={styles.input}
+          autoComplete="email"
         />
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={styles.input}
-        />
+        {/* PASSWORD FIELD */}
+        <div style={styles.passwordWrapper}>
+          <input
+            type={showPassword ? "text" : "password"}
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={styles.passwordInput}
+            autoComplete="current-password"
+          />
+
+          <button
+            type="button"
+            onClick={() => setShowPassword((p) => !p)}
+            style={styles.eyeButton}
+            aria-label="Toggle password visibility"
+          >
+            {showPassword ? (
+              /* Eye Off */
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C7 20 2.73 16.11 1 12c.64-1.5 1.63-2.87 2.9-4.06" />
+                <path d="M1 1l22 22" />
+                <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c5 0 9.27 3.89 11 8-.46 1.08-1.1 2.08-1.9 2.94" />
+                <path d="M14.12 14.12a3 3 0 0 1-4.24-4.24" />
+              </svg>
+            ) : (
+              /* Eye */
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            )}
+          </button>
+        </div>
 
         <button
           onClick={handleLogin}
@@ -77,13 +124,6 @@ function Login() {
         >
           Login
         </button>
-
-        <p style={styles.footerText}>
-          Don’t have an account?{" "}
-          <Link to="/register" style={styles.link}>
-            Register
-          </Link>
-        </p>
       </div>
     </div>
   );
@@ -127,6 +167,32 @@ const styles = {
     outline: "none",
     fontSize: "14px",
   },
+  passwordWrapper: {
+    position: "relative",
+    marginBottom: "15px",
+  },
+  passwordInput: {
+    width: "100%",
+    padding: "12px 44px 12px 12px",
+    borderRadius: "8px",
+    border: "1px solid #ccc",
+    outline: "none",
+    fontSize: "14px",
+  },
+  eyeButton: {
+    position: "absolute",
+    top: "50%",
+    right: "12px",
+    transform: "translateY(-50%)",
+    background: "transparent",
+    border: "none",
+    padding: 0,
+    cursor: "pointer",
+    color: "#666",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   button: {
     width: "100%",
     padding: "12px",
@@ -142,16 +208,6 @@ const styles = {
     color: "red",
     fontSize: "13px",
     marginBottom: "10px",
-  },
-  footerText: {
-    marginTop: "20px",
-    fontSize: "13px",
-    color: "#333",
-  },
-  link: {
-    color: "#0f5132",
-    textDecoration: "none",
-    fontWeight: "500",
   },
 };
 

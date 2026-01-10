@@ -23,7 +23,7 @@ import FranchiseInvoices from "./pages/franchise/franchiseinvoices";
 import CentralInvoices from "./pages/central/centralinvoices";
 import CentralSettings from "./pages/central/centralsettings";
 import CentralProfiles from "./pages/central/centralprofiles";
-import Accounts from "./pages/central/accounts"; // ✅ NEW IMPORT
+import Accounts from "./pages/central/accounts";
 
 /* AUTH CONTEXT */
 import { AuthProvider } from "./context/AuthContext";
@@ -37,7 +37,16 @@ function App() {
 
           {/* ================= PUBLIC ================= */}
           <Route path="/" element={<Login />} />
-          <Route path="/register" element={<RegisterUser />} />
+
+          {/* 🔒 REGISTER – CENTRAL ONLY */}
+          <Route
+            path="/register"
+            element={
+              <ProtectedRoute allowedRoles={["central"]}>
+                <RegisterUser />
+              </ProtectedRoute>
+            }
+          />
 
           {/* ================= STOCK MANAGER ================= */}
           <Route
@@ -122,7 +131,6 @@ function App() {
             }
           />
 
-          {/* ✅ CENTRAL ACCOUNTS ROUTE */}
           <Route
             path="/central/accounts"
             element={

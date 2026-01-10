@@ -7,7 +7,6 @@ function CentralInvoices() {
 
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const [search, setSearch] = useState("");
 
   // MODAL STATE
@@ -17,7 +16,7 @@ function CentralInvoices() {
   const [itemsLoading, setItemsLoading] = useState(false);
 
   /* ======================
-     FETCH INVOICES
+     FETCH INVOICES (WITH PROFILES)
   ====================== */
   useEffect(() => {
     fetchInvoices();
@@ -36,7 +35,11 @@ function CentralInvoices() {
         customer_name,
         customer_phone,
         customer_email,
-        branch_location
+        branch_location,
+        profiles (
+          address,
+          branch_location
+        )
       `)
       .order("created_at", { ascending: false });
 
@@ -62,9 +65,9 @@ function CentralInvoices() {
       .select("id, item_name, quantity, unit, price")
       .eq("invoice_id", invoice.id);
 
-    console.log("INVOICE ID:", invoice.id);
-    console.log("ITEMS DATA:", data);
-    console.log("ITEMS ERROR:", error);
+    if (error) {
+      console.error("FETCH ITEMS ERROR:", error);
+    }
 
     setItems(data || []);
     setItemsLoading(false);
@@ -86,7 +89,8 @@ function CentralInvoices() {
     return invoices.filter(
       (inv) =>
         inv.customer_name?.toLowerCase().includes(q) ||
-        inv.branch_location?.toLowerCase().includes(q)
+        inv.branch_location?.toLowerCase().includes(q) ||
+        inv.profiles?.address?.toLowerCase().includes(q)
     );
   }, [search, invoices]);
 
@@ -123,7 +127,9 @@ function CentralInvoices() {
         {filteredInvoices.map((inv) => (
           <div
             key={inv.id}
-            className="bg-white rounded-xl shadow-sm border p-5 grid grid-cols-12 gap-4 items-center"
+            onClick={() => openInvoiceModal(inv)}
+            className="bg-white rounded-xl shadow-sm border p-5 grid grid-cols-12 gap-4 items-center cursor-pointer
+                       hover:shadow-md hover:border-emerald-300 transition"
           >
             <div className="col-span-4">
               <p className="font-semibold">{inv.customer_name}</p>
@@ -146,17 +152,8 @@ function CentralInvoices() {
               </span>
             </div>
 
-            <div className="col-span-1 text-right font-semibold">
+            <div className="col-span-2 text-right font-semibold">
               ₹{Number(inv.total_amount).toFixed(2)}
-            </div>
-
-            <div className="col-span-1 text-right">
-              <button
-                onClick={() => openInvoiceModal(inv)}
-                className="text-emerald-600 font-semibold hover:underline"
-              >
-                View
-              </button>
             </div>
           </div>
         ))}
@@ -181,10 +178,18 @@ function CentralInvoices() {
             <h2 className="text-xl font-semibold mb-1">
               Invoice – {selectedInvoice.customer_name}
             </h2>
-            <p className="text-sm text-gray-500 mb-4">
-              {new Date(selectedInvoice.created_at).toLocaleDateString()} •{" "}
-              {selectedInvoice.branch_location}
+
+            <p className="text-sm text-gray-500">
+              {new Date(selectedInvoice.created_at).toLocaleDateString()}
             </p>
+
+            {/* ADDRESS FROM PROFILES */}
+            <div className="mt-3 mb-4 p-3 bg-gray-50 rounded-lg border text-sm">
+              <p className="font-medium text-gray-700">Customer Address</p>
+              <p className="text-gray-600">
+                {selectedInvoice.profiles?.address || "Address not available"}
+              </p>
+            </div>
 
             {/* ITEMS */}
             {itemsLoading ? (

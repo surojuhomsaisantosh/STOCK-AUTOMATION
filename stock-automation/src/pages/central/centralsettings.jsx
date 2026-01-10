@@ -55,7 +55,7 @@ function CentralSettings() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
 
         {/* 🔐 CHANGE PASSWORD CARD */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm">
+        <div className="bg-white p-6 rounded-2xl shadow-sm flex flex-col">
           <h3 className="text-lg font-bold mb-4">Change Password</h3>
 
           <input
@@ -66,26 +66,28 @@ function CentralSettings() {
             className="w-full px-4 py-3 rounded-xl border mb-4"
           />
 
+          {/* PUSH BUTTON TO BOTTOM */}
           <button
             onClick={handleChangePassword}
             disabled={loading}
-            className="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition disabled:opacity-60"
+            className="mt-auto w-full py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition disabled:opacity-60"
           >
             {loading ? "Updating..." : "Update Password"}
           </button>
         </div>
 
         {/* 🚪 LOGOUT CARD */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm">
+        <div className="bg-white p-6 rounded-2xl shadow-sm flex flex-col">
           <h3 className="text-lg font-bold mb-4">Account</h3>
 
           <p className="text-sm text-gray-500 mb-4">
             Logout from your account securely.
           </p>
 
+          {/* PUSH BUTTON TO SAME LEVEL */}
           <button
             onClick={handleLogout}
-            className="w-full py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition"
+            className="mt-auto w-full py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition"
           >
             Logout
           </button>
