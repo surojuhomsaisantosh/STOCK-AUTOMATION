@@ -4,6 +4,7 @@ import { supabase } from "../../supabase/supabaseClient";
 
 function Accounts() {
   const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -23,40 +24,63 @@ function Accounts() {
   });
 
   /* ======================
-     LOAD SETTINGS
+     LOAD SETTINGS (AUTH SAFE)
   ====================== */
   useEffect(() => {
-    const loadSettings = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+    let isMounted = true;
 
-      const { data } = await supabase
+    const loadSettings = async (user) => {
+      if (!user) {
+        if (isMounted) setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
         .from("accounts")
         .select("*")
         .eq("created_by", user.id)
         .maybeSingle();
 
-      if (data) {
+      if (error) {
+        console.error("Failed to load accounts:", error);
+      }
+
+      if (data && isMounted) {
         setInvoiceSettings({
-          gstin: data.gstin || "",
-          email: data.email || "",
-          phone: data.phone || "",
-          address: data.address || "",
-          terms: data.terms || "",
+          gstin: data.gstin ?? "",
+          email: data.email ?? "",
+          phone: data.phone ?? "",
+          address: data.address ?? "",
+          terms: data.terms ?? "",
         });
 
         setBankDetails({
-          accountName: data.account_name || "",
-          bankName: data.bank_name || "",
-          accountNumber: data.account_number || "",
-          ifsc: data.ifsc || "",
+          accountName: data.account_name ?? "",
+          bankName: data.bank_name ?? "",
+          accountNumber: data.account_number ?? "",
+          ifsc: data.ifsc ?? "",
         });
       }
 
-      setLoading(false);
+      if (isMounted) setLoading(false);
     };
 
-    loadSettings();
+    // Get session once
+    supabase.auth.getSession().then(({ data }) => {
+      loadSettings(data.session?.user);
+    });
+
+    // Listen for auth changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        loadSettings(session?.user);
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   /* ======================
@@ -66,39 +90,48 @@ function Accounts() {
     setSaving(true);
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      alert("User not authenticated");
+      setSaving(false);
+      return;
+    }
 
-    const { error } = await supabase
-      .from("accounts")
-      .upsert({
-        created_by: user.id,
+    const { error } = await supabase.from("accounts").upsert({
+      created_by: user.id,
 
-        gstin: invoiceSettings.gstin,
-        email: invoiceSettings.email,
-        phone: invoiceSettings.phone,
-        address: invoiceSettings.address,
-        terms: invoiceSettings.terms,
+      gstin: invoiceSettings.gstin,
+      email: invoiceSettings.email,
+      phone: invoiceSettings.phone,
+      address: invoiceSettings.address,
+      terms: invoiceSettings.terms,
 
-        account_name: bankDetails.accountName,
-        bank_name: bankDetails.bankName,
-        account_number: bankDetails.accountNumber,
-        ifsc: bankDetails.ifsc,
+      account_name: bankDetails.accountName,
+      bank_name: bankDetails.bankName,
+      account_number: bankDetails.accountNumber,
+      ifsc: bankDetails.ifsc,
 
-        updated_at: new Date(),
-      });
+      updated_at: new Date(),
+    });
 
     setSaving(false);
 
     if (error) {
-      alert("Failed to save settings");
       console.error(error);
+      alert("Failed to save settings");
     } else {
       alert("Accounts settings saved successfully ✅");
     }
   };
 
+  /* ======================
+     LOADING UI
+  ====================== */
   if (loading) {
-    return <div className="p-10 text-center">Loading settings…</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-500">
+        Loading accounts…
+      </div>
+    );
   }
 
   return (
@@ -129,14 +162,19 @@ function Accounts() {
 
           {/* INVOICE SETTINGS */}
           <div className="bg-white rounded-2xl shadow-sm p-6">
-            <h3 className="text-lg font-semibold mb-6">Invoice Settings</h3>
+            <h3 className="text-lg font-semibold mb-6">
+              Invoice Settings
+            </h3>
 
             <div className="space-y-4">
               <input
                 placeholder="GSTIN"
                 value={invoiceSettings.gstin}
                 onChange={(e) =>
-                  setInvoiceSettings({ ...invoiceSettings, gstin: e.target.value })
+                  setInvoiceSettings({
+                    ...invoiceSettings,
+                    gstin: e.target.value,
+                  })
                 }
                 className="w-full border rounded-lg px-4 py-2"
               />
@@ -145,7 +183,10 @@ function Accounts() {
                 placeholder="Email"
                 value={invoiceSettings.email}
                 onChange={(e) =>
-                  setInvoiceSettings({ ...invoiceSettings, email: e.target.value })
+                  setInvoiceSettings({
+                    ...invoiceSettings,
+                    email: e.target.value,
+                  })
                 }
                 className="w-full border rounded-lg px-4 py-2"
               />
@@ -154,7 +195,10 @@ function Accounts() {
                 placeholder="Phone Number"
                 value={invoiceSettings.phone}
                 onChange={(e) =>
-                  setInvoiceSettings({ ...invoiceSettings, phone: e.target.value })
+                  setInvoiceSettings({
+                    ...invoiceSettings,
+                    phone: e.target.value,
+                  })
                 }
                 className="w-full border rounded-lg px-4 py-2"
               />
@@ -164,7 +208,10 @@ function Accounts() {
                 placeholder="Address"
                 value={invoiceSettings.address}
                 onChange={(e) =>
-                  setInvoiceSettings({ ...invoiceSettings, address: e.target.value })
+                  setInvoiceSettings({
+                    ...invoiceSettings,
+                    address: e.target.value,
+                  })
                 }
                 className="w-full border rounded-lg px-4 py-2"
               />
@@ -174,7 +221,10 @@ function Accounts() {
                 placeholder="Terms & Conditions"
                 value={invoiceSettings.terms}
                 onChange={(e) =>
-                  setInvoiceSettings({ ...invoiceSettings, terms: e.target.value })
+                  setInvoiceSettings({
+                    ...invoiceSettings,
+                    terms: e.target.value,
+                  })
                 }
                 className="w-full border rounded-lg px-4 py-2"
               />
@@ -183,14 +233,19 @@ function Accounts() {
 
           {/* BANK DETAILS */}
           <div className="bg-white rounded-2xl shadow-sm p-6">
-            <h3 className="text-lg font-semibold mb-6">Bank Details</h3>
+            <h3 className="text-lg font-semibold mb-6">
+              Bank Details
+            </h3>
 
             <div className="space-y-4">
               <input
                 placeholder="Account Holder Name"
                 value={bankDetails.accountName}
                 onChange={(e) =>
-                  setBankDetails({ ...bankDetails, accountName: e.target.value })
+                  setBankDetails({
+                    ...bankDetails,
+                    accountName: e.target.value,
+                  })
                 }
                 className="w-full border rounded-lg px-4 py-2"
               />
@@ -199,7 +254,10 @@ function Accounts() {
                 placeholder="Bank Name"
                 value={bankDetails.bankName}
                 onChange={(e) =>
-                  setBankDetails({ ...bankDetails, bankName: e.target.value })
+                  setBankDetails({
+                    ...bankDetails,
+                    bankName: e.target.value,
+                  })
                 }
                 className="w-full border rounded-lg px-4 py-2"
               />
@@ -208,7 +266,10 @@ function Accounts() {
                 placeholder="Account Number"
                 value={bankDetails.accountNumber}
                 onChange={(e) =>
-                  setBankDetails({ ...bankDetails, accountNumber: e.target.value })
+                  setBankDetails({
+                    ...bankDetails,
+                    accountNumber: e.target.value,
+                  })
                 }
                 className="w-full border rounded-lg px-4 py-2"
               />
@@ -217,7 +278,10 @@ function Accounts() {
                 placeholder="IFSC Code"
                 value={bankDetails.ifsc}
                 onChange={(e) =>
-                  setBankDetails({ ...bankDetails, ifsc: e.target.value })
+                  setBankDetails({
+                    ...bankDetails,
+                    ifsc: e.target.value,
+                  })
                 }
                 className="w-full border rounded-lg px-4 py-2"
               />
@@ -225,7 +289,7 @@ function Accounts() {
           </div>
         </div>
 
-        {/* SAVE */}
+        {/* SAVE BUTTON */}
         <div className="flex justify-end">
           <button
             onClick={handleSave}
