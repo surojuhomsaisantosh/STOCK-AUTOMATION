@@ -7,89 +7,79 @@ function FranchiseOwnerDashboard() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="p-8 max-w-7xl mx-auto">
+    <div className="min-h-screen bg-white flex justify-center">
+      <div className="max-w-7xl w-full px-8 py-12">
 
-        {/* SETTINGS PAGE */}
         {showSettings ? (
           <FranchiseSettingsCard />
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-12">
 
             {/* HEADER */}
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800">
+            <div className="text-center">
+              <h2 className="text-3xl font-semibold text-black">
                 Franchise Owner Dashboard
               </h2>
-              <p className="text-gray-500 mt-1">
+              <p className="text-sm text-gray-500 mt-2">
                 Overview of franchise operations
               </p>
             </div>
 
-            {/* KPI / ACTION CARDS */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* CARDS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 justify-items-center pt-6 lg:pt-10">
 
-              {/* 1️⃣ Stock Orders */}
+              {/* Order Here */}
               <div
                 onClick={() => navigate("/stock-orders")}
-                className="bg-white p-6 rounded-2xl shadow-sm hover:shadow hover:bg-gray-50 transition cursor-pointer"
+                className="w-[300px] border border-gray-200 rounded-xl p-8 text-center cursor-pointer
+                           hover:border-green-900 hover:bg-green-50 transition"
               >
-                <p className="text-sm text-gray-500">Stock Orders</p>
-                <h3 className="text-3xl font-bold mt-2">124</h3>
-                <p className="text-xs text-gray-400 mt-1">
-                  Total orders placed
-                </p>
+                <h3 className="text-lg font-medium text-black">
+                  Order Here
+                </h3>
               </div>
 
-              {/* 2️⃣ Invoices */}
+              {/* Invoices */}
               <div
-              onClick={() => navigate("/franchise/invoices")}    
-                className="bg-white p-6 rounded-2xl shadow-sm hover:shadow hover:bg-gray-50 transition cursor-pointer"
+                onClick={() => navigate("/franchise/invoices")}
+                className="w-[300px] border border-gray-200 rounded-xl p-8 text-center cursor-pointer
+                           hover:border-green-900 hover:bg-green-50 transition"
               >
-                <p className="text-sm text-gray-500">Invoices</p>
-                <h3 className="text-3xl font-bold mt-2">98</h3>
-                <p className="text-xs text-gray-400 mt-1">
-                  Generated invoices
-                </p>
+                <h3 className="text-lg font-medium text-black">
+                  Invoices
+                </h3>
               </div>
 
-              {/* 3️⃣ Settings */}
+              {/* Settings */}
               <div
                 onClick={() => setShowSettings(true)}
-                className="bg-white p-6 rounded-2xl shadow-sm hover:shadow hover:bg-gray-50 transition cursor-pointer"
+                className="w-[300px] border border-gray-200 rounded-xl p-8 text-center cursor-pointer
+                           hover:border-green-900 hover:bg-green-50 transition"
               >
-                <p className="text-sm text-gray-500">Settings</p>
-                <h3 className="text-3xl font-bold mt-2">⚙️</h3>
-                <p className="text-xs text-gray-400 mt-1">
-                  Manage preferences
-                </p>
+                <h3 className="text-lg font-medium text-black">
+                  Settings
+                </h3>
               </div>
 
-              {/* 4️⃣ Reports */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm hover:shadow transition cursor-pointer">
-                <p className="text-sm text-gray-500">Reports</p>
-                <h3 className="text-3xl font-bold mt-2">15</h3>
-                <p className="text-xs text-gray-400 mt-1">
-                  Available reports
-                </p>
+              {/* Coming Next */}
+              <div className="w-[300px] border border-gray-100 rounded-xl p-8 text-center text-gray-400">
+                <h3 className="text-lg font-medium">
+                  Coming Next
+                </h3>
               </div>
 
-              {/* 5️⃣ Coming Soon */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm opacity-70">
-                <p className="text-sm text-gray-500">Coming Soon</p>
-                <h3 className="text-3xl font-bold mt-2">🚀</h3>
-                <p className="text-xs text-gray-400 mt-1">
-                  New features
-                </p>
+              {/* Coming Next */}
+              <div className="w-[300px] border border-gray-100 rounded-xl p-8 text-center text-gray-400">
+                <h3 className="text-lg font-medium">
+                  Coming Next
+                </h3>
               </div>
 
-              {/* 6️⃣ Coming Soon */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm opacity-70">
-                <p className="text-sm text-gray-500">Coming Soon</p>
-                <h3 className="text-3xl font-bold mt-2">🚀</h3>
-                <p className="text-xs text-gray-400 mt-1">
-                  New features
-                </p>
+              {/* Coming Next */}
+              <div className="w-[300px] border border-gray-100 rounded-xl p-8 text-center text-gray-400">
+                <h3 className="text-lg font-medium">
+                  Coming Next
+                </h3>
               </div>
 
             </div>

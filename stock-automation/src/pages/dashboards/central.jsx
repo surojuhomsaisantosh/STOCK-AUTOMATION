@@ -65,12 +65,15 @@ function CentralDashboard() {
             </p>
           </div>
 
-          {/* 4️⃣ Coming Soon */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm opacity-70 cursor-not-allowed">
-            <p className="text-sm text-gray-500">Coming Soon</p>
-            <h3 className="text-3xl font-bold mt-2">🚀</h3>
+          {/* 4️⃣ Accounts (NEW) */}
+          <div
+            onClick={() => navigate("/central/accounts")}
+            className="bg-white p-6 rounded-2xl shadow-sm hover:shadow hover:bg-gray-50 transition cursor-pointer"
+          >
+            <p className="text-sm text-gray-500">Accounts</p>
+            <h3 className="text-3xl font-bold mt-2">💰</h3>
             <p className="text-xs text-gray-400 mt-1">
-              New features coming
+              Financial overview & reports
             </p>
           </div>
 

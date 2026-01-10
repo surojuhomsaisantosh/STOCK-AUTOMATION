@@ -23,6 +23,7 @@ import FranchiseInvoices from "./pages/franchise/franchiseinvoices";
 import CentralInvoices from "./pages/central/centralinvoices";
 import CentralSettings from "./pages/central/centralsettings";
 import CentralProfiles from "./pages/central/centralprofiles";
+import Accounts from "./pages/central/accounts"; // ✅ NEW IMPORT
 
 /* AUTH CONTEXT */
 import { AuthProvider } from "./context/AuthContext";
@@ -117,6 +118,16 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["central"]}>
                 <CentralProfiles />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ✅ CENTRAL ACCOUNTS ROUTE */}
+          <Route
+            path="/central/accounts"
+            element={
+              <ProtectedRoute allowedRoles={["central"]}>
+                <Accounts />
               </ProtectedRoute>
             }
           />
