@@ -1,23 +1,34 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
+import { Eye, EyeOff, ArrowLeft, UserPlus } from "lucide-react";
+
+const PRIMARY = "#065f46";
+const BORDER = "#e5e7eb";
 
 function RegisterUser() {
   const navigate = useNavigate();
 
-  const [hover, setHover] = useState(false);
-  const [backHover, setBackHover] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   const [formData, setFormData] = useState({
+    franchise_id: "",
     name: "",
     phone: "",
     email: "",
     password: "",
-    address: "",
     branch_location: "",
+    address: "",
     role: "franchise",
   });
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -27,7 +38,6 @@ function RegisterUser() {
     if (loading) return;
     setLoading(true);
 
-    /* 🔐 AUTH SIGNUP */
     const { data, error: authError } = await supabase.auth.signUp({
       email: formData.email.trim().toLowerCase(),
       password: formData.password,
@@ -40,118 +50,130 @@ function RegisterUser() {
     }
 
     if (!data.user) {
-      alert("User creation failed");
+      alert("User not created");
       setLoading(false);
       return;
     }
 
-    const user = data.user;
-
-    /* ✅ UPSERT PROFILE (NO DUPLICATES) */
     const { error: profileError } = await supabase
       .from("profiles")
       .upsert(
         {
-          id: user.id,
+          id: data.user.id,
+          franchise_id: formData.franchise_id.trim(),
           name: formData.name.trim(),
           phone: formData.phone.trim(),
           email: formData.email.trim().toLowerCase(),
-          address: formData.address.trim(),
           branch_location: formData.branch_location.trim(),
+          address: formData.address.trim(),
           role: "franchise",
         },
         { onConflict: "id" }
       );
 
     if (profileError) {
-      alert("Profile creation failed");
+      alert("Profile not saved");
       setLoading(false);
       return;
     }
 
-    alert("Registration successful! Please login.");
+    alert("Account created. Please login.");
     navigate("/");
   };
 
   return (
     <div style={styles.page}>
-      {/* Back Button */}
-      <button
-        onClick={() => navigate(-1)}
-        style={{
-          ...styles.backButton,
-          color: backHover ? "#0b3d2e" : "#0f5132",
-        }}
-        onMouseEnter={() => setBackHover(true)}
-        onMouseLeave={() => setBackHover(false)}
-      >
-        ← Back
-      </button>
-
-      <div style={styles.card}>
-        <h1 style={styles.title}>Register</h1>
-        <h2 style={styles.brand}>T VANAMM</h2>
-
-        <input
-          name="name"
-          placeholder="Full Name"
-          onChange={handleChange}
-          style={styles.input}
-        />
-        <input
-          name="phone"
-          placeholder="Phone Number"
-          onChange={handleChange}
-          style={styles.input}
-        />
-        <input
-          name="email"
-          type="email"
-          placeholder="Email"
-          onChange={handleChange}
-          style={styles.input}
-        />
-        <input
-          name="password"
-          type="password"
-          placeholder="Password"
-          onChange={handleChange}
-          style={styles.input}
-        />
-        <input
-          name="address"
-          placeholder="Address"
-          onChange={handleChange}
-          style={styles.input}
-        />
-        <input
-          name="branch_location"
-          placeholder="Branch Location"
-          onChange={handleChange}
-          style={styles.input}
-        />
-
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          style={{
-            ...styles.button,
-            backgroundColor: hover ? "#0b3d2e" : "#0f5132",
-            opacity: loading ? 0.7 : 1,
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => setHover(false)}
-        >
-          {loading ? "Registering..." : "Register"}
+      {/* BACK BUTTON */}
+      <div style={styles.topBar}>
+        <button onClick={() => navigate(-1)} style={styles.backButton}>
+          <ArrowLeft size={18} />
+          <span>Back</span>
         </button>
+      </div>
 
-        <p style={styles.footerText}>
-          Already have an account?{" "}
-          <Link to="/" style={styles.link}>
-            Login
-          </Link>
-        </p>
+      <div style={{ ...styles.card, width: isMobile ? "90%" : "420px" }}>
+        <div style={styles.header}>
+          <div style={styles.iconWrapper}>
+            <UserPlus size={28} color={PRIMARY} />
+          </div>
+          <h1 style={styles.title}>Create Account</h1>
+          <p style={styles.subtitle}>Add a new franchise user</p>
+        </div>
+
+        <div style={styles.form}>
+          <input
+            name="franchise_id"
+            placeholder="Franchise ID"
+            onChange={handleChange}
+            style={styles.input}
+          />
+
+          <input
+            name="name"
+            placeholder="Name"
+            onChange={handleChange}
+            style={styles.input}
+          />
+
+          <div style={styles.row}>
+            <input
+              name="phone"
+              placeholder="Phone number"
+              onChange={handleChange}
+              style={{ ...styles.input, flex: 1 }}
+            />
+            <input
+              name="email"
+              type="email"
+              placeholder="Email"
+              onChange={handleChange}
+              style={{ ...styles.input, flex: 1.5 }}
+            />
+          </div>
+
+          <div style={styles.passwordWrapper}>
+            <input
+              name="password"
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              onChange={handleChange}
+              style={styles.passwordInput}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((p) => !p)}
+              style={styles.eyeButton}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+
+          <input
+            name="branch_location"
+            placeholder="Branch name"
+            onChange={handleChange}
+            style={styles.input}
+          />
+
+          <input
+            name="address"
+            placeholder="Address"
+            onChange={handleChange}
+            style={styles.input}
+          />
+
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            style={{
+              ...styles.button,
+              opacity: loading ? 0.7 : 1,
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
+          >
+            {loading ? "Creating..." : "Create Account"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -159,75 +181,120 @@ function RegisterUser() {
 
 export default RegisterUser;
 
-/* 🎨 STYLES */
+/* SIMPLE STYLES */
 const styles = {
   page: {
     minHeight: "100vh",
+    width: "100vw",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#ffffff",
+    fontFamily: '"Inter", sans-serif',
     position: "relative",
+    padding: "40px 0",
+  },
+  topBar: {
+    position: "absolute",
+    top: "30px",
+    left: "30px",
   },
   backButton: {
-    position: "absolute",
-    top: "20px",
-    left: "20px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
     background: "transparent",
     border: "none",
     fontSize: "14px",
-    fontWeight: "500",
+    fontWeight: "600",
+    color: "#6b7280",
     cursor: "pointer",
   },
   card: {
-    width: "380px",
-    padding: "30px",
-    border: "1px solid #e5e5e5",
-    borderRadius: "12px",
-    boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
+    padding: "50px 40px",
+    border: `1.5px solid ${BORDER}`,
+    borderRadius: "32px",
     backgroundColor: "#fff",
     textAlign: "center",
   },
-  title: {
-    marginBottom: "5px",
-    fontSize: "26px",
-    fontWeight: "600",
-    color: "#000",
+  header: {
+    marginBottom: "32px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
   },
-  brand: {
-    marginBottom: "20px",
+  iconWrapper: {
+    width: "60px",
+    height: "60px",
+    borderRadius: "18px",
+    background: "rgba(6, 95, 70, 0.05)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: "16px",
+  },
+  title: {
+    fontSize: "26px",
+    fontWeight: "900",
+    color: "#000",
+    margin: "0 0 8px 0",
+  },
+  subtitle: {
     fontSize: "14px",
-    letterSpacing: "2px",
-    color: "#0f5132",
+    color: "#6b7280",
+    margin: 0,
+  },
+  form: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "14px",
+  },
+  row: {
+    display: "flex",
+    gap: "10px",
   },
   input: {
     width: "100%",
-    padding: "12px",
-    marginBottom: "12px",
-    borderRadius: "8px",
-    border: "1px solid #ccc",
-    outline: "none",
+    padding: "16px 20px",
+    borderRadius: "16px",
+    border: `1.5px solid ${BORDER}`,
+    background: "#fff",
     fontSize: "14px",
+    outline: "none",
+  },
+  passwordWrapper: {
+    position: "relative",
+  },
+  passwordInput: {
+    width: "100%",
+    padding: "16px 50px 16px 20px",
+    borderRadius: "16px",
+    border: `1.5px solid ${BORDER}`,
+    background: "#fff",
+    fontSize: "14px",
+    outline: "none",
+  },
+  eyeButton: {
+    position: "absolute",
+    top: "50%",
+    right: "18px",
+    transform: "translateY(-50%)",
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+    color: "#9ca3af",
   },
   button: {
     width: "100%",
-    padding: "12px",
-    borderRadius: "8px",
+    padding: "18px",
+    borderRadius: "16px",
     border: "none",
+    backgroundColor: PRIMARY,
     color: "#fff",
-    fontSize: "15px",
-    fontWeight: "500",
-    transition: "background-color 0.3s ease",
-    marginTop: "10px",
-  },
-  footerText: {
-    marginTop: "20px",
     fontSize: "13px",
-    color: "#333",
-  },
-  link: {
-    color: "#0f5132",
-    textDecoration: "none",
-    fontWeight: "500",
+    fontWeight: "800",
+    cursor: "pointer",
+    marginTop: "10px",
+    boxShadow: "0 4px 12px rgba(6, 95, 70, 0.2)",
   },
 };

@@ -1,324 +1,274 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
-import logo from "../../assets/logo.jpg";
+import { 
+  ArrowLeft, 
+  Search, 
+  Calendar, 
+  Printer,
+  ChevronRight,
+  CheckCircle2,
+  Filter,
+  X,
+  Clock,
+  Hash,
+  ShieldCheck,
+  MapPin 
+} from "lucide-react"; 
 
 function FranchiseInvoices() {
   const navigate = useNavigate();
-
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
   const [search, setSearch] = useState("");
-
+  const [selectedFranchise, setSelectedFranchise] = useState("all");
+  
   const [showModal, setShowModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [invoiceItems, setInvoiceItems] = useState([]);
   const [itemsLoading, setItemsLoading] = useState(false);
 
-  /* ======================
-     FETCH INVOICES
-  ====================== */
-  useEffect(() => {
-    const fetchInvoices = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+  const brandGreen = "rgb(0, 100, 55)";
+  const brandGreenLight = "rgba(0, 100, 55, 0.1)";
 
-      const { data } = await supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
         .from("invoices")
-        .select("id, total_amount, created_at, customer_name")
-        .eq("created_by", user.id)
+        .select(`
+          id, total_amount, created_at, customer_name, created_by,
+          profiles:created_by (franchise_id, address) 
+        `)
         .order("created_at", { ascending: false });
 
-      setInvoices(data || []);
+      if (error) console.error("Error:", error);
+      else setInvoices(data || []);
       setLoading(false);
     };
-
-    fetchInvoices();
+    fetchData();
   }, []);
 
-  /* ======================
-     FILTER (MEMO)
-  ====================== */
+  const franchiseList = useMemo(() => {
+    const map = new Map();
+    invoices.forEach(inv => {
+      if (inv.profiles?.franchise_id) {
+        map.set(inv.created_by, inv.profiles.franchise_id);
+      }
+    });
+    return Array.from(map, ([id, fId]) => ({ id, fId }));
+  }, [invoices]);
+
   const filteredInvoices = useMemo(() => {
-    let result = [...invoices];
+    return invoices.filter(inv => {
+      const matchesFranchise = selectedFranchise === "all" || inv.created_by === selectedFranchise;
+      const matchesSearch = inv.customer_name.toLowerCase().includes(search.toLowerCase());
+      return matchesFranchise && matchesSearch;
+    });
+  }, [invoices, search, selectedFranchise]);
 
-    if (search) {
-      result = result.filter(inv =>
-        inv.customer_name.toLowerCase().includes(search.toLowerCase())
-      );
-    }
-
-    if (fromDate) {
-      const from = new Date(fromDate);
-      from.setHours(0, 0, 0, 0);
-      result = result.filter(inv => new Date(inv.created_at) >= from);
-    }
-
-    if (toDate) {
-      const to = new Date(toDate);
-      to.setHours(23, 59, 59, 999);
-      result = result.filter(inv => new Date(inv.created_at) <= to);
-    }
-
-    return result;
-  }, [invoices, fromDate, toDate, search]);
-
-  /* ======================
-     OPEN MODAL
-  ====================== */
   const openInvoiceDetails = async (invoice) => {
     setSelectedInvoice(invoice);
     setShowModal(true);
     setItemsLoading(true);
-
     const { data } = await supabase
       .from("invoice_items")
       .select("item_name, quantity, unit, price")
       .eq("invoice_id", invoice.id);
-
     setInvoiceItems(data || []);
     setItemsLoading(false);
   };
 
-  /* ======================
-     PRINT
-  ====================== */
   const handlePrint = () => {
+    if (!selectedInvoice) return;
     const total = selectedInvoice.total_amount;
-    const taxable = (total / 1.05).toFixed(2);
-    const gst = (total - taxable).toFixed(2);
-    const halfGst = (gst / 2).toFixed(2);
+    const itemsHTML = invoiceItems.map((item, i) => `
+      <tr>
+        <td style="border-bottom: 1px solid #eee; padding: 10px;">${i + 1}</td>
+        <td style="border-bottom: 1px solid #eee; padding: 10px;">${item.item_name}</td>
+        <td style="border-bottom: 1px solid #eee; padding: 10px; text-align: center;">${item.quantity} ${item.unit}</td>
+        <td style="border-bottom: 1px solid #eee; padding: 10px; text-align: right;">₹${item.price}</td>
+        <td style="border-bottom: 1px solid #eee; padding: 10px; text-align: right;">₹${(item.quantity * item.price).toFixed(2)}</td>
+      </tr>`).join("");
 
-    const itemsHTML = invoiceItems
-      .map(
-        (item, i) => `
-        <tr>
-          <td>${i + 1}</td>
-          <td>${item.item_name}</td>
-          <td>${item.quantity} ${item.unit}</td>
-          <td>${item.price}</td>
-          <td>5%</td>
-          <td>${(item.quantity * item.price).toFixed(2)}</td>
-        </tr>`
-      )
-      .join("");
+    const html = `<html><body style="font-family: sans-serif; padding: 40px;">
+      <h2 style="color: ${brandGreen}">TAX INVOICE</h2>
+      <p><b>Customer:</b> ${selectedInvoice.customer_name}</p>
+      <p><b>Franchise ID:</b> ${selectedInvoice.profiles?.franchise_id}</p>
+      <p><b>Address:</b> ${selectedInvoice.profiles?.address || 'N/A'}</p>
+      <p><b>Ref:</b> ${selectedInvoice.id.slice(0,8).toUpperCase()}</p>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead><tr style="background: #f4f4f4;"><th>#</th><th>Item</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead>
+        <tbody>${itemsHTML}</tbody>
+      </table>
+      <div style="text-align: right; margin-top: 20px;"><h3>Grand Total: ₹${total}</h3></div>
+    </body></html>`;
 
-    const html = `
-    <html>
-      <head>
-        <title>Tax Invoice</title>
-        <style>
-          body { font-family: Arial; padding: 24px; font-size: 12px; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-          th, td { border: 1px solid #000; padding: 6px; }
-          th { background: #f2f2f2; }
-          .right { text-align: right; }
-          img { max-height: 70px; }
-        </style>
-      </head>
-      <body>
-        <img src="${logo}" />
-        <h3>TAX INVOICE</h3>
-
-        <p>
-          <b>Customer:</b> ${selectedInvoice.customer_name}<br/>
-          <b>Date:</b> ${new Date(selectedInvoice.created_at).toLocaleDateString()}
-        </p>
-
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Item</th>
-              <th>Qty</th>
-              <th>Rate</th>
-              <th>Tax</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>${itemsHTML}</tbody>
-        </table>
-
-        <table>
-          <tr><td class="right">Taxable Amount</td><td class="right">${taxable}</td></tr>
-          <tr><td class="right">CGST @2.5%</td><td class="right">${halfGst}</td></tr>
-          <tr><td class="right">SGST @2.5%</td><td class="right">${halfGst}</td></tr>
-          <tr><td class="right"><b>Total</b></td><td class="right"><b>₹ ${total}</b></td></tr>
-        </table>
-      </body>
-    </html>
-    `;
-
-    const w = window.open("", "", "width=900,height=700");
+    const w = window.open("", "_blank");
     w.document.write(html);
     w.document.close();
     w.print();
-    w.close();
   };
 
-  if (loading) {
-    return <div className="p-10 text-center text-gray-500">Loading invoices…</div>;
-  }
-
-  const modalTotal = selectedInvoice?.total_amount || 0;
-  const modalTaxable = (modalTotal / 1.05).toFixed(2);
-  const modalGST = (modalTotal - modalTaxable).toFixed(2);
-  const modalHalfGST = (modalGST / 2).toFixed(2);
-
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
-
+    <div className="min-h-screen bg-white text-slate-900 antialiased font-sans pb-20">
       {/* HEADER */}
-      <div className="relative flex items-center mb-6">
-        <button
-          onClick={() => navigate(-1)}
-          className="absolute left-0 text-sm font-medium"
-        >
-          ← Back
+      <nav className="bg-white border-b border-slate-100 sticky top-0 z-20 px-6 h-20 flex items-center">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 font-bold absolute left-6 hover:opacity-70 transition-all" style={{ color: brandGreen }}>
+          <ArrowLeft size={18} /> Back
         </button>
+        <h1 className="text-xl font-black uppercase mx-auto tracking-tighter" style={{ color: brandGreen }}>Invoices</h1>
+      </nav>
 
-        <h1 className="mx-auto text-2xl font-semibold">
-          Invoices
-        </h1>
-      </div>
+      <main className="max-w-6xl mx-auto px-6 py-10">
+        {/* COMPACT FILTERS */}
+        <div className="flex flex-wrap gap-4 mb-12 items-center">
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl w-fit">
+            <Filter size={14} className="text-slate-400" />
+            <select 
+              className="bg-transparent outline-none text-xs font-bold cursor-pointer"
+              value={selectedFranchise}
+              onChange={(e) => setSelectedFranchise(e.target.value)}
+            >
+              <option value="all">All Franchises</option>
+              {franchiseList.map(f => (
+                <option key={f.id} value={f.id}>{f.fId}</option>
+              ))}
+            </select>
+          </div>
 
-      {/* FILTER + SEARCH */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="bg-white p-4 flex gap-4 border rounded w-fit">
-          <input
-            type="date"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-          />
-          <input
-            type="date"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-          />
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Search customer..." 
+              className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-slate-400 text-sm font-medium"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
-        <input
-          type="text"
-          placeholder="Search customer..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="border rounded px-4 py-2 w-64"
-        />
-      </div>
+        {/* TABLE HEADERS */}
+        <div className="grid grid-cols-12 px-6 py-4 mb-2 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">
+          <div className="col-span-4">Ref & Customer</div>
+          <div className="col-span-3 text-center">Franchise ID</div>
+          <div className="col-span-3 text-center">Status</div>
+          <div className="col-span-2 text-right">Amount</div>
+        </div>
 
-      {/* TABLE */}
-      <div className="bg-white border rounded overflow-hidden">
-        <table className="w-full text-sm table-fixed">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="p-4 text-left w-[50%]">Customer</th>
-              <th className="p-4 text-center w-[25%]">Date</th>
-              <th className="p-4 text-right w-[25%]">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredInvoices.map(inv => (
-              <tr
-                key={inv.id}
-                onClick={() => openInvoiceDetails(inv)}
-                className="border-t cursor-pointer hover:bg-gray-50"
-              >
-                <td className="p-4">{inv.customer_name}</td>
-                <td className="p-4 text-center">
-                  {new Date(inv.created_at).toLocaleDateString()}
-                </td>
-                <td className="p-4 text-right font-medium">
-                  ₹{inv.total_amount}
-                </td>
-              </tr>
-            ))}
+        {/* INVOICE LIST */}
+        <div className="space-y-3">
+          {filteredInvoices.map((inv) => (
+            <div 
+              key={inv.id}
+              onClick={() => openInvoiceDetails(inv)}
+              className="grid grid-cols-12 items-center bg-white border border-slate-100 p-5 rounded-2xl cursor-pointer hover:border-slate-300 transition-all hover:shadow-md group"
+            >
+              <div className="col-span-4">
+                <h3 className="font-bold text-slate-800 text-sm uppercase leading-none mb-1">{inv.customer_name}</h3>
+                <p className="text-[10px] text-slate-400 font-mono tracking-tighter">{inv.id.slice(0,8).toUpperCase()}</p>
+              </div>
+              <div className="col-span-3 text-center text-xs font-bold text-slate-600">{inv.profiles?.franchise_id || '---'}</div>
+              <div className="col-span-3 flex justify-center">
+                <span className="flex items-center gap-1 px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border" 
+                      style={{ backgroundColor: brandGreenLight, color: brandGreen, borderColor: 'rgba(0,100,55,0.2)' }}>
+                  <ShieldCheck size={10} /> Paid
+                </span>
+              </div>
+              <div className="col-span-2 flex items-center justify-end gap-3">
+                <p className="text-base font-black text-slate-900">₹{inv.total_amount}</p>
+                <ChevronRight size={16} className="text-slate-200 group-hover:text-slate-900" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
 
-            {filteredInvoices.length === 0 && (
-              <tr>
-                <td colSpan="3" className="p-6 text-center text-gray-500">
-                  No invoices found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* MODAL (UNCHANGED) */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-xl w-full max-w-3xl">
-            <button onClick={() => setShowModal(false)} className="float-right">✕</button>
-
-            <h2 className="text-lg font-semibold mb-4">
-              Invoice – {selectedInvoice.customer_name}
-            </h2>
-
-            {itemsLoading ? (
-              <p>Loading items…</p>
-            ) : (
-              <>
-                <table className="w-full text-sm border mb-4 table-fixed">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="text-left w-[40%]">Item</th>
-                      <th className="text-center w-[15%]">Qty</th>
-                      <th className="text-center w-[15%]">Unit</th>
-                      <th className="text-right w-[15%]">Rate</th>
-                      <th className="text-right w-[15%]">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoiceItems.map((i, idx) => (
-                      <tr key={idx} className="border-t">
-                        <td>{i.item_name}</td>
-                        <td className="text-center">{i.quantity}</td>
-                        <td className="text-center">{i.unit}</td>
-                        <td className="text-right">₹{i.price}</td>
-                        <td className="text-right">
-                          ₹{(i.quantity * i.price).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                <div className="flex justify-end">
-                  <table className="text-sm">
-                    <tbody>
-                      <tr>
-                        <td className="pr-6">Taxable Amount</td>
-                        <td className="text-right">₹{modalTaxable}</td>
-                      </tr>
-                      <tr>
-                        <td>CGST @2.5%</td>
-                        <td className="text-right">₹{modalHalfGST}</td>
-                      </tr>
-                      <tr>
-                        <td>SGST @2.5%</td>
-                        <td className="text-right">₹{modalHalfGST}</td>
-                      </tr>
-                      <tr className="font-semibold">
-                        <td>Total</td>
-                        <td className="text-right">₹{modalTotal}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+      {/* POPUP MODAL */}
+      {showModal && selectedInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-all duration-300">
+          <div className="bg-white rounded-[32px] w-full max-w-lg overflow-hidden shadow-2xl transform transition-all scale-100">
+            <div className="p-8">
+              <div className="flex justify-between items-center mb-8 border-b border-slate-50 pb-4">
+                <div className="flex flex-col">
+                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Transaction Ref</span>
+                   <span className="text-xs font-mono font-bold text-slate-800 tracking-widest uppercase">{selectedInvoice.id}</span>
                 </div>
-              </>
-            )}
+                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-slate-50 rounded-full transition-colors group">
+                  <X size={20} className="text-slate-300 group-hover:text-slate-600" />
+                </button>
+              </div>
 
-            <div className="mt-6 text-right">
-              <button
-                onClick={handlePrint}
-                className="bg-green-700 text-white px-4 py-2 rounded"
+              <div className="grid grid-cols-2 gap-y-6 mb-8">
+                <div className="col-span-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Customer</p>
+                  <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-tight">{selectedInvoice.customer_name}</h2>
+                </div>
+
+                <div className="col-span-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                    <MapPin size={10} style={{color: brandGreen}}/> Franchise Address
+                  </p>
+                  <p className="text-[11px] font-bold text-slate-600 leading-relaxed uppercase">
+                    {selectedInvoice.profiles?.address || "Address not specified"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Franchise ID</p>
+                  <p className="font-bold text-slate-800 tracking-widest italic">#{selectedInvoice.profiles?.franchise_id}</p>
+                </div>
+                <div className="text-right">
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                   <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest" style={{ backgroundColor: brandGreenLight, color: brandGreen }}>
+                    <CheckCircle2 size={12}/> Success
+                   </span>
+                </div>
+
+                <div className="col-span-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Timestamp</p>
+                  <div className="flex items-center gap-4 text-[11px] font-bold text-slate-500 uppercase">
+                    <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(selectedInvoice.created_at).toLocaleDateString()}</span>
+                    <span className="flex items-center gap-1"><Clock size={12} /> {new Date(selectedInvoice.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 py-6 border-t border-slate-100 mb-6">
+                <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1 text-center">Order Breakdown</p>
+                <div className="max-h-40 overflow-y-auto px-1 space-y-3">
+                  {itemsLoading ? (
+                    <p className="text-center text-[10px] font-bold uppercase text-slate-400 py-4">Loading items...</p>
+                  ) : (
+                    invoiceItems.map((item, i) => (
+                      <div key={i} className="flex justify-between items-center group">
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 uppercase leading-none mb-1">{item.item_name}</p>
+                          <p className="text-[10px] text-slate-400">{item.quantity} {item.unit} × ₹{item.price}</p>
+                        </div>
+                        <p className="font-black text-slate-900 text-sm">₹{item.quantity * item.price}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Total Section in Brand Green instead of Black */}
+              <div className="rounded-2xl p-6 flex justify-between items-center shadow-sm border border-slate-100" style={{ backgroundColor: brandGreenLight }}>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: brandGreen }}>Settlement Amount</span>
+                <span className="text-2xl font-black italic" style={{ color: brandGreen }}>₹{selectedInvoice.total_amount}</span>
+              </div>
+            </div>
+
+            {/* Redesigned Button: Centered, smaller, and premium */}
+            <div className="px-8 pb-10 flex justify-center">
+              <button 
+                onClick={handlePrint} 
+                className="flex items-center gap-2 px-8 py-3 rounded-full text-white font-bold text-xs uppercase tracking-widest shadow-lg shadow-green-900/20 hover:scale-105 active:scale-95 transition-all duration-200"
+                style={{ backgroundColor: brandGreen }}
               >
-                Print / Download PDF
+                <Printer size={16} /> Print Receipt
               </button>
             </div>
           </div>
@@ -329,4 +279,3 @@ function FranchiseInvoices() {
 }
 
 export default FranchiseInvoices;
-

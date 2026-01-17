@@ -1,64 +1,103 @@
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { 
+  Home, 
+  Package, 
+  Receipt, 
+  Settings, 
+  BarChart3, 
+  Users, 
+  ShieldCheck 
+} from "lucide-react";
+
+const PRIMARY = "#065f46"; // Deep Emerald
+const BORDER = "#e5e7eb";
 
 function StockManagerDashboard() {
   const navigate = useNavigate();
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-  const dashboardCards = [
-    {
-      id: 1,
-      title: "HOME",
-      description: "Overview & daily actions",
-      onClick: () => navigate("/stock/orders"),
-    },
-    {
-      id: 2,
-      title: "STOCK",
-      description: "Inventory & availability",
-      onClick: () => navigate("/stock"),
-    },
-    {
-      id: 3,
-      title: "BILLS",
-      description: "Invoices & billing records",
-      onClick: () => navigate("/stock/bills"),
-    },
-    {
-      id: 4,
-      title: "SETTINGS",
-      description: "Account & security",
-      onClick: () => navigate("/stock/settings"),
-    },
-    {
-      id: 5,
-      title: "REPORTS",
-      description: "Analytics coming soon",
-      disabled: true,
-    },
-    {
-      id: 6,
-      title: "TEAM",
-      description: "Team management coming soon",
-      disabled: true,
-    },
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const navItems = [
+    { title: "Home", path: "/stock/orders", icon: <Home size={isMobile ? 24 : 32}/> },
+    { title: "Stock", path: "/stock", icon: <Package size={isMobile ? 24 : 32}/> },
+    { title: "Bills", path: "/stock/bills", icon: <Receipt size={isMobile ? 24 : 32}/> },
+    { title: "Settings", path: "/stock/settings", icon: <Settings size={isMobile ? 24 : 32}/> },
+    { title: "Reports", path: "#", icon: <BarChart3 size={isMobile ? 24 : 32}/>, disabled: true },
+    { title: "Team", path: "#", icon: <Users size={isMobile ? 24 : 32}/>, disabled: true },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white px-10 py-14">
-      {/* HEADING */}
-      <div className="max-w-6xl mx-auto mb-12">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Stock Manager Dashboard
-        </h1>
-        <p className="text-sm text-gray-500 mt-2">
-          Manage inventory, orders, and billing from one place
-        </p>
-      </div>
+    <div style={styles.page}>
+      <div style={styles.container}>
+        
+        {/* HEADER */}
+        <header style={styles.header}>
+          <div style={styles.headerLeft}>
+            <h1 style={{...styles.title, fontSize: isMobile ? '24px' : '36px'}}>STOCK DASHBOARD</h1>
+            <p style={{...styles.subtitle, fontSize: isMobile ? '13px' : '16px'}}>Inventory & Fulfillment Control</p>
+          </div>
+          {!isMobile && (
+            <div style={styles.systemBadge}>
+              <ShieldCheck size={16} color={PRIMARY} />
+              <span>STOCK MANAGER ACCESS</span>
+            </div>
+          )}
+        </header>
 
-      {/* DASHBOARD CARDS */}
-      <div className="flex justify-center">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 w-full max-w-6xl">
-          {dashboardCards.map((card) => (
-            <DashboardCard key={card.id} {...card} />
+        {/* STATUS STRIP */}
+        {!isMobile && (
+          <div style={styles.statsStrip}>
+              <div style={styles.statItem}>WAREHOUSE: <span style={{color: '#10b981'}}>SYNCED</span></div>
+              <div style={styles.statItem}>INVENTORY LOGS: <span>ACTIVE</span></div>
+              <div style={styles.statItem}>SYSTEM CLOCK: <span>{new Date().toLocaleDateString()}</span></div>
+          </div>
+        )}
+
+        {/* 3x2 GRID: Optimized for Viewport Fit */}
+        <div style={{
+          ...styles.grid, 
+          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
+          gridTemplateRows: isMobile ? "auto" : "repeat(2, 1fr)",
+          height: isMobile ? 'auto' : '62vh' 
+        }}>
+          {navItems.map((item, idx) => (
+            <div
+              key={idx}
+              onClick={item.disabled ? null : () => navigate(item.path)}
+              style={{
+                ...styles.card,
+                opacity: item.disabled ? 0.6 : 1,
+                cursor: item.disabled ? "not-allowed" : "pointer"
+              }}
+              onMouseEnter={(e) => {
+                if(!item.disabled) {
+                    e.currentTarget.style.borderColor = PRIMARY;
+                    e.currentTarget.style.transform = "translateY(-6px)";
+                    e.currentTarget.style.boxShadow = "0 20px 40px rgba(0,0,0,0.03)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if(!item.disabled) {
+                    e.currentTarget.style.borderColor = BORDER;
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                }
+              }}
+            >
+              <div style={styles.iconWrapper}>
+                {item.icon}
+              </div>
+              
+              <div style={styles.cardContent}>
+                <h2 style={{...styles.cardTitle, fontSize: isMobile ? '20px' : '26px'}}>{item.title}</h2>
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -66,55 +105,108 @@ function StockManagerDashboard() {
   );
 }
 
-function DashboardCard({ title, description, onClick, disabled }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`
-        relative h-56 p-8 rounded-2xl
-        text-left flex flex-col justify-between
-        border transition-all duration-300
-        ${
-          disabled
-            ? `
-              bg-gray-100 border-gray-200
-              text-gray-400 cursor-not-allowed
-            `
-            : `
-              bg-white border-gray-200
-              hover:border-emerald-700
-              hover:-translate-y-1
-              hover:shadow-[0_20px_50px_rgba(16,120,87,0.25)]
-              active:scale-[0.98]
-            `
-        }
-      `}
-    >
-      {!disabled && (
-        <span className="absolute left-0 top-0 h-full w-[4px] bg-emerald-700 rounded-l-2xl" />
-      )}
-
-      <div>
-        <p className="text-[11px] tracking-[0.4em] font-semibold text-gray-400 mb-3">
-          {title}
-        </p>
-        <p className="text-xl font-semibold text-gray-900 leading-snug">
-          {description}
-        </p>
-      </div>
-
-      {!disabled && (
-        <span className="text-xs font-bold tracking-widest text-emerald-700 opacity-80">
-          OPEN →
-        </span>
-      )}
-
-      {!disabled && (
-        <div className="absolute inset-0 rounded-2xl ring-1 ring-transparent hover:ring-emerald-600/30 transition" />
-      )}
-    </button>
-  );
-}
+const styles = {
+  page: { 
+    background: "#fff", 
+    height: "100vh", 
+    width: '100vw',
+    fontFamily: '"Inter", -apple-system, sans-serif',
+    color: "#111827",
+    overflow: "hidden", 
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    boxSizing: 'border-box'
+  },
+  container: { 
+    maxWidth: "1500px", 
+    width: '100%',
+    margin: "0 auto", 
+    padding: "0 50px",
+    boxSizing: 'border-box'
+  },
+  header: { 
+    display: "flex", 
+    justifyContent: "space-between", 
+    alignItems: "flex-end",
+    marginBottom: "1vh"
+  },
+  headerLeft: { display: 'flex', flexDirection: 'column' },
+  title: { 
+    fontWeight: "900", 
+    letterSpacing: "-1.5px", 
+    margin: 0,
+    color: "#000"
+  },
+  subtitle: { 
+    color: "#6b7280", 
+    margin: "4px 0 0 0",
+    fontWeight: "500"
+  },
+  systemBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 18px',
+    borderRadius: '40px',
+    background: '#f0fdf4',
+    border: '1px solid #dcfce7',
+    fontSize: '11px',
+    fontWeight: "800",
+    color: PRIMARY,
+    letterSpacing: '1px'
+  },
+  statsStrip: {
+    display: "flex",
+    gap: "40px",
+    padding: "2vh 0",
+    borderBottom: `1px solid ${BORDER}`,
+    marginBottom: "3vh"
+  },
+  statItem: {
+    fontSize: "12px",
+    fontWeight: "700",
+    color: "#9ca3af",
+    textTransform: "uppercase",
+    letterSpacing: "1px"
+  },
+  grid: { 
+    display: "grid", 
+    gap: "24px",
+    width: "100%",
+  },
+  card: { 
+    display: "flex", 
+    alignItems: "center", 
+    background: "#fff", 
+    borderRadius: "32px", 
+    borderWidth: "1.5px",
+    borderStyle: "solid",
+    borderColor: BORDER,
+    transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+    position: "relative",
+    padding: "0 35px",
+    boxSizing: 'border-box'
+  },
+  iconWrapper: { 
+    background: "rgba(6, 95, 70, 0.05)", 
+    borderRadius: "22px", 
+    display: "flex", 
+    alignItems: "center", 
+    justifyContent: "center", 
+    color: PRIMARY,
+    flexShrink: 0,
+    marginRight: "25px",
+    width: "70px",
+    height: "70px"
+  },
+  cardContent: { flex: 1 },
+  cardTitle: { 
+    fontWeight: "800", 
+    margin: 0,
+    color: "#000",
+    letterSpacing: "-1px"
+  }
+};
 
 export default StockManagerDashboard;
