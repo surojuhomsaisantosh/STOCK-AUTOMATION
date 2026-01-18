@@ -14,6 +14,7 @@ function RegisterUser() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   const [formData, setFormData] = useState({
+    company: "",
     franchise_id: "",
     name: "",
     phone: "",
@@ -38,6 +39,12 @@ function RegisterUser() {
     if (loading) return;
     setLoading(true);
 
+    if (!formData.company) {
+      alert("Please select a company");
+      setLoading(false);
+      return;
+    }
+
     const { data, error: authError } = await supabase.auth.signUp({
       email: formData.email.trim().toLowerCase(),
       password: formData.password,
@@ -60,6 +67,7 @@ function RegisterUser() {
       .upsert(
         {
           id: data.user.id,
+          company: formData.company,
           franchise_id: formData.franchise_id.trim(),
           name: formData.name.trim(),
           phone: formData.phone.trim(),
@@ -101,6 +109,35 @@ function RegisterUser() {
         </div>
 
         <div style={styles.form}>
+          {/* COMPANY DROPDOWN */}
+          <div style={styles.selectWrapper}>
+            <select
+              name="company"
+              value={formData.company}
+              onChange={handleChange}
+              style={styles.select}
+            >
+              <option value="">Select Company</option>
+              <option value="T vanamm">T vanamm</option>
+              <option value="T leaf">T leaf</option>
+            </select>
+
+            {/* VECTOR ARROW */}
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#6b7280"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={styles.selectArrow}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </div>
+
           <input
             name="franchise_id"
             placeholder="Franchise ID"
@@ -262,6 +299,32 @@ const styles = {
     fontSize: "14px",
     outline: "none",
   },
+
+  /* SELECT FIX */
+  selectWrapper: {
+    position: "relative",
+    width: "100%",
+  },
+  select: {
+    width: "100%",
+    padding: "16px 48px 16px 20px",
+    borderRadius: "16px",
+    border: `1.5px solid ${BORDER}`,
+    background: "#fff",
+    fontSize: "14px",
+    outline: "none",
+    appearance: "none",
+    WebkitAppearance: "none",
+    MozAppearance: "none",
+  },
+  selectArrow: {
+    position: "absolute",
+    right: "18px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    pointerEvents: "none",
+  },
+
   passwordWrapper: {
     position: "relative",
   },
