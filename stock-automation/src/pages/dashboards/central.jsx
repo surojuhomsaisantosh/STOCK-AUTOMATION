@@ -8,16 +8,34 @@ import {
   Settings, 
   Wallet, 
   LayoutDashboard, 
-  ShieldCheck,
-  BarChart3 
+  BarChart3,
+  ChevronRight
 } from "lucide-react"; 
 
 const PRIMARY = "#065f46"; 
-const BORDER = "#e5e7eb";
+const SECONDARY = "#047857";
+const BACKGROUND = "#f9fafb"; // Light grey background makes white cards "pop"
+const BORDER = "#f3f4f6";
 
 function CentralDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth(); 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [profile, setProfile] = useState({ name: "User", franchise_id: "..." });
+
+  useEffect(() => {
+    async function getProfile() {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('name, franchise_id')
+        .eq('id', user.id)
+        .single();
+      
+      if (data && !error) setProfile(data);
+    }
+    getProfile();
+  }, [user]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -34,39 +52,40 @@ function CentralDashboard() {
     { title: "Settings", path: "/central/settings", icon: <Settings size={isMobile ? 24 : 32}/> },
   ];
 
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+
   return (
     <div style={styles.page}>
       <div style={styles.container}>
         
         {/* HEADER */}
-        <header style={{...styles.header, marginBottom: isMobile ? '20px' : '2vh'}}>
+        <header style={styles.header}>
           <div style={styles.headerLeft}>
-            <h1 style={{...styles.title, fontSize: isMobile ? '24px' : 'clamp(28px, 2.5vw, 36px)'}}>CENTRAL DASHBOARD</h1>
-            <p style={{...styles.subtitle, fontSize: isMobile ? '13px' : '16px'}}>Unified Management Interface</p>
+            <h1 style={{...styles.mainTitle, fontSize: isMobile ? '28px' : '48px'}}>
+              Central <span style={{color: PRIMARY}}>Dashboard</span>
+            </h1>
+            <p style={styles.greeting}>Welcome back, {profile.name}</p>
           </div>
-          {!isMobile && (
-            <div style={styles.systemBadge}>
-              <ShieldCheck size={16} color={PRIMARY} />
-              <span>SECURE ROOT ACCESS</span>
+          
+          <div style={styles.headerRight}>
+            <div style={styles.franchiseBadge}>
+              <span style={{opacity: 0.6, fontWeight: 500}}>Franchise ID: </span> 
+              <span style={{marginLeft: '8px'}}>{profile.franchise_id || 'N/A'}</span>
             </div>
-          )}
+            <p style={styles.dateText}>{today}</p>
+          </div>
         </header>
 
-        {/* STATUS STRIP */}
-        {!isMobile && (
-          <div style={styles.statsStrip}>
-              <div style={styles.statItem}>SERVER: <span style={{color: '#10b981'}}>STABLE</span></div>
-              <div style={styles.statItem}>INSTANCES: <span>ACTIVE</span></div>
-              <div style={styles.statItem}>SYSTEM CLOCK: <span>{new Date().toLocaleDateString()}</span></div>
-          </div>
-        )}
-
-        {/* 3x2 GRID: No watermarks, just clean vectors and bold text */}
+        {/* GRID */}
         <div style={{
           ...styles.grid, 
           gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
-          gridTemplateRows: isMobile ? "auto" : "repeat(2, 1fr)",
-          height: isMobile ? 'auto' : '65vh',
+          gridTemplateRows: isMobile ? "repeat(6, 1fr)" : "repeat(2, 1fr)",
         }}>
           {navItems.map((item, idx) => (
             <div
@@ -74,23 +93,26 @@ function CentralDashboard() {
               onClick={() => navigate(item.path)}
               style={styles.card}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = PRIMARY;
                 e.currentTarget.style.transform = "translateY(-5px)";
-                e.currentTarget.style.boxShadow = "0 20px 40px rgba(0,0,0,0.03)";
+                e.currentTarget.style.boxShadow = "0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02)";
+                e.currentTarget.style.borderColor = PRIMARY;
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = BORDER;
                 e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.02)";
+                e.currentTarget.style.borderColor = BORDER;
               }}
             >
-              <div style={{...styles.iconWrapper, width: isMobile ? '50px' : '70px', height: isMobile ? '50px' : '70px'}}>
+              <div style={{...styles.iconWrapper, width: isMobile ? '56px' : '72px', height: isMobile ? '56px' : '72px'}}>
                 {item.icon}
               </div>
-              
               <div style={styles.cardContent}>
-                <h2 style={{...styles.cardTitle, fontSize: isMobile ? '20px' : 'clamp(22px, 1.8vw, 28px)'}}>{item.title}</h2>
+                <h2 style={{...styles.cardTitle, fontSize: isMobile ? '18px' : '22px'}}>
+                  {item.title}
+                </h2>
+                <span style={styles.cardSubtitle}>Manage and view details</span>
               </div>
+              {!isMobile && <ChevronRight size={20} style={{ opacity: 0.2 }} />}
             </div>
           ))}
         </div>
@@ -101,103 +123,125 @@ function CentralDashboard() {
 
 const styles = {
   page: { 
-    background: "#fff", 
+    background: BACKGROUND, 
     height: "100vh", 
     width: '100vw',
-    fontFamily: '"Inter", -apple-system, sans-serif',
+    fontFamily: '"Inter", sans-serif',
     color: "#111827",
-    overflow: "hidden", 
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'center',
-    boxSizing: 'border-box'
+    boxSizing: 'border-box',
+    overflow: 'hidden'
   },
   container: { 
-    maxWidth: "1600px", 
+    maxWidth: "1400px", 
     width: '100%',
+    height: '100%',
     margin: "0 auto", 
-    padding: "0 clamp(20px, 4vw, 60px)",
+    padding: "40px 40px",
+    display: 'flex',
+    flexDirection: 'column',
     boxSizing: 'border-box'
   },
   header: { 
     display: "flex", 
     justifyContent: "space-between", 
-    alignItems: "flex-end",
+    alignItems: "center", 
+    paddingBottom: '40px',
+    flexShrink: 0 
   },
-  headerLeft: { display: 'flex', flexDirection: 'column' },
-  title: { 
-    fontWeight: "900", 
-    letterSpacing: "-1.5px", 
-    margin: 0,
-    color: "#000"
-  },
-  subtitle: { 
-    color: "#6b7280", 
-    margin: "4px 0 0 0",
-    fontWeight: "500"
-  },
-  systemBadge: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '8px 18px',
-    borderRadius: '40px',
-    background: '#f0fdf4',
-    border: '1px solid #dcfce7',
+  badge: {
     fontSize: '11px',
-    fontWeight: "800",
+    fontWeight: '700',
+    letterSpacing: '1.5px',
     color: PRIMARY,
-    letterSpacing: '1px'
+    textTransform: 'uppercase',
+    marginBottom: '8px'
   },
-  statsStrip: {
-    display: "flex",
-    gap: "40px",
-    padding: "1.5vh 0",
-    borderBottom: `1px solid ${BORDER}`,
-    marginBottom: "3vh"
+  headerLeft: { 
+    display: 'flex', 
+    flexDirection: 'column'
   },
-  statItem: {
-    fontSize: "12px",
+  headerRight: { 
+    display: 'flex', 
+    flexDirection: 'column', 
+    alignItems: 'flex-end',
+    gap: '8px'
+  },
+  mainTitle: { 
+    fontWeight: "800", 
+    letterSpacing: "-0.04em", 
+    margin: 0,
+    lineHeight: 1.1,
+    color: "#111827"
+  },
+  greeting: { 
+    fontSize: '18px',
+    fontWeight: "400",
+    margin: '12px 0 0 0',
+    color: "#000000" // Updated to black
+  },
+  franchiseBadge: {
+    fontSize: '14px',
     fontWeight: "700",
-    color: "#9ca3af",
-    textTransform: "uppercase",
-    letterSpacing: "1px"
+    background: "#fff",
+    padding: "8px 16px",
+    borderRadius: "99px",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+    border: `1px solid ${BORDER}`,
+    color: "#000000" // Updated to black
+  },
+  dateText: {
+    fontSize: '12px',
+    fontWeight: "500",
+    color: "#000000", // Updated to black
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    margin: 0
   },
   grid: { 
     display: "grid", 
-    gap: "20px",
+    gap: "24px",
     width: "100%",
+    flexGrow: 1, 
+    paddingBottom: '40px'
   },
   card: { 
     display: "flex", 
     alignItems: "center", 
     background: "#fff", 
-    borderRadius: "32px", 
-    borderWidth: "1.5px",
-    borderStyle: "solid",
-    borderColor: BORDER,
+    borderRadius: "28px", 
+    border: `1px solid ${BORDER}`,
     cursor: "pointer", 
-    transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
-    position: "relative",
-    padding: "0 40px",
+    transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)", 
+    padding: "0 32px",
     boxSizing: 'border-box',
+    height: '100%',
+    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.02)"
   },
   iconWrapper: { 
-    background: "rgba(6, 95, 70, 0.05)", 
-    borderRadius: "22px", 
+    background: `linear-gradient(135deg, ${PRIMARY}0A, ${PRIMARY}1A)`, 
+    borderRadius: "20px", 
     display: "flex", 
     alignItems: "center", 
     justifyContent: "center", 
     color: PRIMARY,
     flexShrink: 0,
-    marginRight: "25px"
+    marginRight: "24px",
+    border: `1px solid ${PRIMARY}10`
   },
   cardContent: { flex: 1 },
   cardTitle: { 
-    fontWeight: "800", 
+    fontWeight: "700", 
     margin: 0,
-    color: "#000",
-    letterSpacing: "-1px"
+    letterSpacing: "-0.02em",
+    color: "#1f2937"
+  },
+  cardSubtitle: {
+    fontSize: '14px',
+    color: '#9ca3af',
+    marginTop: '4px',
+    display: 'block'
   }
 };
 

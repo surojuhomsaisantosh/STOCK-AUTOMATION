@@ -31,13 +31,13 @@ function Reports() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  // Speed Optimization: Load data once
   const fetchData = useCallback(async () => {
     setLoading(true);
+    // Note: Ensure the profiles join is correct for your schema
     const [bills, bItems, invs, iItems] = await Promise.all([
       supabase.from("bills_generated").select("*").order("created_at", { ascending: false }),
       supabase.from("bills_items_generated").select("bill_id, item_name, qty, price"),
-      supabase.from("invoices").select("*, profiles(*)").order("created_at", { ascending: false }),
+      supabase.from("invoices").select("*, profiles(franchise_id, branch_location, address)").order("created_at", { ascending: false }),
       supabase.from("invoice_items").select("invoice_id, item_name, quantity, price")
     ]);
 
@@ -69,23 +69,28 @@ function Reports() {
     setModalLoading(false);
   };
 
-  // Fast Filter Logic
+  // FIXED FILTER LOGIC
   const filteredData = useMemo(() => {
     const dataSet = activeTab === "store" ? rawData.store : rawData.invoices;
     if (!dataSet.length) return [];
 
     return dataSet.filter(item => {
-      const fId = (item.franchise_id || item.profiles?.franchise_id || "").toLowerCase();
-      const cust = (item.customer_name || "").toLowerCase();
+      // Check for Franchise ID in both top level and nested profile
+      const franchiseId = (item.franchise_id || item.profiles?.franchise_id || "").toString().toLowerCase();
+      const customer = (item.customer_name || "").toLowerCase();
+      const itemId = (item.id || "").toString().toLowerCase();
       const s = search.toLowerCase();
 
-      const matchesSearch = !search || fId.includes(s) || cust.includes(s) || item.id.includes(s);
-      const matchesFranchise = selectedFranchise === "all" || fId === selectedFranchise.toLowerCase();
+      const matchesSearch = !search || franchiseId.includes(s) || customer.includes(s) || itemId.includes(s);
+      const matchesFranchise = selectedFranchise === "all" || franchiseId === selectedFranchise.toLowerCase();
       
       const itemDate = item.created_at?.split('T')[0];
       let matchesDate = true;
-      if (startDate && endDate) matchesDate = itemDate >= startDate && itemDate <= endDate;
-      else if (startDate) matchesDate = itemDate === startDate;
+      if (startDate && endDate) {
+        matchesDate = itemDate >= startDate && itemDate <= endDate;
+      } else if (startDate) {
+        matchesDate = itemDate === startDate;
+      }
 
       return matchesSearch && matchesFranchise && matchesDate;
     });
@@ -111,11 +116,13 @@ function Reports() {
 
   const chartData = useMemo(() => {
     const daily = {};
-    filteredData.slice(0, 50).forEach(item => {
+    // Taking last 50 to show trend
+    const sorted = [...filteredData].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    sorted.forEach(item => {
         const date = new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         daily[date] = (daily[date] || 0) + Number(item.total || item.total_amount || 0);
     });
-    return Object.entries(daily).map(([name, revenue]) => ({ name, revenue })).reverse();
+    return Object.entries(daily).map(([name, revenue]) => ({ name, revenue }));
   }, [filteredData]);
 
   const franchiseList = useMemo(() => {
@@ -213,12 +220,14 @@ function Reports() {
                       </tr>
                     </thead>
                     <tbody>
-                        {filteredData.map(item => (
+                        {filteredData.length === 0 ? (
+                            <tr><td colSpan="4" style={{textAlign: 'center', padding: '40px', color: '#9ca3af'}}>No records found for this selection.</td></tr>
+                        ) : filteredData.map(item => (
                             <tr key={item.id} style={styles.tr} onClick={() => openDetails(item)}>
                                 <td style={styles.td}><code style={styles.code}>#{item.id.toString().slice(-8)}</code></td>
-                                <td style={styles.td}>{item.franchise_id || item.profiles?.branch_location || "Head Office"}</td>
+                                <td style={styles.td}>{item.franchise_id || item.profiles?.franchise_id || "Head Office"}</td>
                                 <td style={styles.td}>{new Date(item.created_at).toLocaleDateString()}</td>
-                                <td style={{...styles.td, textAlign: 'right', fontWeight: '800', color: PRIMARY}}>₹{(item.total || item.total_amount).toFixed(2)}</td>
+                                <td style={{...styles.td, textAlign: 'right', fontWeight: '800', color: PRIMARY}}>₹{(item.total || item.total_amount || 0).toFixed(2)}</td>
                             </tr>
                         ))}
                     </tbody>
@@ -226,7 +235,6 @@ function Reports() {
             </div>
         </div>
 
-        {/* Big Bottom Total */}
         <div style={styles.footerSummary}>
           <div>
             <p style={styles.mLabel}>Total Earnings for this Period</p>
@@ -239,7 +247,6 @@ function Reports() {
         </div>
       </div>
 
-      {/* Bill Details Popup */}
       {selectedBill && (
         <div style={styles.modalOverlay}>
           <div style={styles.modal}>
@@ -250,7 +257,7 @@ function Reports() {
             
             <div style={styles.modalBody}>
                 <div style={styles.infoStrip}>
-                    <div style={styles.infoCol}><label style={styles.label}>Shop / Person</label><p style={styles.pText}>{selectedBill.customer_name || selectedBill.franchise_id || "Walk-in Shop"}</p></div>
+                    <div style={styles.infoCol}><label style={styles.label}>Shop / Person</label><p style={styles.pText}>{selectedBill.customer_name || selectedBill.profiles?.branch_location || "Walk-in Shop"}</p></div>
                     <div style={styles.infoCol}><label style={styles.label}>Shop ID</label><p style={styles.pText}>{selectedBill.franchise_id || selectedBill.profiles?.franchise_id || "N/A"}</p></div>
                 </div>
                 <div style={styles.addressBox}><MapPin size={12}/><p style={{margin:0, fontSize: '11px'}}>{selectedBill.customer_address || selectedBill.profiles?.address || "At Counter"}</p></div>
