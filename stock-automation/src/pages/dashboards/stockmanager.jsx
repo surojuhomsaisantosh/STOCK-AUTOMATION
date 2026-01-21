@@ -1,13 +1,14 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+// Assuming your AuthContext export is named useAuth
+import { useAuth } from "../../context/AuthContext"; 
 import { 
   Home, 
   Package, 
   Receipt, 
   Settings, 
   BarChart3, 
-  Users, 
-  ShieldCheck 
+  Users 
 } from "lucide-react";
 
 const PRIMARY = "#065f46"; // Deep Emerald
@@ -15,6 +16,7 @@ const BORDER = "#e5e7eb";
 
 function StockManagerDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth(); // Accessing the franchise_id from your logs
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
@@ -32,39 +34,39 @@ function StockManagerDashboard() {
     { title: "Team", path: "#", icon: <Users size={isMobile ? 24 : 32}/>, disabled: true },
   ];
 
+  const today = new Date().toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+
   return (
     <div style={styles.page}>
       <div style={styles.container}>
         
         {/* HEADER */}
         <header style={styles.header}>
-          <div style={styles.headerLeft}>
-            <h1 style={{...styles.title, fontSize: isMobile ? '24px' : '36px'}}>STOCK DASHBOARD</h1>
+          <div style={styles.headerLeft}>            
+            <h1 style={{...styles.title, fontSize: isMobile ? '24px' : '36px', marginTop: '20px'}}>STOCK DASHBOARD</h1>
             <p style={{...styles.subtitle, fontSize: isMobile ? '13px' : '16px'}}>Inventory & Fulfillment Control</p>
+
+           <h2 style={styles.greeting}>Hello Stock Manager</h2>
+            <p style={styles.dateText}>Today's Date: {today}</p>
           </div>
-          {!isMobile && (
-            <div style={styles.systemBadge}>
-              <ShieldCheck size={16} color={PRIMARY} />
-              <span>STOCK MANAGER ACCESS</span>
-            </div>
-          )}
+
+          <div style={styles.headerRight}>
+             <span style={styles.franchiseText}>
+               Franchise ID : {user?.franchise_id || "N/A"}
+             </span>
+          </div>
         </header>
 
-        {/* STATUS STRIP */}
-        {!isMobile && (
-          <div style={styles.statsStrip}>
-              <div style={styles.statItem}>WAREHOUSE: <span style={{color: '#10b981'}}>SYNCED</span></div>
-              <div style={styles.statItem}>INVENTORY LOGS: <span>ACTIVE</span></div>
-              <div style={styles.statItem}>SYSTEM CLOCK: <span>{new Date().toLocaleDateString()}</span></div>
-          </div>
-        )}
-
-        {/* 3x2 GRID: Optimized for Viewport Fit */}
+        {/* 3x2 GRID */}
         <div style={{
           ...styles.grid, 
           gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
           gridTemplateRows: isMobile ? "auto" : "repeat(2, 1fr)",
-          height: isMobile ? 'auto' : '62vh' 
+          height: isMobile ? 'auto' : '58vh' 
         }}>
           {navItems.map((item, idx) => (
             <div
@@ -115,23 +117,45 @@ const styles = {
     overflow: "hidden", 
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     boxSizing: 'border-box'
   },
   container: { 
     maxWidth: "1500px", 
     width: '100%',
     margin: "0 auto", 
-    padding: "0 50px",
+    padding: "40px 50px 0 50px", 
     boxSizing: 'border-box'
   },
   header: { 
     display: "flex", 
     justifyContent: "space-between", 
-    alignItems: "flex-end",
-    marginBottom: "1vh"
+    alignItems: "flex-start",
+    marginBottom: "5vh"
   },
   headerLeft: { display: 'flex', flexDirection: 'column' },
+  headerRight: { paddingTop: "5px" },
+  greeting: {
+    fontSize: "22px",
+    fontWeight: "800",
+    color: "#000",
+    margin: 0,
+  },
+  dateText: {
+    fontSize: "14px",
+    color: "#6b7280",
+    margin: "2px 0 0 0",
+    fontWeight: "600"
+  },
+  franchiseText: {
+    fontSize: "16px",
+    fontWeight: "700",
+    color: "#000",
+    padding: "8px 16px",
+    background: "#f9fafb",
+    border: `1px solid ${BORDER}`,
+    borderRadius: "8px"
+  },
   title: { 
     fontWeight: "900", 
     letterSpacing: "-1.5px", 
@@ -140,35 +164,8 @@ const styles = {
   },
   subtitle: { 
     color: "#6b7280", 
-    margin: "4px 0 0 0",
+    margin: "2px 0 0 0",
     fontWeight: "500"
-  },
-  systemBadge: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '8px 18px',
-    borderRadius: '40px',
-    background: '#f0fdf4',
-    border: '1px solid #dcfce7',
-    fontSize: '11px',
-    fontWeight: "800",
-    color: PRIMARY,
-    letterSpacing: '1px'
-  },
-  statsStrip: {
-    display: "flex",
-    gap: "40px",
-    padding: "2vh 0",
-    borderBottom: `1px solid ${BORDER}`,
-    marginBottom: "3vh"
-  },
-  statItem: {
-    fontSize: "12px",
-    fontWeight: "700",
-    color: "#9ca3af",
-    textTransform: "uppercase",
-    letterSpacing: "1px"
   },
   grid: { 
     display: "grid", 

@@ -1,54 +1,62 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { 
-  ArrowLeft, 
-  Lock, 
-  LogOut, 
-  ShieldCheck, 
-  Smartphone, 
-  Bell, 
-  Globe,
-  X,
-  Eye,
-  EyeOff,
-  MessageSquareText
+  ArrowLeft, Lock, LogOut, Eye, EyeOff, 
+  MessageSquareText, ShieldCheck, Hash
 } from "lucide-react";
 
-const PRIMARY = "rgb(0, 100, 55)";
-const BORDER = "#e5e7eb";
+const BRAND_GREEN = "rgb(0, 100, 55)";
+const SOFT_BORDER = "rgba(0, 100, 55, 0.15)";
 
 function CentralSettings() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user: authUser } = useAuth();
 
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  // Data States
+  const [franchiseId, setFranchiseId] = useState("...");
   const [newPassword, setNewPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [activeModal, setActiveModal] = useState(null);
+  const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    fetchProfile();
   }, []);
 
+  const fetchProfile = async () => {
+    if (!authUser?.id) return;
+    const { data } = await supabase
+      .from("profiles")
+      .select("franchise_id")
+      .eq("id", authUser.id)
+      .single();
+    if (data?.franchise_id) setFranchiseId(data.franchise_id);
+  };
+
   const handleChangePassword = async () => {
-    if (!newPassword || newPassword.length < 6) {
-      alert("Password must be at least 6 characters");
+    setMsg("");
+    if (!newPassword || newPassword !== confirmPassword) {
+      setMsg("Passwords do not match");
       return;
     }
+    if (newPassword.length < 6) {
+      setMsg("Minimum 6 characters required");
+      return;
+    }
+
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     setLoading(false);
+
     if (error) {
-      alert(error.message);
+      setMsg(error.message);
     } else {
-      alert("Security Key updated successfully");
+      setMsg("Security Key updated!");
       setNewPassword("");
-      setActiveModal(null);
+      setConfirmPassword("");
     }
   };
 
@@ -59,158 +67,117 @@ function CentralSettings() {
   };
 
   return (
-    <div style={{...styles.page, overflow: isMobile ? 'auto' : 'hidden'}}>
-      <div style={styles.container}>
+    <div className="min-h-screen w-full bg-slate-50/50 p-6 md:p-12 font-sans antialiased text-black">
+      <div className="max-w-7xl mx-auto">
         
         {/* HEADER AREA */}
-        <header style={{...styles.header, flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '12px' : '0'}}>
-          <div style={styles.headerLeft}>
-            <button onClick={() => navigate(-1)} style={styles.backBtn}>
-              <ArrowLeft size={18} />
-              <span>Back</span>
-            </button>
+        <div className="flex items-center justify-between mb-16">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="group flex items-center gap-3 text-[14px] font-black uppercase tracking-[0.2em] transition-all hover:opacity-50"
+            style={{ color: BRAND_GREEN }}
+          >
+            <ArrowLeft size={20} /> BACK
+          </button>
+          
+          <div className="text-center">
+            <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter leading-none text-black">
+              CENTRAL CONTROL
+            </h1>
+            <p className="text-[11px] font-bold uppercase tracking-[0.4em] mt-3 opacity-30 text-center text-black">
+              SYSTEM ADMINISTRATION
+            </p>
           </div>
-          <h1 style={{...styles.centerTitle, position: isMobile ? 'static' : 'absolute', transform: isMobile ? 'none' : 'translateX(-50%)'}}>
-            SETTINGS
-          </h1>
-          <div style={styles.headerRight}></div>
-        </header>
 
-        {/* 3x2 GRID SYSTEM */}
-        <div style={{
-          ...styles.grid, 
-          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
-          gridTemplateRows: isMobile ? "auto" : "repeat(2, 1fr)",
-          height: isMobile ? 'auto' : '62vh'
-        }}>
-          
-          <ActionCard 
-            icon={<Lock size={isMobile ? 24 : 28}/>} 
-            title="Password" 
-            onClick={() => setActiveModal("password")} 
-            isMobile={isMobile}
-          />
-
-          <ActionCard 
-            icon={<MessageSquareText size={isMobile ? 24 : 28}/>} 
-            title="Franchise Replies" 
-            onClick={() => navigate("/central/replies")} 
-            isMobile={isMobile}
-          />
-
-          <ActionCard 
-            icon={<LogOut size={isMobile ? 24 : 28}/>} 
-            title="Logout" 
-            onClick={handleLogout} 
-            isMobile={isMobile}
-            color="#ef4444"
-          />
-
-          <DisabledCard icon={<Bell size={isMobile ? 24 : 28}/>} title="Alerts" />
-          <DisabledCard icon={<Smartphone size={isMobile ? 24 : 28}/>} title="Devices" />
-          <DisabledCard icon={<Globe size={isMobile ? 24 : 28}/>} title="Language" />
-          
+          <div className="hidden sm:flex items-center gap-3 bg-white px-5 py-2.5 rounded-xl border shadow-sm" style={{ borderColor: SOFT_BORDER }}>
+            <span className="text-[10px] font-black uppercase tracking-widest opacity-40 text-black">FRANCHISE ID :</span>
+            <span className="font-mono text-sm font-black text-black">{franchiseId}</span>
+          </div>
         </div>
-      </div>
 
-      {/* POPUP MODAL */}
-      {activeModal === "password" && (
-        <div style={styles.modalOverlay}>
-          <div style={{...styles.modal, width: isMobile ? '92%' : '420px'}}>
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalHeading}>Change Password</h3>
-              <button onClick={() => setActiveModal(null)} style={styles.closeBtn}><X size={20}/></button>
+        {/* MAIN GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+          
+          {/* 1. DIRECT PASSWORD RESET CARD */}
+          <div className="bg-white rounded-[32px] border p-10 shadow-sm flex flex-col h-full" style={{ borderColor: SOFT_BORDER }}>
+            <div className="flex items-center gap-4 mb-8">
+                <div className="p-3 rounded-xl bg-emerald-50" style={{ color: BRAND_GREEN }}>
+                    <Lock size={24} strokeWidth={2.5} />
+                </div>
+                <h3 className="text-xl font-black uppercase tracking-tight text-black">Access Key</h3>
             </div>
-            <div style={styles.modalBody}>
-              <div style={styles.inputGroup}>
-                <label style={styles.inputLabel}>New Security Key</label>
-                <div style={styles.passwordWrapper}>
+
+            <div className="space-y-4 flex-1">
+                <div className="relative">
                     <input 
-                      type={showPassword ? "text" : "password"} 
-                      style={styles.input} 
-                      placeholder="Min. 6 characters"
+                      type={showPass ? "text" : "password"} 
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full px-5 py-4 rounded-xl bg-slate-50 border outline-none font-black text-sm transition-all focus:bg-white text-black" 
+                      style={{ borderColor: SOFT_BORDER }}
+                      placeholder="NEW PASSWORD"
                     />
-                    <button 
-                      onClick={() => setShowPassword(!showPassword)} 
-                      style={styles.eyeBtn}
-                    >
-                        {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+                    <button onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 opacity-20 hover:opacity-100 text-black">
+                        {showPass ? <EyeOff size={16}/> : <Eye size={16}/>}
                     </button>
                 </div>
-              </div>
-              
-              <button 
-                onClick={handleChangePassword} 
-                disabled={loading} 
-                style={{...styles.saveBtn, opacity: loading ? 0.7 : 1}}
-              >
-                {loading ? "UPDATING..." : "CONFIRM UPDATE"}
-              </button>
+                <input 
+                  type={showPass ? "text" : "password"} 
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-5 py-4 rounded-xl bg-slate-50 border outline-none font-black text-sm transition-all focus:bg-white text-black" 
+                  style={{ borderColor: SOFT_BORDER }}
+                  placeholder="CONFIRM PASSWORD"
+                />
+
+                {msg && (
+                    <p className="text-[10px] font-black uppercase tracking-widest text-center py-2" style={{ color: BRAND_GREEN }}>
+                        {msg}
+                    </p>
+                )}
             </div>
+
+            <button 
+              onClick={handleChangePassword} 
+              disabled={loading}
+              className="w-full mt-6 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-[0.3em] transition-all hover:brightness-110 active:scale-95 shadow-md shadow-emerald-100"
+              style={{ backgroundColor: BRAND_GREEN }}
+            >
+              {loading ? "SAVING..." : "UPDATE KEY"}
+            </button>
           </div>
+
+          {/* 2. REPLIES CARD */}
+          <button 
+            onClick={() => navigate("/central/replies")}
+            className="bg-white rounded-[32px] border p-10 shadow-sm flex flex-col justify-center items-center text-center transition-all hover:shadow-lg active:scale-95 group h-full min-h-[300px]"
+            style={{ borderColor: SOFT_BORDER }}
+          >
+            <div className="p-6 rounded-2xl bg-emerald-50 transition-all mb-6 group-hover:scale-110" style={{ color: BRAND_GREEN }}>
+              <MessageSquareText size={32} strokeWidth={2.5} />
+            </div>
+            <h3 className="text-xl font-black uppercase tracking-tight text-black">Franchise Replies</h3>
+            <p className="text-[10px] font-bold opacity-30 uppercase tracking-widest mt-2 text-black">Support Desk</p>
+          </button>
+
+          {/* 3. LOGOUT CARD */}
+          <div className="bg-white rounded-[32px] border p-10 shadow-sm flex flex-col justify-center items-center text-center h-full min-h-[300px]" style={{ borderColor: "rgba(225, 29, 72, 0.15)" }}>
+            <div className="p-6 rounded-2xl bg-rose-50 text-rose-600 mb-6">
+              <LogOut size={32} strokeWidth={2.5} />
+            </div>
+            <button 
+              onClick={handleLogout}
+              className="w-full text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-[0.3em] transition-all bg-rose-600 hover:bg-rose-700 active:scale-95 shadow-lg shadow-rose-100"
+            >
+              Terminate Session
+            </button>
+            <p className="text-[9px] font-black text-rose-600/40 uppercase tracking-widest mt-4">Secure Sign-Out</p>
+          </div>
+
         </div>
-      )}
+      </div>
     </div>
   );
 }
-
-/* ======================
-   SUB-COMPONENTS
-====================== */
-
-const ActionCard = ({ icon, title, onClick, isMobile, color }) => (
-  <div 
-    onClick={onClick}
-    style={{...styles.card, padding: isMobile ? '25px 20px' : '0 40px'}}
-    onMouseEnter={e => { if(!isMobile) { e.currentTarget.style.borderColor = color || PRIMARY; e.currentTarget.style.transform = "translateY(-4px)"; } }}
-    onMouseLeave={e => { if(!isMobile) { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.transform = "translateY(0)"; } }}
-  >
-    <div style={{...styles.cardIcon, color: color || PRIMARY}}>{icon}</div>
-    <div style={styles.cardContent}>
-      <h2 style={{...styles.cardTitle, fontSize: isMobile ? '16px' : '18px'}}>{title}</h2>
-    </div>
-  </div>
-);
-
-const DisabledCard = ({ icon, title }) => (
-  <div style={{...styles.card, opacity: 0.4, cursor: 'not-allowed', padding: '0 40px'}}>
-    <div style={{...styles.cardIcon, color: '#9ca3af', background: '#f3f4f6'}}>{icon}</div>
-    <h2 style={{...styles.cardTitle, color: '#9ca3af', fontSize: '18px'}}>{title}</h2>
-  </div>
-);
-
-const styles = {
-  page: { background: "#fff", minHeight: "100vh", width: '100vw', fontFamily: '"Inter", sans-serif', color: "#111827", display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' },
-  container: { maxWidth: "1200px", width: '100%', margin: "0 auto", padding: "60px 40px" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "40px", position: "relative" },
-  headerLeft: { width: '120px' },
-  headerRight: { width: '120px' },
-  centerTitle: { fontSize: "24px", fontWeight: "900", letterSpacing: "-1px", margin: 0, left: "50%", color: "#000" },
-  backBtn: { display: "flex", alignItems: "center", gap: "10px", background: "none", border: "none", color: "#6b7280", fontWeight: "700", cursor: "pointer", fontSize: "14px" },
-  
-  grid: { display: "grid", gap: "20px", width: "100%" },
-  card: { display: "flex", alignItems: "center", background: "#fff", borderRadius: "20px", border: `1.5px solid ${BORDER}`, transition: "all 0.3s ease", cursor: 'pointer' },
-  cardIcon: { width: "56px", height: "56px", background: "rgba(6, 95, 70, 0.05)", borderRadius: "14px", display: "flex", alignItems: "center", justifyContent: "center", marginRight: "18px" },
-  cardContent: { flex: 1 },
-  cardTitle: { fontWeight: "800", margin: 0, color: "#000", letterSpacing: "-0.5px" },
-  
-  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, backdropFilter: 'blur(4px)' },
-  modal: { background: "#fff", borderRadius: "24px", padding: "35px", boxShadow: "0 20px 40px rgba(0,0,0,0.15)" },
-  modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px" },
-  modalHeading: { fontSize: "18px", fontWeight: "900", margin: 0, color: "#000" },
-  modalBody: { display: "flex", flexDirection: "column", gap: "15px" },
-  
-  inputGroup: { display: "flex", flexDirection: "column", gap: "6px" },
-  inputLabel: { fontSize: "10px", fontWeight: "900", color: "#9ca3af", textTransform: 'uppercase', letterSpacing: "0.5px" },
-  passwordWrapper: { position: 'relative', display: 'flex', alignItems: 'center' },
-  input: { width: '100%', padding: "14px", borderRadius: "12px", border: `1.5px solid ${BORDER}`, outline: "none", fontSize: "14px", background: '#f9fafb', color: "#000", fontWeight: "600" },
-  eyeBtn: { position: 'absolute', right: '12px', background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' },
-  
-  saveBtn: { background: PRIMARY, color: "#fff", border: "none", padding: "14px", borderRadius: "12px", fontWeight: "800", cursor: "pointer", fontSize: "14px", marginTop: "10px" },
-  closeBtn: { background: "none", border: "none", color: "#9ca3af", cursor: "pointer" },
-  loader: { height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: "700", color: PRIMARY }
-};
 
 export default CentralSettings;
