@@ -2,24 +2,28 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { useEffect, useState } from "react";
-import { 
-  FileText, 
-  Users, 
-  Settings, 
-  Wallet, 
-  LayoutDashboard, 
+import {
+  FileText,
+  Users,
+  Settings,
+  Wallet,
+  LayoutDashboard,
   BarChart3,
-  ChevronRight
-} from "lucide-react"; 
+  ChevronRight,
+  Package,
+  ShoppingBag
+} from "lucide-react";
 
-const PRIMARY = "#065f46"; 
+const PRIMARY = "#065f46";
 const SECONDARY = "#047857";
 const BACKGROUND = "#f9fafb"; // Light grey background makes white cards "pop"
 const BORDER = "#f3f4f6";
 
+import MobileNav from "../../components/MobileNav"; // Import MobileNav
+
 function CentralDashboard() {
   const navigate = useNavigate();
-  const { user } = useAuth(); 
+  const { user } = useAuth();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [profile, setProfile] = useState({ name: "User", franchise_id: "..." });
 
@@ -31,7 +35,7 @@ function CentralDashboard() {
         .select('name, franchise_id')
         .eq('id', user.id)
         .single();
-      
+
       if (data && !error) setProfile(data);
     }
     getProfile();
@@ -44,12 +48,14 @@ function CentralDashboard() {
   }, []);
 
   const navItems = [
-    { title: "Reports", path: "/central/reports", icon: <BarChart3 size={isMobile ? 24 : 32}/> },
-    { title: "Invoices", path: "/central/invoices", icon: <FileText size={isMobile ? 24 : 32}/> },
-    { title: "POS Management", path: "/central/posmanagement", icon: <LayoutDashboard size={isMobile ? 24 : 32}/> },
-    { title: "Profiles", path: "/central/profiles", icon: <Users size={isMobile ? 24 : 32}/> },
-    { title: "Accounts", path: "/central/accounts", icon: <Wallet size={isMobile ? 24 : 32}/> },
-    { title: "Settings", path: "/central/settings", icon: <Settings size={isMobile ? 24 : 32}/> },
+    { title: "Stock Master", path: "/central/stock", icon: <Package size={24} /> },
+    { title: "Internal Order", path: "/central/internal-order", icon: <ShoppingBag size={24} /> },
+    { title: "Reports", path: "/central/reports", icon: <BarChart3 size={24} /> },
+    { title: "Invoices", path: "/central/invoices", icon: <FileText size={24} /> },
+    { title: "POS Management", path: "/central/posmanagement", icon: <LayoutDashboard size={24} /> },
+    { title: "Profiles", path: "/central/profiles", icon: <Users size={24} /> },
+    { title: "Accounts", path: "/central/accounts", icon: <Wallet size={24} /> },
+    { title: "Settings", path: "/central/settings", icon: <Settings size={24} /> },
   ];
 
   const today = new Date().toLocaleDateString('en-US', {
@@ -62,30 +68,40 @@ function CentralDashboard() {
   return (
     <div style={styles.page}>
       <div style={styles.container}>
-        
+
         {/* HEADER */}
         <header style={styles.header}>
           <div style={styles.headerLeft}>
-            <h1 style={{...styles.mainTitle, fontSize: isMobile ? '28px' : '48px'}}>
-              Central <span style={{color: PRIMARY}}>Dashboard</span>
-            </h1>
-            <p style={styles.greeting}>Welcome back, {profile.name}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <MobileNav navItems={navItems} title="Central Dashboard" userProfile={profile} />
+              <h1 style={{ ...styles.mainTitle, fontSize: isMobile ? '28px' : '48px' }}>
+                Central <span style={{ color: PRIMARY }}>Dashboard</span>
+              </h1>
+            </div>
+            {!isMobile && <p style={styles.greeting}>Welcome back, {profile.name}</p>}
           </div>
-          
+
           <div style={styles.headerRight}>
             <div style={styles.franchiseBadge}>
-              <span style={{opacity: 0.6, fontWeight: 500}}>Franchise ID: </span> 
-              <span style={{marginLeft: '8px'}}>{profile.franchise_id || 'N/A'}</span>
+              <span style={{ opacity: 0.6, fontWeight: 500 }}>Franchise ID: </span>
+              <span style={{ marginLeft: '8px' }}>{profile.franchise_id || 'N/A'}</span>
             </div>
-            <p style={styles.dateText}>{today}</p>
+            {!isMobile && <p style={styles.dateText}>{today}</p>}
           </div>
         </header>
 
+        {isMobile && (
+          <p style={{ ...styles.greeting, fontSize: '16px', marginBottom: '20px', marginTop: '-10px' }}>
+            Welcome back, {profile.name}
+          </p>
+        )}
+
         {/* GRID */}
         <div style={{
-          ...styles.grid, 
+          ...styles.grid,
           gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
-          gridTemplateRows: isMobile ? "repeat(6, 1fr)" : "repeat(2, 1fr)",
+          gridAutoRows: "minmax(140px, auto)",
+          paddingBottom: "40px"
         }}>
           {navItems.map((item, idx) => (
             <div
@@ -93,24 +109,29 @@ function CentralDashboard() {
               onClick={() => navigate(item.path)}
               style={styles.card}
               onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-5px)";
-                e.currentTarget.style.boxShadow = "0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02)";
-                e.currentTarget.style.borderColor = PRIMARY;
+                if (!isMobile) {
+                  e.currentTarget.style.transform = "translateY(-5px)";
+                  e.currentTarget.style.boxShadow = "0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02)";
+                  e.currentTarget.style.borderColor = PRIMARY;
+                }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.02)";
-                e.currentTarget.style.borderColor = BORDER;
+                if (!isMobile) {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.02)";
+                  e.currentTarget.style.borderColor = BORDER;
+                }
               }}
             >
-              <div style={{...styles.iconWrapper, width: isMobile ? '56px' : '72px', height: isMobile ? '56px' : '72px'}}>
+              <div style={{ ...styles.iconWrapper, width: isMobile ? '56px' : '72px', height: isMobile ? '56px' : '72px' }}>
+                {/* Clone icon with distinct props isn't needed if we just use Standard size or pass it in navItems */}
                 {item.icon}
               </div>
               <div style={styles.cardContent}>
-                <h2 style={{...styles.cardTitle, fontSize: isMobile ? '18px' : '22px'}}>
+                <h2 style={{ ...styles.cardTitle, fontSize: isMobile ? '18px' : '22px' }}>
                   {item.title}
                 </h2>
-                <span style={styles.cardSubtitle}>Manage and view details</span>
+                {!isMobile && <span style={styles.cardSubtitle}>Manage and view details</span>}
               </div>
               {!isMobile && <ChevronRight size={20} style={{ opacity: 0.2 }} />}
             </div>
@@ -122,9 +143,9 @@ function CentralDashboard() {
 }
 
 const styles = {
-  page: { 
-    background: BACKGROUND, 
-    height: "100vh", 
+  page: {
+    background: BACKGROUND,
+    height: "100vh",
     width: '100vw',
     fontFamily: '"Inter", sans-serif',
     color: "#111827",
@@ -133,22 +154,22 @@ const styles = {
     boxSizing: 'border-box',
     overflow: 'hidden'
   },
-  container: { 
-    maxWidth: "1400px", 
+  container: {
+    maxWidth: "1400px",
     width: '100%',
     height: '100%',
-    margin: "0 auto", 
+    margin: "0 auto",
     padding: "40px 40px",
     display: 'flex',
     flexDirection: 'column',
     boxSizing: 'border-box'
   },
-  header: { 
-    display: "flex", 
-    justifyContent: "space-between", 
-    alignItems: "center", 
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingBottom: '40px',
-    flexShrink: 0 
+    flexShrink: 0
   },
   badge: {
     fontSize: '11px',
@@ -158,24 +179,24 @@ const styles = {
     textTransform: 'uppercase',
     marginBottom: '8px'
   },
-  headerLeft: { 
-    display: 'flex', 
+  headerLeft: {
+    display: 'flex',
     flexDirection: 'column'
   },
-  headerRight: { 
-    display: 'flex', 
-    flexDirection: 'column', 
+  headerRight: {
+    display: 'flex',
+    flexDirection: 'column',
     alignItems: 'flex-end',
     gap: '8px'
   },
-  mainTitle: { 
-    fontWeight: "800", 
-    letterSpacing: "-0.04em", 
+  mainTitle: {
+    fontWeight: "800",
+    letterSpacing: "-0.04em",
     margin: 0,
     lineHeight: 1.1,
     color: "#111827"
   },
-  greeting: { 
+  greeting: {
     fontSize: '18px',
     fontWeight: "400",
     margin: '12px 0 0 0',
@@ -199,40 +220,40 @@ const styles = {
     letterSpacing: '0.5px',
     margin: 0
   },
-  grid: { 
-    display: "grid", 
+  grid: {
+    display: "grid",
     gap: "24px",
     width: "100%",
-    flexGrow: 1, 
+    flexGrow: 1,
     paddingBottom: '40px'
   },
-  card: { 
-    display: "flex", 
-    alignItems: "center", 
-    background: "#fff", 
-    borderRadius: "28px", 
+  card: {
+    display: "flex",
+    alignItems: "center",
+    background: "#fff",
+    borderRadius: "28px",
     border: `1px solid ${BORDER}`,
-    cursor: "pointer", 
-    transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)", 
+    cursor: "pointer",
+    transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
     padding: "0 32px",
     boxSizing: 'border-box',
     height: '100%',
     boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.02)"
   },
-  iconWrapper: { 
-    background: `linear-gradient(135deg, ${PRIMARY}0A, ${PRIMARY}1A)`, 
-    borderRadius: "20px", 
-    display: "flex", 
-    alignItems: "center", 
-    justifyContent: "center", 
+  iconWrapper: {
+    background: `linear-gradient(135deg, ${PRIMARY}0A, ${PRIMARY}1A)`,
+    borderRadius: "20px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     color: PRIMARY,
     flexShrink: 0,
     marginRight: "24px",
     border: `1px solid ${PRIMARY}10`
   },
   cardContent: { flex: 1 },
-  cardTitle: { 
-    fontWeight: "700", 
+  cardTitle: {
+    fontWeight: "700",
     margin: 0,
     letterSpacing: "-0.02em",
     color: "#1f2937"

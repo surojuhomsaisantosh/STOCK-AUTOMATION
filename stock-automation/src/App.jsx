@@ -22,7 +22,9 @@ import Settings from "./pages/stock/settings";
 import StockOrder from "./pages/franchise/stockorder";
 import FranchiseInvoices from "./pages/franchise/franchiseinvoices";
 import FranchiseAnalytics from "./pages/franchise/franchiseanalytics"; 
-import RequestPortal from "./pages/franchise/RequestPortal"; // New Import
+import RequestPortal from "./pages/franchise/RequestPortal"; 
+import FranchiseMenu from "./pages/franchise/FranchiseMenu";
+import FranchiseSettingsCard from "./pages/franchise/FranchiseSettingsCard"; // Added Settings Import
 
 /* CENTRAL */
 import CentralInvoices from "./pages/central/centralinvoices";
@@ -128,14 +130,16 @@ function App() {
               </ProtectedRoute>
             }
           />
-<Route
-  path="/central/replies"
-  element={
-    <ProtectedRoute allowedRoles={["central"]}>
-      <FranchiseReplies />
-    </ProtectedRoute>
-  }
-/>
+
+          <Route
+            path="/central/replies"
+            element={
+              <ProtectedRoute allowedRoles={["central"]}>
+                <FranchiseReplies />
+              </ProtectedRoute>
+            }
+          />
+
           {/* ================= FRANCHISE ADMIN ================= */}
           <Route
             path="/dashboard/franchiseowner"
@@ -164,7 +168,6 @@ function App() {
             }
           />
 
-          {/* New Franchise Analytics Route */}
           <Route
             path="/franchise/analytics"
             element={
@@ -174,12 +177,31 @@ function App() {
             }
           />
 
-          {/* New Request Portal Route */}
           <Route
             path="/franchise/requestportal"
             element={
               <ProtectedRoute allowedRoles={["franchise"]}>
                 <RequestPortal />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Franchise Menu Route */}
+          <Route
+            path="/franchise/menu"
+            element={
+              <ProtectedRoute allowedRoles={["franchise"]}>
+                <FranchiseMenu />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* NEW: Franchise Settings Route */}
+          <Route
+            path="/franchise/settings"
+            element={
+              <ProtectedRoute allowedRoles={["franchise"]}>
+                <FranchiseSettingsCard onBack={() => window.history.back()} />
               </ProtectedRoute>
             }
           />

@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../../supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 
 const TABS = ["incoming", "packed", "dispatched"];
 
 function StockOrders() {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
 
   const [orders, setOrders] = useState([]);
   const [expandedOrder, setExpandedOrder] = useState(null);
@@ -13,76 +15,84 @@ function StockOrders() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("incoming");
 
+  // 1. Monitor Auth Changes and trigger fetch
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    if (!authLoading && user) {
+      fetchOrders();
+    }
+  }, [user, authLoading]);
 
-  /* ✅ FETCH ORDERS (USE INVOICE SNAPSHOT DATA) */
+  /* ✅ FETCH ORDERS */
   const fetchOrders = async () => {
     setLoading(true);
-
-    const { data, error } = await supabase
-      .from("invoices")
-      .select(`
-        id,
-        total_amount,
-        created_at,
-        status,
-        customer_name,
-        customer_address,
-        branch_location,
-        customer_phone,
-        customer_email,
-        invoice_items (
+    try {
+      const { data, error } = await supabase
+        .from("invoices")
+        .select(`
           id,
-          item_name,
-          quantity,
-          unit,
-          price
-        )
-      `)
-      .order("created_at", { ascending: false });
+          total_amount,
+          created_at,
+          status,
+          customer_name,
+          customer_address,
+          branch_location,
+          customer_phone,
+          customer_email,
+          invoice_items (
+            id,
+            item_name,
+            quantity,
+            unit,
+            price
+          )
+        `)
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Fetch error:", error);
-    } else {
+      if (error) throw error;
       setOrders(data || []);
+    } catch (error) {
+      console.error("❌ Fetch error:", error.message);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
-  /* UPDATE STATUS */
-  const updateStatus = async (orderId, status) => {
-    const { error } = await supabase
-      .from("invoices")
-      .update({ status })
-      .eq("id", orderId);
+  /* ✅ MEMOIZED FILTER */
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => order.status === activeTab);
+  }, [orders, activeTab]);
 
-    if (error) {
-      alert("Failed to update status");
-      console.error(error);
-      return;
+  /* ✅ UPDATE STATUS (PACKED / DISPATCHED) */
+  const updateStatus = async (orderId, newStatus) => {
+    try {
+      // Small UI optimization: keep the order expanded while updating
+      console.log(`🔄 Updating Order ${orderId} to: ${newStatus}`);
+      
+      const { error } = await supabase
+        .from("invoices")
+        .update({ status: newStatus })
+        .eq("id", orderId);
+
+      if (error) throw error;
+
+      // Refresh data so the order moves to the next tab
+      await fetchOrders();
+      
+      // Close the expanded view after successful update
+      setExpandedOrder(null);
+    } catch (error) {
+      console.error("❌ Update failed:", error.message);
+      alert("Failed to update status. Check your permissions (RLS).");
     }
-
-    fetchOrders();
   };
 
-  /* HANDLE DISPATCH PHOTO (LOCAL PREVIEW ONLY) */
   const handlePhotoUpload = (orderId, file) => {
     if (!file) return;
-
-    const previewUrl = URL.createObjectURL(file);
     setDispatchProof((prev) => ({
       ...prev,
-      [orderId]: previewUrl,
+      [orderId]: URL.createObjectURL(file),
     }));
   };
-
-  /* FILTER BY STATUS */
-  const filteredOrders = orders.filter(
-    (order) => order.status === activeTab
-  );
 
   return (
     <div className="min-h-screen bg-slate-50 p-8 text-slate-900">
@@ -97,170 +107,138 @@ function StockOrders() {
             >
               ← Back
             </button>
-
             <div>
               <h2 className="text-2xl font-black">Franchise Orders</h2>
-              <p className="text-slate-500 text-sm">
-                Orders placed by franchise owners
-              </p>
+              <div className="flex items-center gap-2">
+                 <span className={`h-2 w-2 rounded-full ${user ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                 <p className="text-slate-500 text-sm">
+                   {authLoading ? "Verifying Session..." : `Role: ${user?.role || 'Authenticated'}`}
+                 </p>
+              </div>
             </div>
           </div>
 
           {/* STATUS TABS */}
           <div className="flex bg-white border rounded-xl p-1 shadow-sm">
-            {TABS.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-lg text-sm font-bold capitalize transition ${
-                  activeTab === tab
-                    ? "bg-emerald-600 text-white"
-                    : "text-slate-500 hover:bg-slate-100"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
+            {TABS.map((tab) => {
+              const count = orders.filter(o => o.status === tab).length;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold capitalize transition ${
+                    activeTab === tab
+                      ? "bg-emerald-600 text-white"
+                      : "text-slate-500 hover:bg-slate-100"
+                  }`}
+                >
+                  {tab} <span className="ml-1 opacity-70">({count})</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* LOADING */}
-        {loading && <p className="text-slate-400">Loading orders...</p>}
-
-        {/* EMPTY */}
-        {!loading && filteredOrders.length === 0 && (
-          <p className="text-slate-400">No orders in this stage</p>
+        {/* LOADING STATE */}
+        {(loading || authLoading) && (
+          <div className="py-20 text-center text-slate-400">
+            <div className="animate-spin inline-block w-6 h-6 border-[3px] border-current border-t-transparent text-emerald-600 rounded-full mb-4"></div>
+            <p className="font-medium">Refreshing orders...</p>
+          </div>
         )}
 
-        {/* ORDERS */}
-        <div className="space-y-4">
+        {/* EMPTY STATE */}
+        {!loading && !authLoading && filteredOrders.length === 0 && (
+          <div className="bg-white border-2 border-dashed rounded-2xl p-20 text-center">
+            <p className="text-slate-400 font-medium">No {activeTab} orders found.</p>
+            <p className="text-xs text-slate-300 mt-2">Check other tabs for active orders.</p>
+          </div>
+        )}
+
+        {/* ORDERS LIST */}
+        <div className="grid gap-4">
           {filteredOrders.map((order) => (
             <div
               key={order.id}
-              className="bg-white rounded-2xl shadow-sm border"
+              className={`bg-white rounded-2xl shadow-sm border transition-all ${
+                expandedOrder === order.id ? "ring-2 ring-emerald-500/20" : ""
+              }`}
             >
-              {/* SUMMARY */}
+              {/* SUMMARY CARD */}
               <div
                 className="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition"
-                onClick={() =>
-                  setExpandedOrder(
-                    expandedOrder === order.id ? null : order.id
-                  )
-                }
+                onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
               >
                 <div className="space-y-1">
-                  <p className="font-bold text-lg text-slate-800">
-                    {order.customer_name || "Unknown Franchise"}
-                  </p>
-
-                  <p className="text-xs text-slate-600">
-                    {order.branch_location ||
-                      order.customer_address ||
-                      "Address not available"}
-                  </p>
-
-                  <p className="text-xs text-slate-500">
-                    {new Date(order.created_at).toLocaleString()}
+                  <p className="font-bold text-lg text-slate-800">{order.customer_name || "New Order"}</p>
+                  <p className="text-xs text-slate-500 font-medium italic">
+                    {new Date(order.created_at).toLocaleDateString()} at {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
-
                 <div className="text-right">
-                  <p className="font-black text-emerald-600">
-                    ₹{order.total_amount}
+                  <p className="font-black text-emerald-600 text-lg">₹{order.total_amount}</p>
+                  <p className="text-[10px] uppercase tracking-widest font-black text-slate-400 px-2 py-1 bg-slate-50 rounded mt-1">
+                    {order.status}
                   </p>
-                  <span className="text-xs font-semibold text-slate-500">
-                    {order.status.toUpperCase()}
-                  </span>
                 </div>
               </div>
 
-              {/* DETAILS */}
+              {/* EXPANDED DETAILS */}
               {expandedOrder === order.id && (
-                <div className="border-t bg-slate-50 p-5 space-y-4">
-                  {order.invoice_items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex justify-between text-sm"
-                    >
-                      <span>
-                        {item.item_name} — {item.quantity} {item.unit}
-                      </span>
-                      <span className="font-semibold">
-                        ₹{(item.quantity * item.price).toFixed(2)}
-                      </span>
+                <div className="bg-slate-50 border-t p-6 animate-in slide-in-from-top-1 duration-200">
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Order Items</h4>
+                    <div className="space-y-2">
+                      {order.invoice_items?.map((item) => (
+                        <div key={item.id} className="flex justify-between text-sm bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                          <span className="font-medium text-slate-700">{item.item_name} <span className="text-slate-400 font-normal">x {item.quantity} {item.unit}</span></span>
+                          <span className="font-bold">₹{(item.price * item.quantity).toFixed(2)}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-
-                  <div className="border-t pt-3 flex justify-between font-black">
-                    <span>Total</span>
-                    <span>₹{order.total_amount}</span>
                   </div>
 
-                  {/* ACTIONS */}
-                  <div className="flex gap-3 pt-3 flex-wrap">
-                    <button
-                      onClick={() => window.print()}
-                      className="px-4 py-2 rounded-xl border font-semibold hover:bg-slate-100 transition"
-                    >
-                      🖨 Print
-                    </button>
-
+                  {/* FOOTER ACTIONS */}
+                  <div className="mt-6 pt-6 border-t border-slate-200 flex flex-wrap gap-3">
                     {order.status === "incoming" && (
-                      <button
-                        onClick={() => updateStatus(order.id, "packed")}
-                        className="px-4 py-2 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 transition"
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateStatus(order.id, "packed");
+                        }}
+                        className="bg-amber-500 text-white px-8 py-2.5 rounded-xl font-bold text-sm hover:bg-amber-600 transition shadow-lg shadow-amber-200"
                       >
-                        📦 Mark Packed
+                        📦 Mark as Packed
                       </button>
                     )}
-
+                    
                     {order.status === "packed" && (
-                      <button
-                        onClick={() => updateStatus(order.id, "dispatched")}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition"
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateStatus(order.id, "dispatched");
+                        }}
+                        className="bg-emerald-600 text-white px-8 py-2.5 rounded-xl font-bold text-sm hover:bg-emerald-700 transition shadow-lg shadow-emerald-200"
                       >
-                        🚚 Dispatch
+                        🚚 Dispatch Order
                       </button>
                     )}
-                  </div>
 
-                  {/* DISPATCH PROOF */}
-                  {order.status === "dispatched" && (
-                    <div className="pt-3 space-y-2">
-                      <label className="text-sm font-semibold text-slate-600">
-                        Dispatch Proof (optional)
-                      </label>
-
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) =>
-                          handlePhotoUpload(order.id, e.target.files[0])
-                        }
-                        className="block text-sm"
-                      />
-
-                      {dispatchProof[order.id] && (
-                        <img
-                          src={dispatchProof[order.id]}
-                          alt="Dispatch proof"
-                          className="h-32 rounded-xl border object-cover"
-                        />
-                      )}
-                    </div>
-                  )}
-
-                  {/* CONTACT */}
-                  <div className="text-xs text-slate-500 pt-2">
-                    📞 {order.customer_phone || "N/A"} | ✉️{" "}
-                    {order.customer_email || "N/A"}
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.print();
+                      }} 
+                      className="border bg-white text-slate-600 px-8 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-100 transition"
+                    >
+                      🖨 Print Invoice
+                    </button>
                   </div>
                 </div>
               )}
             </div>
           ))}
         </div>
-
       </div>
     </div>
   );
