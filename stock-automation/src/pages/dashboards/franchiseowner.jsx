@@ -2,12 +2,12 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import FranchiseSettingsCard from "../franchise/FranchiseSettingsCard";
 import { supabase } from "../../supabase/supabaseClient";
-import { 
-  ShoppingBag, 
-  FileText, 
-  Settings, 
-  SendHorizontal, 
-  BarChart3, 
+import {
+  ShoppingBag,
+  FileText,
+  Settings,
+  SendHorizontal,
+  BarChart3,
   Lock,
   Bell,
   X,
@@ -15,14 +15,16 @@ import {
   Clock
 } from "lucide-react";
 
-const PRIMARY = "#065f46"; 
+const PRIMARY = "#065f46";
 const BORDER = "#e5e7eb";
+
+import MobileNav from "../../components/MobileNav";
 
 function FranchiseOwnerDashboard() {
   const [showSettings, setShowSettings] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [franchiseName, setFranchiseName] = useState("");
-  const [franchiseId, setFranchiseId] = useState(""); 
+  const [franchiseId, setFranchiseId] = useState("");
   const [notifications, setNotifications] = useState([]);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const navigate = useNavigate();
@@ -56,7 +58,7 @@ function FranchiseOwnerDashboard() {
       .select('id, ticket_id, reply_message, created_at, status, is_read')
       .eq('user_id', user.id)
       .eq('is_read', false) // Only get unread ones
-      .not('reply_message', 'is', null) 
+      .not('reply_message', 'is', null)
       .order('created_at', { ascending: false });
 
     if (tickets) setNotifications(tickets);
@@ -73,18 +75,18 @@ function FranchiseOwnerDashboard() {
         .update({ is_read: true })
         .eq('user_id', user.id)
         .eq('is_read', false);
-      
+
       // Clear local state so bell goes back to normal immediately
       setNotifications([]);
     }
   };
 
   const navItems = [
-    { title: "Order Stock", path: "/stock-orders", icon: <ShoppingBag size={isMobile ? 24 : 32}/>, desc: "Procure inventory from warehouse" },
-    { title: "Invoices", path: "/franchise/invoices", icon: <FileText size={isMobile ? 24 : 32}/>, desc: "Billing history and payments" },
-    { title: "Request Portal", path: "/franchise/requestportal", icon: <SendHorizontal size={isMobile ? 24 : 32}/>, desc: "Support & maintenance requests" },
-    { title: "Analytics", path: "/franchise/analytics", icon: <BarChart3 size={isMobile ? 24 : 32}/>, desc: "Sales performance & trends" },
-    { title: "Settings", action: () => setShowSettings(true), icon: <Settings size={isMobile ? 24 : 32}/>, desc: "Configure store & profile" },
+    { title: "Order Stock", path: "/stock-orders", icon: <ShoppingBag size={24} />, desc: "Procure inventory" },
+    { title: "Invoices", path: "/franchise/invoices", icon: <FileText size={24} />, desc: "Billing history" },
+    { title: "Request Portal", path: "/franchise/requestportal", icon: <SendHorizontal size={24} />, desc: "Support & maintenance" },
+    { title: "Analytics", path: "/franchise/analytics", icon: <BarChart3 size={24} />, desc: "Sales performance" },
+    { title: "Settings", action: () => setShowSettings(true), icon: <Settings size={24} />, desc: "Configure store" },
   ];
 
   return (
@@ -96,13 +98,20 @@ function FranchiseOwnerDashboard() {
           <>
             <header style={styles.header}>
               <div style={styles.headerTopRow}>
-                <div style={{ width: 40 }} /> 
-                <h1 style={{...styles.title, fontSize: isMobile ? '24px' : '36px'}}>
-                  FRANCHISE DASHBOARD
-                </h1>
-                
-                <button 
-                  style={styles.notificationBtn} 
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                  <MobileNav
+                    navItems={navItems}
+                    title="Franchise Menu"
+                    userProfile={{ name: franchiseName, role: "Franchise Owner" }}
+                  />
+                  <div style={{ width: isMobile ? 0 : 40 }} />
+                  <h1 style={{ ...styles.title, fontSize: isMobile ? '20px' : '36px', textAlign: isMobile ? 'left' : 'center' }}>
+                    FRANCHISE DASHBOARD
+                  </h1>
+                </div>
+
+                <button
+                  style={styles.notificationBtn}
                   onClick={handleOpenNotifications}
                 >
                   <Bell size={isMobile ? 22 : 28} color={PRIMARY} />
@@ -117,9 +126,9 @@ function FranchiseOwnerDashboard() {
               </div>
 
               <div style={styles.subHeaderAlign}>
-                <p style={{...styles.subtitle, fontSize: isMobile ? '13px' : '16px'}}>
+                <p style={{ ...styles.subtitle, fontSize: isMobile ? '13px' : '16px' }}>
                   Hello User: {" "}
-                  <span style={{color: PRIMARY, fontWeight: "700"}}>
+                  <span style={{ color: PRIMARY, fontWeight: "700" }}>
                     {franchiseName || "Store Owner"}
                   </span>
                 </p>
@@ -138,10 +147,10 @@ function FranchiseOwnerDashboard() {
             )}
 
             <div style={{
-              ...styles.grid, 
+              ...styles.grid,
               gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
               gridTemplateRows: isMobile ? "auto" : "repeat(2, 1fr)",
-              height: isMobile ? 'auto' : '60vh' 
+              height: isMobile ? 'auto' : '60vh'
             }}>
               {navItems.map((item, idx) => (
                 <div
@@ -153,7 +162,7 @@ function FranchiseOwnerDashboard() {
                     {item.icon}
                   </div>
                   <div style={styles.cardContent}>
-                    <h2 style={{...styles.cardTitle, fontSize: isMobile ? '18px' : '22px'}}>
+                    <h2 style={{ ...styles.cardTitle, fontSize: isMobile ? '18px' : '22px' }}>
                       {item.title}
                     </h2>
                     {!isMobile && <p style={styles.cardDesc}>{item.desc}</p>}
@@ -166,7 +175,7 @@ function FranchiseOwnerDashboard() {
                   <Lock size={isMobile ? 20 : 28} color="#9ca3af" />
                 </div>
                 <div style={styles.cardContent}>
-                  <h2 style={{...styles.cardTitle, color: '#9ca3af'}}>
+                  <h2 style={{ ...styles.cardTitle, color: '#9ca3af' }}>
                     Coming Soon
                   </h2>
                 </div>
@@ -189,10 +198,10 @@ function FranchiseOwnerDashboard() {
             <div style={styles.notifBody}>
               {/* Note: Showing empty if all were just marked read, 
                   you can fetch all (read+unread) here if you want a true history */}
-              <div style={{textAlign: 'center', padding: '20px', color: '#6b7280', fontSize: '14px'}}>
+              <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280', fontSize: '14px' }}>
                 All notifications marked as read.
               </div>
-              <button 
+              <button
                 style={styles.viewAllBtn}
                 onClick={() => navigate('/franchise/requestportal')}
               >
@@ -220,7 +229,7 @@ const styles = {
   header: { display: "flex", flexDirection: "column", paddingTop: "50px", marginBottom: "10px" },
   headerTopRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' },
   notificationBtn: { background: 'white', border: `1px solid ${BORDER}`, padding: '10px', borderRadius: '14px', cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  
+
   badgeWrapper: {
     position: 'absolute',
     top: '-6px',
@@ -228,7 +237,7 @@ const styles = {
     animation: 'badge-pulse 2s infinite ease-in-out',
   },
   numericBadge: {
-    background: '#ef4444', 
+    background: '#ef4444',
     color: 'white',
     fontSize: '10px',
     fontWeight: '900',
