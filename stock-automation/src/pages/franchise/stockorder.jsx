@@ -92,7 +92,6 @@ function StockOrder() {
     }
 
     const factor = getConversionFactor(unit);
-    // FIX: Using toFixed to avoid floating point math errors (0.700000000001)
     const requestedBaseQty = parseFloat((numVal * factor).toFixed(3)); 
     const availableBaseQty = parseFloat(Number(maxAvailable).toFixed(3));
 
@@ -142,7 +141,6 @@ function StockOrder() {
         price: item.price
       }));
 
-      // CALLING THE DATABASE FUNCTION (RPC)
       const { error } = await supabase.rpc('place_stock_order', {
         p_total_amount: Math.round(totalBill),
         p_created_by: user.id,
@@ -232,33 +230,59 @@ function StockOrder() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {filteredStocks.map((item) => {
             const isOutOfStock = item.quantity <= 0;
             const isInCart = cart.some(c => c.id === item.id);
             const unit = selectedUnit[item.id] ?? item.unit ?? "pcs";
             return (
-              <div key={item.id} className={`relative bg-white p-6 rounded-[2.5rem] transition-all flex flex-col border-2 ${isOutOfStock ? 'border-slate-100 opacity-40' : isInCart ? 'border-black shadow-2xl scale-[1.02]' : 'border-slate-100 hover:border-black shadow-sm'}`}>
+              <div key={item.id} className={`relative bg-white p-5 rounded-2xl transition-all flex flex-col border-2 ${isOutOfStock ? 'border-slate-100 opacity-40' : isInCart ? 'border-black shadow-lg scale-[1.01]' : 'border-slate-200 hover:border-black'}`}>
+                {/* ITEM CODE */}
+                <span className="text-[10px] font-black uppercase text-black mb-1">
+                  ITEM CODE : {item.item_code || '---'}
+                </span>
+                
+                {/* ITEM NAME */}
+                <h3 className="font-black text-base uppercase text-black min-h-[48px] leading-tight mb-2">
+                  {item.item_name}
+                </h3>
+
+                {/* ITEM PRICE */}
                 <div className="mb-6">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-[10px] font-black uppercase opacity-30">#{item.item_code || '---'}</span>
-                    <p className={`text-xl font-black tracking-tighter ${isInCart ? 'text-emerald-700' : ''}`}>
-                      ₹{item.price}<span className="ml-1 text-xs font-black px-2 py-0.5 bg-slate-100 rounded-md border border-slate-200 text-slate-500 uppercase">/ {item.unit}</span>
-                    </p>
-                  </div>
-                  <h3 className="font-black text-lg uppercase min-h-[50px] tracking-tight">{item.item_name}</h3>
+                  <p className="text-xl font-black text-black">
+                    ₹{item.price}<span className="ml-1 text-[10px] font-black text-black opacity-40 uppercase">/ {item.unit}</span>
+                  </p>
                 </div>
-                <div className="space-y-4 mt-auto">
-                  <select disabled={isOutOfStock} value={unit} onChange={(e) => handleUnitChange(item.id, e.target.value)} className="w-full bg-white border-2 border-slate-100 rounded-xl px-4 py-3 text-xs font-black uppercase outline-none focus:border-black appearance-none cursor-pointer">
-                    <option value={item.unit}>{item.unit?.toUpperCase()}</option>
-                    {item.alt_unit && item.alt_unit !== item.unit && ( <option value={item.alt_unit}>{item.alt_unit.toUpperCase()}</option> )}
-                  </select>
-                  <div className={`flex items-center border-2 rounded-xl h-14 overflow-hidden bg-white ${isInCart ? 'border-black' : 'border-slate-100'}`}>
-                    <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, -1)} className="w-14 h-full flex items-center justify-center border-r border-slate-100 hover:bg-slate-50 transition-colors"><FiMinus /></button>
-                    <input type="number" value={qtyInput[item.id] || ""} placeholder="0" onChange={(e) => handleQtyChange(item.id, e.target.value, item.quantity)} className="w-full text-center font-black outline-none bg-transparent" />
-                    <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, 1)} className="w-14 h-full flex items-center justify-center border-l border-slate-100 hover:bg-slate-50 transition-colors"><FiPlus /></button>
+
+                <div className="mt-auto space-y-3">
+                  {/* QTY INPUT BESIDE SMALL DROPDOWN */}
+                  <div className="flex items-center gap-2">
+                    <div className={`flex flex-1 items-center border-2 rounded-lg h-10 overflow-hidden bg-white ${isInCart ? 'border-black' : 'border-slate-200'}`}>
+                      <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, -1)} className="w-8 h-full flex items-center justify-center border-r border-slate-100 hover:bg-slate-50 transition-colors"><FiMinus size={12}/></button>
+                      <input type="number" value={qtyInput[item.id] || ""} placeholder="0" onChange={(e) => handleQtyChange(item.id, e.target.value, item.quantity)} className="w-full text-center font-black text-sm outline-none bg-transparent" />
+                      <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, 1)} className="w-8 h-full flex items-center justify-center border-l border-slate-100 hover:bg-slate-50 transition-colors"><FiPlus size={12}/></button>
+                    </div>
+
+                    {/* SMALL DROPDOWN */}
+                    <select 
+                      disabled={isOutOfStock} 
+                      value={unit} 
+                      onChange={(e) => handleUnitChange(item.id, e.target.value)} 
+                      className="w-20 bg-slate-50 border-2 border-slate-200 rounded-lg h-10 px-1 text-[9px] font-black uppercase outline-none focus:border-black appearance-none text-center cursor-pointer"
+                    >
+                      <option value={item.unit}>{item.unit?.toUpperCase()}</option>
+                      {item.alt_unit && item.alt_unit !== item.unit && ( <option value={item.alt_unit}>{item.alt_unit.toUpperCase()}</option> )}
+                    </select>
                   </div>
-                  <button onClick={() => handleQtyChange(item.id, qtyInput[item.id], item.quantity)} disabled={isOutOfStock} className="w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all text-white shadow-md" style={{ backgroundColor: isOutOfStock ? '#f8f9fa' : BRAND_COLOR }}>{isOutOfStock ? "NOT AVAILABLE" : isInCart ? "UPDATE CART" : "ADD TO CART"}</button>
+
+                  <button 
+                    onClick={() => handleQtyChange(item.id, qtyInput[item.id], item.quantity)} 
+                    disabled={isOutOfStock} 
+                    className="w-full py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-white" 
+                    style={{ backgroundColor: isOutOfStock ? '#e2e8f0' : BRAND_COLOR }}
+                  >
+                    {isOutOfStock ? "NOT AVAILABLE" : isInCart ? "UPDATE CART" : "ADD TO CART"}
+                  </button>
                 </div>
               </div>
             );
