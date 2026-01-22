@@ -137,7 +137,7 @@ function StockOrder() {
       const orderItems = cart.map(item => ({
         stock_id: item.id,
         item_name: item.item_name,
-        quantity: item.displayQty, 
+        quantity: item.qty, 
         unit: item.cartUnit,       
         price: item.price
       }));
