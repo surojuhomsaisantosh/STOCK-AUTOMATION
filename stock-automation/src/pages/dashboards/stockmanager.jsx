@@ -26,12 +26,12 @@ function StockManagerDashboard() {
   }, []);
 
   const navItems = [
-    { title: "Home", path: "/stock/orders", icon: <Home size={isMobile ? 24 : 32}/> },
+    { title: "Orders", path: "/stock/orders", icon: <Home size={isMobile ? 24 : 32}/> },
     { title: "Stock", path: "/stock", icon: <Package size={isMobile ? 24 : 32}/> },
-    { title: "Bills", path: "/stock/bills", icon: <Receipt size={isMobile ? 24 : 32}/> },
+    { title: "Invoices", path: "/stock/bills", icon: <Receipt size={isMobile ? 24 : 32}/> },
     { title: "Settings", path: "/stock/settings", icon: <Settings size={isMobile ? 24 : 32}/> },
-    { title: "Reports", path: "#", icon: <BarChart3 size={isMobile ? 24 : 32}/>, disabled: true },
-    { title: "Team", path: "#", icon: <Users size={isMobile ? 24 : 32}/>, disabled: true },
+    { title: "Coming Soon", path: "#", icon: <BarChart3 size={isMobile ? 24 : 32}/>, disabled: true },
+    { title: "Coming Soon", path: "#", icon: <Users size={isMobile ? 24 : 32}/>, disabled: true },
   ];
 
   const today = new Date().toLocaleDateString('en-GB', {
@@ -48,7 +48,7 @@ function StockManagerDashboard() {
         <header style={styles.header}>
           <div style={styles.headerLeft}>            
             <h1 style={{...styles.title, fontSize: isMobile ? '24px' : '36px', marginTop: '20px'}}>STOCK DASHBOARD</h1>
-            <p style={{...styles.subtitle, fontSize: isMobile ? '13px' : '16px'}}>Inventory & Fulfillment Control</p>
+            {/* <p style={{...styles.subtitle, fontSize: isMobile ? '13px' : '16px'}}>Inventory & Fulfillment Control</p> */}
 
            <h2 style={styles.greeting}>Hello Stock Manager</h2>
             <p style={styles.dateText}>Today's Date: {today}</p>

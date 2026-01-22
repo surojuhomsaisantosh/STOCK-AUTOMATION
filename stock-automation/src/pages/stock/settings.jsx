@@ -1,15 +1,18 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
+import { FiArrowLeft, FiLock, FiLogOut } from "react-icons/fi";
+
+const BRAND_GREEN = "rgb(0, 100, 55)";
 
 function Settings() {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordMsg, setPasswordMsg] = useState("");
-
-  const navigate = useNavigate();
-  const { logout } = useAuth();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -19,21 +22,16 @@ function Settings() {
 
   const handleChangePassword = async () => {
     setPasswordMsg("");
-
     if (!newPassword || !confirmPassword) {
       setPasswordMsg("Please fill all fields");
       return;
     }
-
     if (newPassword !== confirmPassword) {
       setPasswordMsg("Passwords do not match");
       return;
     }
 
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
-
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) {
       setPasswordMsg(error.message);
     } else {
@@ -44,107 +42,101 @@ function Settings() {
   };
 
   return (
-    <div className="min-h-screen bg-white p-10">
-      {/* HEADER */}
-      <div className="flex items-center justify-between mb-10">
-        <button
-          onClick={() => navigate("/dashboard/stockmanager")}
-          className="text-sm font-medium text-gray-700 hover:text-black"
+    <div className="min-h-screen bg-[#F8F9FA] text-black font-sans pb-20">
+      
+      {/* TOP NAVIGATION */}
+      <nav className="border-b border-slate-200 px-8 py-5 bg-white sticky top-0 z-50 flex items-center justify-between">
+        <button 
+          onClick={() => navigate(-1)} 
+          className="flex items-center gap-2 text-xs font-black uppercase tracking-widest hover:opacity-60 transition-all text-black"
         >
-          ← Back
+          <FiArrowLeft size={18} /> Back
         </button>
 
-        <h1 className="text-xl font-semibold text-black">
-          Settings
-        </h1>
-      </div>
+        <h1 className="text-xl font-black uppercase tracking-[0.2em] text-black ml-12">Settings</h1>
 
-      {/* CONTENT */}
-      <div className="max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* CHANGE PASSWORD */}
-        <div className="border border-gray-300 rounded-xl p-6">
-          <h3 className="text-sm font-semibold mb-4 text-black">
-            Change Password
-          </h3>
-
-          <input
-            type="password"
-            placeholder="New password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            className="w-full mb-3 px-4 py-2.5 border border-gray-300 rounded-lg text-sm"
-          />
-
-          <input
-            type="password"
-            placeholder="Confirm password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full mb-4 px-4 py-2.5 border border-gray-300 rounded-lg text-sm"
-          />
-
-          {passwordMsg && (
-            <p className="text-sm text-gray-700 mb-4">
-              {passwordMsg}
-            </p>
-          )}
-
-          {/* PROPER PRIMARY BUTTON */}
-          <button
-            onClick={handleChangePassword}
-            style={{
-              backgroundColor: "#0b3d2e",
-              color: "#ffffff",
-            }}
-            className="
-              w-full
-              h-11
-              rounded-lg
-              text-sm
-              font-semibold
-              shadow-md
-              hover:shadow-lg
-              active:scale-[0.98]
-              transition
-            "
-          >
-            Update Password
-          </button>
+        <div className="flex items-center gap-2">
+           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Franchise ID:</span>
+           <span className="text-xs font-black text-black uppercase bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
+             {user?.franchise_id || "TV-HQ-01"}
+           </span>
         </div>
+      </nav>
 
-        {/* LOGOUT */}
-        <div className="border border-gray-300 rounded-xl p-6 flex flex-col justify-between">
-          <div>
-            <h3 className="text-sm font-semibold mb-2 text-black">
-              Logout
-            </h3>
-            <p className="text-sm text-gray-600">
-              End your current session safely.
-            </p>
+      <div className="max-w-7xl mx-auto px-6 mt-16">
+        
+        {/* THE GRID: items-stretch ensures all cards in a row have equal height */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
+          
+          {/* CARD 1: CHANGE PASSWORD */}
+          <div className="bg-white border border-slate-200 p-10 rounded-[2.5rem] shadow-sm flex flex-col h-full">
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400">
+                <FiLock size={24} />
+              </div>
+              <h3 className="text-sm font-black uppercase tracking-widest">Security</h3>
+            </div>
+
+            <div className="space-y-3 flex-1">
+              <input
+                type="password"
+                placeholder="NEW PASSWORD"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[10px] font-bold outline-none focus:ring-2 ring-black/5 uppercase transition-all"
+              />
+              <input
+                type="password"
+                placeholder="CONFIRM PASSWORD"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[10px] font-bold outline-none focus:ring-2 ring-black/5 uppercase transition-all"
+              />
+              {passwordMsg && (
+                <p className="text-[9px] font-black uppercase px-2 text-emerald-600">
+                  {passwordMsg}
+                </p>
+              )}
+            </div>
+
+            <button
+              onClick={handleChangePassword}
+              style={{ backgroundColor: BRAND_GREEN }}
+              className="mt-8 w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-white shadow-xl shadow-emerald-900/10 hover:opacity-90 active:scale-[0.98] transition-all"
+            >
+              Update Password
+            </button>
           </div>
 
-          {/* PROPER DESTRUCTIVE BUTTON */}
-          <button
-            onClick={handleLogout}
-            style={{
-              backgroundColor: "#dc2626",
-              color: "#ffffff",
-            }}
-            className="
-              w-full
-              h-11
-              mt-6
-              rounded-lg
-              text-sm
-              font-semibold
-              shadow-md
-              hover:shadow-lg
-              active:scale-[0.98]
-              transition
-            "
-          >
-            Logout
-          </button>
+          {/* CARD 2: LOGOUT */}
+          <div className="bg-white border border-slate-200 p-10 rounded-[2.5rem] shadow-sm flex flex-col h-full">
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center text-red-500">
+                <FiLogOut size={24} />
+              </div>
+              <h3 className="text-sm font-black uppercase tracking-widest">Account</h3>
+            </div>
+
+            <div className="flex-1 flex flex-col justify-center">
+              <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                <p className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Active User</p>
+                <p className="text-xs font-black text-black truncate">{user?.email || "Signed In"}</p>
+              </div>
+            </div>
+            
+            <button
+              onClick={handleLogout}
+              className="mt-8 w-full py-4 rounded-2xl border border-red-100 bg-red-50 text-red-600 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-red-600 hover:text-white active:scale-[0.98] transition-all"
+            >
+              Logout
+            </button>
+          </div>
+
+          {/* SLOT 3: Invisible card to maintain grid width for first two cards */}
+          <div className="hidden lg:block h-full opacity-0 pointer-events-none">
+             <div className="p-10 rounded-[2.5rem] border border-transparent">Grid Filler</div>
+          </div>
+
         </div>
       </div>
     </div>
