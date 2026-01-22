@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { 
   FiArrowLeft, FiSearch, FiCalendar, FiUser, FiMapPin, FiPackage, 
-  FiPrinter, FiTruck, FiRefreshCw, FiChevronDown, FiChevronUp, FiList
+  FiPrinter, FiTruck, FiRefreshCw, FiChevronDown, FiChevronUp, FiList, FiBox
 } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa";
 
@@ -284,54 +284,76 @@ function StockOrders() {
                                 </div>
                             </div>
 
-                            {/* Column 3: Standalone Dispatch Checklist */}
+                            {/* Column 3: Contextual Actions & Checklist */}
                             <div className="space-y-6">
-                                <h4 className="text-[10px] font-black uppercase text-black tracking-[0.2em] mb-6 flex items-center gap-2 border-l-2 border-black pl-3"><FiList /> Checklist</h4>
-                                <div className="bg-slate-50 border border-slate-100 rounded-[2rem] overflow-hidden shadow-sm">
-                                    <table className="w-full">
-                                        <thead>
-                                            <tr className="bg-black">
-                                                <th className="px-6 py-4 text-[9px] font-black text-white uppercase text-left tracking-widest">Verification Task</th>
-                                                <th className="px-6 py-4 text-[9px] font-black text-white uppercase text-center tracking-widest">Done</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100 bg-white">
-                                            {DISPATCH_TASKS.map((task) => (
-                                                <tr key={task.id}>
-                                                    <td className="px-6 py-5">
-                                                        <label htmlFor={`order-task-${order.id}-${task.id}`} className="text-[10px] font-black text-black uppercase cursor-pointer">
-                                                            {task.label}
-                                                        </label>
-                                                    </td>
-                                                    <td className="px-6 py-5 text-center">
-                                                        <input 
-                                                            id={`order-task-${order.id}-${task.id}`}
-                                                            type="checkbox" 
-                                                            checked={!!orderChecklists[order.id]?.[task.id]}
-                                                            onChange={() => toggleOrderTask(order.id, task.id)}
-                                                            className="w-5 h-5 accent-emerald-600 cursor-pointer rounded border-slate-300"
-                                                        />
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                <h4 className="text-[10px] font-black uppercase text-black tracking-[0.2em] mb-6 flex items-center gap-2 border-l-2 border-black pl-3">
+                                  {order.status === "dispatched" ? <FiList /> : <FiBox />} Actions
+                                </h4>
 
-                                {/* Actions */}
-                                <div className="grid grid-cols-1 gap-3 mt-8">
-                                    {order.status === "dispatched" && (
-                                        <button onClick={(e) => { e.stopPropagation(); handleWhatsApp(order); }} className="border border-emerald-200 bg-emerald-50 text-emerald-700 px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-100 transition-all flex items-center justify-center gap-2">
-                                            <FaWhatsapp size={16} /> WhatsApp
-                                        </button>
+                                {/* ONLY show checklist if status is DISPATCHED */}
+                                {order.status === "dispatched" && (
+                                    <div className="bg-slate-50 border border-slate-100 rounded-[2rem] overflow-hidden shadow-sm mb-6">
+                                        <table className="w-full">
+                                            <thead>
+                                                <tr className="bg-black">
+                                                    <th className="px-6 py-4 text-[9px] font-black text-white uppercase text-left tracking-widest">Verification Task</th>
+                                                    <th className="px-6 py-4 text-[9px] font-black text-white uppercase text-center tracking-widest">Done</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 bg-white">
+                                                {DISPATCH_TASKS.map((task) => (
+                                                    <tr key={task.id}>
+                                                        <td className="px-6 py-5">
+                                                            <label htmlFor={`order-task-${order.id}-${task.id}`} className="text-[10px] font-black text-black uppercase cursor-pointer">
+                                                                {task.label}
+                                                            </label>
+                                                        </td>
+                                                        <td className="px-6 py-5 text-center">
+                                                            <input 
+                                                                id={`order-task-${order.id}-${task.id}`}
+                                                                type="checkbox" 
+                                                                checked={!!orderChecklists[order.id]?.[task.id]}
+                                                                onChange={() => toggleOrderTask(order.id, task.id)}
+                                                                className="w-5 h-5 accent-emerald-600 cursor-pointer rounded border-slate-300"
+                                                            />
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+
+                                {/* Status-Based Action Buttons */}
+                                <div className="grid grid-cols-1 gap-3">
+                                    {order.status === "incoming" && (
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); updateStatus(order.id, "packed"); }} 
+                                        className="bg-black text-white px-8 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-xl"
+                                      >
+                                        <FiPackage size={18} /> Start Packing
+                                      </button>
                                     )}
-                                    <button onClick={(e) => { e.stopPropagation(); window.print(); }} className="border border-slate-200 bg-white text-black px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
-                                        <FiPrinter /> Print Invoice
-                                    </button>
+
                                     {order.status === "packed" && (
-                                        <button onClick={(e) => { e.stopPropagation(); updateStatus(order.id, "dispatched"); }} style={{ backgroundColor: BRAND_COLOR }} className="text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:opacity-90 transition-all flex items-center justify-center gap-2">
-                                            <FiTruck /> Dispatch Order
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); updateStatus(order.id, "dispatched"); }} 
+                                        style={{ backgroundColor: BRAND_COLOR }}
+                                        className="text-white px-8 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:opacity-90 transition-all flex items-center justify-center gap-2"
+                                      >
+                                        <FiTruck size={18} /> Ready to Dispatch
+                                      </button>
+                                    )}
+
+                                    {order.status === "dispatched" && (
+                                      <>
+                                        <button onClick={(e) => { e.stopPropagation(); handleWhatsApp(order); }} className="border border-emerald-200 bg-emerald-50 text-emerald-700 px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-100 transition-all flex items-center justify-center gap-2">
+                                            <FaWhatsapp size={16} /> WhatsApp Message
                                         </button>
+                                        <button onClick={(e) => { e.stopPropagation(); window.print(); }} className="border border-slate-200 bg-white text-black px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
+                                            <FiPrinter /> Print Final Invoice
+                                        </button>
+                                      </>
                                     )}
                                 </div>
                             </div>
