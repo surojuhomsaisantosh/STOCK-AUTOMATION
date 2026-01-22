@@ -14,17 +14,17 @@ import FranchiseOwnerDashboard from "./pages/dashboards/franchiseowner";
 
 /* STOCK */
 import StockUpdate from "./pages/stock/StockUpdate";
-import StockOrders from "./pages/stock/stockorders";
+import StockOrders from "./pages/stock/StockOrders";
 import InvoicesBilling from "./pages/stock/invoices_billing";
 import Settings from "./pages/stock/settings";
 
 /* FRANCHISE */
 import StockOrder from "./pages/franchise/stockorder";
 import FranchiseInvoices from "./pages/franchise/franchiseinvoices";
-import FranchiseAnalytics from "./pages/franchise/franchiseanalytics"; 
+import FranchiseAnalytics from "./pages/franchise/FranchiseAnalytics"; 
 import RequestPortal from "./pages/franchise/RequestPortal"; 
 import FranchiseMenu from "./pages/franchise/FranchiseMenu";
-import FranchiseSettingsCard from "./pages/franchise/FranchiseSettingsCard"; // Added Settings Import
+import FranchiseSettingsCard from "./pages/franchise/FranchiseSettingsCard";
 
 /* CENTRAL */
 import CentralInvoices from "./pages/central/centralinvoices";
@@ -78,6 +78,16 @@ function App() {
             }
           />
 
+          {/* New Route: Central Internal Order Entry */}
+          <Route
+            path="/central/internal-order"
+            element={
+              <ProtectedRoute allowedRoles={["central"]}>
+                <StockOrder />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/central/invoices"
             element={
@@ -122,15 +132,16 @@ function App() {
               </ProtectedRoute>
             }
           />
-          {/* Add this inside the Central Admin section of your Routes */}
-<Route
-  path="/central/stock"
-  element={
-    <ProtectedRoute allowedRoles={["central"]}>
-      <CentralStockMaster />
-    </ProtectedRoute>
-  }
-/>
+
+          <Route
+            path="/central/stock"
+            element={
+              <ProtectedRoute allowedRoles={["central"]}>
+                <CentralStockMaster />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/central/posmanagement"
             element={
@@ -195,7 +206,6 @@ function App() {
             }
           />
 
-          {/* Franchise Menu Route */}
           <Route
             path="/franchise/menu"
             element={
@@ -205,7 +215,6 @@ function App() {
             }
           />
 
-          {/* NEW: Franchise Settings Route */}
           <Route
             path="/franchise/settings"
             element={

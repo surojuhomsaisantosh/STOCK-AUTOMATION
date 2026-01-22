@@ -31,23 +31,21 @@ function CentralStockMaster() {
     };
     const [formData, setFormData] = useState(initialForm);
 
-    // --- OPTIMIZED CATEGORIES (Memoized for speed) ---
+    // --- OPTIMIZED CATEGORIES ---
     const categories = useMemo(() => {
         return ["All", ...new Set(items.map(item => item.category || "Uncategorized"))];
     }, [items]);
 
-    // --- FETCH DATA (Optimized for speed & quantity) ---
+    // --- FETCH DATA ---
     useEffect(() => {
         const getInitialData = async () => {
             setLoading(true);
-            
-            // Parallel execution for faster load
             const [profileRes, stocksRes] = await Promise.all([
                 user ? supabase.from('profiles').select('franchise_id').eq('id', user.id).single() : Promise.resolve({ data: null }),
                 supabase.from("stocks")
                     .select("*")
-                    .order("item_name", { ascending: true }) // Alphabetical usually loads "feel" faster
-                    .range(0, 999) // Force load up to 1000 items immediately
+                    .order("item_name", { ascending: true })
+                    .range(0, 999)
             ]);
 
             if (profileRes.data) setProfile(profileRes.data);
@@ -60,7 +58,7 @@ function CentralStockMaster() {
         getInitialData();
     }, [user]);
 
-    // --- SEARCH & FILTER LOGIC (Instant Response) ---
+    // --- SEARCH & FILTER LOGIC ---
     useEffect(() => {
         const term = searchTerm.toLowerCase();
         let results = items;
@@ -89,6 +87,30 @@ function CentralStockMaster() {
         }
     };
 
+    // Fix: Defined the missing openEdit function
+    const openEdit = (item) => {
+        setEditingId(item.id);
+        setFormData({
+            item_name: item.item_name || "",
+            quantity: item.quantity?.toString() || "0",
+            unit: item.unit || "pcs",
+            price: item.price?.toString() || "0",
+            description: item.description || "",
+            category: item.category || "",
+            alt_unit: item.alt_unit || "",
+            item_code: item.item_code || "",
+            hsn_code: item.hsn_code || "",
+            gst_rate: item.gst_rate?.toString() || "0",
+            sales_tax_inc: item.sales_tax_inc || "Exclusive",
+            purchase_price: item.purchase_price?.toString() || "0",
+            purchase_tax_inc: item.purchase_tax_inc || "Exclusive",
+            mrp: item.mrp?.toString() || "0",
+            threshold: item.threshold?.toString() || "10",
+            item_type: item.item_type || "Product"
+        });
+        setShowModal(true);
+    };
+
     const saveItem = async () => {
         if (!formData.item_name) return alert("Item Name is mandatory!");
         setLoading(true);
@@ -106,7 +128,6 @@ function CentralStockMaster() {
         if (error) alert("Error: " + error.message);
         else { 
             setShowModal(false); 
-            // Re-fetch only stocks to keep UI snappy
             const { data } = await supabase.from("stocks").select("*").range(0, 999);
             if (data) setItems(data);
         }
@@ -116,7 +137,7 @@ function CentralStockMaster() {
     const deleteItem = async (id) => {
         if (!window.confirm("Delete item permanently?")) return;
         await supabase.from("stocks").delete().eq("id", id);
-        setItems(prev => prev.filter(i => i.id !== id)); // Instant UI update
+        setItems(prev => prev.filter(i => i.id !== id));
     };
 
     const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -227,11 +248,11 @@ function CentralStockMaster() {
                 </div>
             </div>
 
-            {/* MODAL - Simplified Grid */}
+            {/* MODAL */}
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                        <div className="bg-black p-6 text-white flex justify-between items-center">
+                        <div className="p-6 text-white flex justify-between items-center" style={{ backgroundColor: "rgb(20, 20, 20)" }}>
                             <h2 className="text-lg font-black uppercase tracking-widest">{editingId ? 'Edit Product' : 'Add New Product'}</h2>
                             <button onClick={() => setShowModal(false)} className="hover:text-red-500 transition-all"><X size={24}/></button>
                         </div>
@@ -247,10 +268,12 @@ function CentralStockMaster() {
                                 <div><label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Category</label><input name="category" value={formData.category} onChange={handleInput} className="w-full border-b border-slate-200 py-2 outline-none focus:border-black transition" /></div>
                                 <div><label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Item Type</label><select name="item_type" value={formData.item_type} onChange={handleInput} className="w-full border-b border-slate-200 py-2 outline-none bg-transparent font-medium"><option value="Product">Product</option><option value="Service">Service</option></select></div>
                                 <div><label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">HSN Code</label><input name="hsn_code" value={formData.hsn_code} onChange={handleInput} className="w-full border-b border-slate-200 py-2 outline-none focus:border-black transition tracking-widest" /></div>
+                                
                                 <div className="md:col-span-3 border-b border-slate-100 pb-2 mt-4"><h3 className="text-[11px] font-black uppercase text-black tracking-[0.2em]">Inventory & Units</h3></div>
                                 <div><label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Unit</label><select name="unit" value={formData.unit} onChange={handleInput} className="w-full border-b border-slate-200 py-2 outline-none bg-transparent font-bold"><option value="">None</option><option value="pcs">pcs</option><option value="kg">kg</option><option value="g">g</option><option value="litre">litre</option><option value="bulk">Bulk</option></select></div>
                                 <div><label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Alternate Unit</label><select name="alt_unit" value={formData.alt_unit} onChange={handleInput} className="w-full border-b border-slate-200 py-2 outline-none bg-transparent"><option value="">None</option><option value="pcs">pcs</option><option value="kg">kg</option><option value="g">g</option><option value="litre">litre</option><option value="bulk">Bulk</option></select></div>
                                 <div className="grid grid-cols-2 gap-4 col-span-1"><div><label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Stock</label><input type="number" name="quantity" value={formData.quantity} onChange={handleInput} className="w-full border-b border-slate-200 py-2 outline-none focus:border-black transition" /></div><div><label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Limit</label><input type="number" name="threshold" value={formData.threshold} onChange={handleInput} className="w-full border-b border-slate-200 py-2 outline-none focus:border-black transition" /></div></div>
+                                
                                 <div className="md:col-span-3 border-b border-slate-100 pb-2 mt-4"><h3 className="text-[11px] font-black uppercase text-black tracking-[0.2em]">Pricing & Tax</h3></div>
                                 <div className="md:col-span-2 flex items-end gap-6"><div className="flex-1"><label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Sales Price</label><input type="number" name="price" value={formData.price} onChange={handleInput} className="w-full border-b border-slate-200 py-2 outline-none focus:border-black transition font-bold" /></div><label className="flex items-center gap-2 mb-2 text-[10px] font-black uppercase cursor-pointer text-slate-600 hover:text-black"><input type="checkbox" name="sales_tax_inc" checked={formData.sales_tax_inc === "Inclusive"} onChange={handleInput} className="accent-black w-4 h-4" /> {formData.sales_tax_inc}</label></div>
                                 <div><label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">MRP</label><input type="number" name="mrp" value={formData.mrp} onChange={handleInput} className="w-full border-b border-slate-200 py-2 outline-none focus:border-black transition" /></div>
