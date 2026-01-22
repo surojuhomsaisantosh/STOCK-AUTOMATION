@@ -78,7 +78,7 @@ function App() {
             }
           />
 
-          {/* New Route: Central Internal Order Entry */}
+          {/* Route: Central Internal Order Entry */}
           <Route
             path="/central/internal-order"
             element={
@@ -151,8 +151,9 @@ function App() {
             }
           />
 
+          {/* Updated Route: This now matches the navigate path in CentralDashboard */}
           <Route
-            path="/central/replies"
+            path="/central/support"
             element={
               <ProtectedRoute allowedRoles={["central"]}>
                 <FranchiseReplies />

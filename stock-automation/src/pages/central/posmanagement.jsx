@@ -176,11 +176,11 @@ function PosManagement() {
           <h1 style={styles.heading}>POS Management</h1>
           <p style={styles.subheading}>Centralized Menu Control System</p>
         </div>
+        
+        {/* UPDATED SINGLE ROW FRANCHISE ID DISPLAY */}
         <div style={styles.idDisplay}>
-          <div style={styles.idRow}>
-            <span style={styles.idLabel}>Franchise ID :</span>
-            <span style={styles.idValue}>{myFranchiseId || "--"}</span>
-          </div>
+          <span style={styles.idLabel}>Franchise ID :</span>
+          <span style={styles.idValue}>{myFranchiseId || "--"}</span>
         </div>
       </header>
 
@@ -271,6 +271,7 @@ function PosManagement() {
         </section>
       </main>
 
+      {/* MODALS REMAIN THE SAME */}
       {isAddModalOpen && (
         <div style={styles.modalOverlay}>
           <div style={styles.modal}>
@@ -318,11 +319,27 @@ const styles = {
   titleWrapper: { flex: 1, textAlign: "center" },
   heading: { fontSize: "32px", fontWeight: "800", color: "#1a1a1a", letterSpacing: "-1px", margin: 0 },
   subheading: { color: "#6c757d", fontSize: "14px", marginTop: "5px", fontWeight: "500" },
-  idDisplay: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 'fit-content' },
-  idRow: { display: 'flex', alignItems: 'baseline', gap: '8px', whiteSpace: 'nowrap' },
-  idLabel: { fontSize: '13px', fontWeight: '800', color: '#888', textTransform: 'uppercase' },
-  idValue: { fontSize: '24px', fontWeight: '900', color: GREEN, lineHeight: '1' },
-  idSubtext: { fontSize: '9px', color: '#aaa', fontWeight: 'bold' },
+  
+  /* UPDATED ID DISPLAY STYLES FOR SINGLE ROW */
+  idDisplay: { 
+    display: 'flex', 
+    alignItems: 'center', 
+    gap: '8px', 
+    whiteSpace: 'nowrap' 
+  },
+  idLabel: { 
+    fontSize: '14px', 
+    fontWeight: '800', 
+    color: '#888', 
+    textTransform: 'uppercase' 
+  },
+  idValue: { 
+    fontSize: '22px', 
+    fontWeight: '900', 
+    color: GREEN, 
+    lineHeight: '1' 
+  },
+
   mainContent: { maxWidth: "1100px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "24px" },
   adminCard: { background: "#fff", padding: "20px", borderRadius: "16px", display: "flex", justifyContent: "space-between", border: "1px solid #edf2f7", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" },
   controlCard: { background: "#fff", padding: "24px", borderRadius: "16px", border: "1px solid #edf2f7", boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05)" },
