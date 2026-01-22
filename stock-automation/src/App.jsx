@@ -34,6 +34,7 @@ import Accounts from "./pages/central/accounts";
 import PosManagement from "./pages/central/posmanagement";
 import Reports from "./pages/central/reports";
 import FranchiseReplies from "./pages/central/FranchiseReplies";
+import CentralStockMaster from "./pages/central/CentralStockMaster";
 
 /* AUTH CONTEXT */
 import { AuthProvider } from "./context/AuthContext";
@@ -121,7 +122,15 @@ function App() {
               </ProtectedRoute>
             }
           />
-
+          {/* Add this inside the Central Admin section of your Routes */}
+<Route
+  path="/central/stock"
+  element={
+    <ProtectedRoute allowedRoles={["central"]}>
+      <CentralStockMaster />
+    </ProtectedRoute>
+  }
+/>
           <Route
             path="/central/posmanagement"
             element={
