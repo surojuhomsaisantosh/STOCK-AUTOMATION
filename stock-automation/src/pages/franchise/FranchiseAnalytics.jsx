@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import {
   ArrowLeft, Calendar, ChevronRight, ChevronDown,
-  Hash, Clock
+  Hash, Clock, Store
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -24,10 +24,30 @@ function FranchiseAnalytics() {
   const [bills, setBills] = useState([]);
   const [expandedBill, setExpandedBill] = useState(null);
   const [loading, setLoading] = useState(false);
+  
+  // New state for the Franchise Profile
+  const [franchiseId, setFranchiseId] = useState("...");
 
   useEffect(() => {
+    fetchFranchiseProfile();
     fetchData();
   }, [activeTab, startDate, endDate, dateRangeMode]);
+
+  // Fetches the Franchise ID directly from the profiles table
+  const fetchFranchiseProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("franchise_id")
+        .eq("id", user.id)
+        .single();
+      
+      if (!error && data) {
+        setFranchiseId(data.franchise_id);
+      }
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -78,11 +98,26 @@ function FranchiseAnalytics() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.navBar}>
-        <button onClick={() => navigate(-1)} style={styles.backBtn}><ArrowLeft size={18} /> Back</button>
-        <h1 style={styles.headerTitle}>Analysis</h1>
-        <div style={{ width: 80 }} />
-      </div>
+      <nav style={styles.navBar}>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
+          <button onClick={() => navigate(-1)} style={styles.backBtn}>
+            <ArrowLeft size={18} /> Back
+          </button>
+        </div>
+
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <h1 style={styles.headerTitle}>Analysis</h1>
+        </div>
+
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={styles.franchiseBadge}>
+            <Store size={14} color={PRIMARY} />
+            <span style={styles.franchiseLabel}>
+              Franchise ID: <span style={styles.franchiseValue}>{franchiseId}</span>
+            </span>
+          </div>
+        </div>
+      </nav>
 
       <div style={styles.container}>
         <div style={styles.centerWrapper}>
@@ -150,12 +185,11 @@ function FranchiseAnalytics() {
             <div style={{ ...styles.chartCard, gridColumn: "span 2" }}>
               <h3 style={styles.chartTitle}>{activeTab === "store" ? "Generated Bills" : "Stock Invoices"}</h3>
               <div style={styles.listContainer}>
-                {/* Fixed Table Header Alignment */}
                 <div style={styles.tableHead}>
                   <span style={styles.col1}>Franchise ID</span>
                   <span style={styles.col2}>Timestamp</span>
                   <span style={styles.col3}>Amount</span>
-                  <span style={{ width: 18 }} /> {/* Spacer for Chevron */}
+                  <span style={{ width: 18 }} />
                 </div>
                 
                 {bills.map(bill => (
@@ -213,7 +247,6 @@ function BillItems({ billId, type }) {
 
   return (
     <div style={styles.itemsTable}>
-       {/* Sub-header for items */}
        <div style={styles.itemLineHeader}>
           <span style={{ flex: 2 }}>Item Name</span>
           <span style={{ flex: 1, textAlign: 'center' }}>Quantity</span>
@@ -235,11 +268,32 @@ function BillItems({ billId, type }) {
 }
 
 const styles = {
-  // ... existing styles ...
   page: { background: "#f8fafc", minHeight: "100vh", fontFamily: '"Inter", sans-serif' },
-  navBar: { padding: "16px 40px", display: "flex", justifyContent: "space-between", background: "#fff", borderBottom: "1px solid #e2e8f0", position: 'sticky', top: 0, zIndex: 10 },
+  navBar: { 
+    padding: "0 40px", 
+    display: "flex", 
+    alignItems: "center", 
+    justifyContent: "space-between", 
+    background: "#fff", 
+    borderBottom: "1px solid #e2e8f0", 
+    position: 'sticky', 
+    top: 0, 
+    zIndex: 10,
+    height: "70px"
+  },
   backBtn: { border: "none", background: "none", cursor: "pointer", color: PRIMARY, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 },
-  headerTitle: { fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '16px', color: '#1e293b' },
+  headerTitle: { fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '16px', color: '#1e293b', margin: 0 },
+  franchiseBadge: { 
+    display: 'flex', 
+    alignItems: 'center', 
+    gap: '10px', 
+    background: '#f0fdf4', 
+    padding: '8px 16px', 
+    borderRadius: '12px', 
+    border: `1px solid #dcfce7` 
+  },
+  franchiseLabel: { fontSize: '12px', fontWeight: 700, color: '#166534', textTransform: 'uppercase' },
+  franchiseValue: { color: PRIMARY, fontWeight: 900 },
   container: { maxWidth: 1100, margin: "auto", padding: '30px 20px' },
   centerWrapper: { display: "flex", justifyContent: "center", marginBottom: 30 },
   toggleBar: { background: "#f1f5f9", padding: 4, borderRadius: 12, display: "flex" },
@@ -255,12 +309,9 @@ const styles = {
   dashboardGrid: { display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 24 },
   chartCard: { background: "#fff", padding: "24px", borderRadius: "20px", border: "1px solid #e2e8f0", boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' },
   chartTitle: { fontWeight: 800, marginBottom: 20, fontSize: '11px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em' },
-  
-  // SHARED COLUMN WIDTHS FOR ALIGNMENT
   col1: { flex: 1.5 },
   col2: { flex: 1.2, textAlign: 'center' },
   col3: { flex: 1, textAlign: 'right', paddingRight: 10 },
-
   tableHead: { display: 'flex', padding: '0 24px 12px 24px', fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' },
   listContainer: { display: "flex", flexDirection: "column", gap: 10 },
   billRow: { border: "1px solid #f1f5f9", borderRadius: 12, overflow: 'hidden', cursor: 'pointer', background: '#fff', transition: '0.2s' },
@@ -271,13 +322,11 @@ const styles = {
   timeHeaderTxt: { fontSize: '10px', fontWeight: 500, color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   rightInfo: { display: "flex", justifyContent: 'flex-end', alignItems: 'center' },
   amtTxt: { fontWeight: 800, color: PRIMARY, fontSize: '15px' },
-
   popupInner: { padding: '20px 24px', borderTop: "1px solid #f1f5f9", background: '#f8fafc' },
   popupHeader: { fontWeight: 800, marginBottom: 12, color: '#64748b', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' },
   itemsTable: { display: "flex", flexDirection: "column", gap: 4 },
   itemLineHeader: { display: 'flex', padding: '0 12px 8px 12px', fontSize: '10px', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase' },
   itemLine: { display: "flex", alignItems: "center", fontSize: 12, background: '#fff', padding: '10px 12px', borderRadius: '8px', border: '1px solid #f1f5f9' },
-  
   topItemsList: { display: 'flex', flexDirection: 'column', gap: 8 },
   topItemRow: { display: 'flex', alignItems: 'center', fontSize: '12px', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9' },
   loader: { textAlign: "center", padding: 100, fontWeight: 700, color: PRIMARY }
