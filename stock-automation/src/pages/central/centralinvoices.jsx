@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { 
-  ArrowLeft, Search, X, Download, RotateCcw, FileX, MapPin, User, 
-  FileText, IndianRupee, Printer, Package, Phone, Mail, Hash, Calendar, ShoppingBag, Shield, Activity
+  ArrowLeft, Search, X, RotateCcw, User, 
+  FileText, IndianRupee, Printer, Phone, Hash, ShoppingBag, Shield, Activity
 } from "lucide-react";
 
 const PRIMARY = "rgb(0, 100, 55)";
@@ -55,17 +55,35 @@ function CentralInvoices() {
     }
   };
 
+  /**
+   * BUG FIX: Robust UTC to IST Conversion
+   * This handles the Supabase "YYYY-MM-DD HH:MM:SS" string properly.
+   */
   const formatDateTime = (dateStr) => {
     if (!dateStr) return "—";
-    const date = new Date(dateStr);
-    return date.toLocaleString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    }).toUpperCase();
+    
+    try {
+      // 1. Sanitize the string: Replace space with 'T' and ensure 'Z' (UTC) suffix
+      // This stops the browser from guessing the timezone incorrectly.
+      const formattedStr = dateStr.replace(" ", "T");
+      const isoStr = formattedStr.endsWith("Z") ? formattedStr : `${formattedStr}Z`;
+      
+      const date = new Date(isoStr);
+      
+      // 2. Explicitly format for Indian Standard Time
+      return new Intl.DateTimeFormat('en-IN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Kolkata' 
+      }).format(date).toUpperCase();
+    } catch (err) {
+      console.error("Date error:", err);
+      return dateStr; 
+    }
   };
 
   const openInvoiceModal = async (invoice) => {
@@ -115,7 +133,6 @@ function CentralInvoices() {
     return { total: filteredInvoices.length, revenue };
   }, [filteredInvoices]);
 
-  // Status Color Helper
   const getStatusStyle = (status) => {
     switch(status?.toLowerCase()) {
         case 'dispatched': return { bg: '#ecfdf5', text: '#065f46', border: '#10b981' };
@@ -231,7 +248,6 @@ function CentralInvoices() {
             </div>
 
             <div style={styles.invoiceMetaGrid}>
-              {/* Franchise ID Card */}
               <div style={{...styles.metaCard, borderLeft: `4px solid ${PRIMARY}`}}>
                 <div style={styles.metaIcon}><Shield size={16} /></div>
                 <div>
@@ -241,7 +257,6 @@ function CentralInvoices() {
                 </div>
               </div>
 
-              {/* Status Card Added Back */}
               <div style={{...styles.metaCard, borderLeft: `4px solid ${getStatusStyle(selectedInvoice.status).border}`}}>
                 <div style={styles.metaIcon}><Activity size={16} /></div>
                 <div>
@@ -256,7 +271,7 @@ function CentralInvoices() {
                 <div>
                   <p style={styles.metaLabel}>Customer Details</p>
                   <p style={styles.metaValue}>{selectedInvoice.customer_name}</p>
-                  <p style={styles.metaSubValue}><Phone size={10} inline /> {selectedInvoice.customer_phone}</p>
+                  <p style={styles.metaSubValue}><Phone size={10} /> {selectedInvoice.customer_phone}</p>
                 </div>
               </div>
             </div>
@@ -279,7 +294,7 @@ function CentralInvoices() {
                     <tr key={item.id} style={styles.itemTr}>
                       <td style={styles.itemTd}>
                         <div style={{fontWeight: '700', fontSize: '13px'}}>{item.item_name}</div>
-                        <div style={{fontSize: '10px', color: '#9ca3af'}}>SKU: {item.stock_id.slice(0,8)}</div>
+                        <div style={{fontSize: '10px', color: '#9ca3af'}}>SKU: {item.stock_id?.slice(0,8)}</div>
                       </td>
                       <td style={styles.itemTd}>{item.quantity} {item.unit}</td>
                       <td style={styles.itemTd}>₹{item.price}</td>

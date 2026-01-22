@@ -2,15 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { 
-  ArrowLeft, 
-  CheckCircle, 
-  RefreshCcw,
-  User,
-  Hash,
-  MapPin,
-  SendHorizontal,
-  MessageSquare,
-  Clock
+  ArrowLeft, CheckCircle, RefreshCcw, User, Hash,
+  MapPin, SendHorizontal, MessageSquare, Clock, Store, Calendar
 } from "lucide-react";
 
 const PRIMARY = "rgb(0, 100, 55)";
@@ -24,18 +17,24 @@ function FranchiseReplies() {
   const [reply, setReply] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [currentFilter, setCurrentFilter] = useState("all"); 
+  const [myProfile, setMyProfile] = useState({ franchise_id: "CENTRAL" });
 
   useEffect(() => {
     fetchRequests();
+    fetchMyProfile();
   }, []);
+
+  const fetchMyProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        const { data } = await supabase.from("profiles").select("franchise_id").eq("id", user.id).single();
+        if (data) setMyProfile(data);
+    }
+  };
 
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      /**
-       * FETCH LOGIC:
-       * Using 'profiles!user_id' forces the correct relationship.
-       */
       const { data, error } = await supabase
         .from("requests")
         .select(`
@@ -52,13 +51,11 @@ function FranchiseReplies() {
       
       if (error) throw error;
 
-      // Ensure data is flattened (converts profile array to object)
       const sanitizedData = (data || []).map(req => {
         const profileInfo = Array.isArray(req.profiles) ? req.profiles[0] : req.profiles;
         return {
           ...req,
           profiles: profileInfo,
-          // Safety: ensure franchise_id shows up from either table
           franchise_id: req.franchise_id || profileInfo?.franchise_id || "N/A"
         };
       });
@@ -66,7 +63,6 @@ function FranchiseReplies() {
       setRequests(sanitizedData);
     } catch (err) {
       console.error("Fetch error:", err.message);
-      // Fallback: Fetch requests without profile data if the join glitches
       const { data: fallbackData } = await supabase.from("requests").select("*").order("created_at", { ascending: false });
       setRequests(fallbackData || []);
     } finally {
@@ -115,8 +111,25 @@ function FranchiseReplies() {
               <span>Back</span>
             </button>
           </div>
+
           <h1 style={styles.title}>GRIEVANCE TERMINAL</h1>
+
           <div style={styles.headerRight}>
+             {/* TODAY'S DATE CARD */}
+             <div style={styles.dateCard}>
+                <Calendar size={14} color="#64748b" />
+                <div style={styles.dateTextGroup}>
+                    <span style={styles.dateLabel}>TODAY</span>
+                    <span style={styles.dateVal}>{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</span>
+                </div>
+             </div>
+
+             {/* FRANCHISE ID CARD */}
+             <div style={styles.idBadge}>
+                <Store size={14} />
+                <span>Franchise ID : <span style={{fontWeight: 900}}>{myProfile.franchise_id}</span></span>
+             </div>
+
              <button onClick={fetchRequests} style={styles.refreshBtn} title="Refresh Data">
                 <RefreshCcw size={16} className={loading ? "animate-spin" : ""} />
              </button>
@@ -124,7 +137,6 @@ function FranchiseReplies() {
         </header>
 
         <div style={styles.layoutGrid}>
-            {/* LEFT: LIST OF TICKETS */}
             <div style={styles.listSection}>
                 <div style={styles.filterBar}>
                     {['all', 'pending', 'Closed'].map(status => (
@@ -176,7 +188,6 @@ function FranchiseReplies() {
                 </div>
             </div>
 
-            {/* RIGHT: DETAILS PANEL */}
             <div style={styles.detailSection}>
                 {selectedRequest ? (
                     <div style={styles.detailCard}>
@@ -256,8 +267,20 @@ const styles = {
   container: { maxWidth: "1400px", margin: "0 auto", padding: "40px" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "40px" },
   title: { fontSize: "22px", fontWeight: "900", letterSpacing: "-1px" },
+  headerLeft: { width: '200px' },
+  headerRight: { display: 'flex', alignItems: 'center', gap: '15px' },
   backBtn: { display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#6b7280", fontWeight: "700", cursor: "pointer" },
   refreshBtn: { background: "#fff", border: `1.5px solid ${BORDER}`, padding: "10px", borderRadius: "12px", cursor: "pointer" },
+  
+  // DATE CARD STYLE
+  dateCard: { display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#f8fafc', padding: '8px 14px', borderRadius: '12px', border: '1px solid #e2e8f0' },
+  dateTextGroup: { display: 'flex', flexDirection: 'column', lineHeight: 1 },
+  dateLabel: { fontSize: '8px', fontWeight: '800', color: '#94a3b8' },
+  dateVal: { fontSize: '12px', fontWeight: '900', color: '#1e293b' },
+
+  // FRANCHISE ID BADGE
+  idBadge: { display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f0fdf4', padding: '10px 16px', borderRadius: '12px', fontSize: '12px', fontWeight: '700', color: '#166534', border: '1px solid #dcfce7' },
+
   layoutGrid: { display: "grid", gridTemplateColumns: "400px 1fr", gap: "30px", height: "78vh" },
   listSection: { display: "flex", flexDirection: "column", gap: "12px", height: '100%' },
   filterBar: { display: 'flex', gap: '20px', marginBottom: '10px', borderBottom: `1px solid ${BORDER}`, paddingBottom: '5px' },

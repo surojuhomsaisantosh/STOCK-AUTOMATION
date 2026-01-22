@@ -130,15 +130,16 @@ function RequestPortal() {
     <div style={styles.page}>
       <div style={styles.mainWrapper}>
         
-        {/* HEADER WITH ID AND DATE */}
+        {/* HEADER */}
         <header style={styles.header}>
           <div style={styles.headerLeft}>
-            <button onClick={() => navigate(-1)} style={styles.backBtn}><ArrowLeft size={20} /> {!isMobile && <span>Back </span>}</button>
+            <button onClick={() => navigate(-1)} style={styles.backBtn}>
+              <ArrowLeft size={20} /> {!isMobile && <span> Back</span>}
+            </button>
           </div>
           
           <div style={styles.headerCenter}>
             <h1 style={styles.headerTitle}>Support Portal</h1>
-            <div style={styles.statusBadge}><div style={styles.pulse}></div><span>Agent Online</span></div>
           </div>
 
           <div style={styles.headerRight}>
@@ -158,7 +159,9 @@ function RequestPortal() {
                  </div>
                </>
              )}
-             <button onClick={() => setShowHistory(true)} style={styles.historyBtn} title="View History"><History size={20} /></button>
+             <button onClick={() => setShowHistory(true)} style={styles.historyBtn} title="View History">
+               <History size={20} />
+             </button>
           </div>
         </header>
 
@@ -241,12 +244,6 @@ function RequestPortal() {
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-        main::-webkit-scrollbar { display: none; }
-        main { -ms-overflow-style: none; scrollbar-width: none; }
-      `}</style>
     </div>
   );
 }
@@ -261,16 +258,12 @@ const styles = {
   backBtn: { background: 'none', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', color: '#64748b' },
   historyBtn: { background: '#f8fafc', border: '1px solid #e2e8f0', padding: '10px', borderRadius: '12px', cursor: 'pointer', color: PRIMARY },
   headerTitle: { fontSize: '18px', fontWeight: '900', color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' },
-  statusBadge: { display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', fontSize: '11px', fontWeight: '700', color: PRIMARY, marginTop: '2px' },
-  pulse: { width: '8px', height: '8px', borderRadius: '50%', backgroundColor: PRIMARY, animation: 'pulse 2s infinite ease-in-out' },
   
-  // DATE CARD STYLE
   dateCard: { display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#f8fafc', padding: '8px 14px', borderRadius: '12px', border: '1px solid #e2e8f0' },
   dateTextGroup: { display: 'flex', flexDirection: 'column', lineHeight: 1 },
   dateLabel: { fontSize: '8px', fontWeight: '800', color: '#94a3b8' },
   dateVal: { fontSize: '12px', fontWeight: '900', color: '#1e293b' },
 
-  // FRANCHISE ID BADGE
   idBadge: { display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f0fdf4', padding: '10px 16px', borderRadius: '12px', fontSize: '12px', fontWeight: '700', color: '#166534', border: '1px solid #dcfce7' },
 
   chatArea: { flex: 1, overflowY: 'auto', padding: '20px 16px 40px 16px', backgroundColor: '#fff' },
