@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../../supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { FiArrowLeft, FiSearch, FiTrash2, FiPlus, FiMinus, FiShoppingCart, FiCalendar, FiCheckCircle, FiCreditCard, FiAlertTriangle, FiX } from "react-icons/fi";
+import BottomNav from "../../components/BottomNav";
 
 const BRAND_COLOR = "rgb(0, 100, 55)";
 
@@ -10,7 +11,7 @@ const getConversionFactor = (unit) => {
   const u = unit.toLowerCase().trim();
   const gramVariants = ["g", "grams", "gram", "gm", "gms"];
   const mlVariants = ["ml", "millilitre", "millilitres", "ml."];
-  
+
   if (gramVariants.includes(u)) return 0.001;
   if (mlVariants.includes(u)) return 0.001;
   return 1;
@@ -26,7 +27,7 @@ function StockOrder() {
   const [qtyInput, setQtyInput] = useState({});
   const [selectedUnit, setSelectedUnit] = useState({});
   const [cart, setCart] = useState([]);
-  const [loading, setLoading] = useState(false); 
+  const [loading, setLoading] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [stockAlert, setStockAlert] = useState({ show: false, itemName: "", maxAvailable: 0, unit: "" });
 
@@ -49,12 +50,12 @@ function StockOrder() {
     const { data } = await supabase.from("stocks").select("*").order("item_name");
     const stockData = data || [];
     setStocks(stockData);
-    
+
     const units = {};
     const initialQtys = {};
     stockData.forEach(item => {
       units[item.id] = item.unit || 'pcs';
-      initialQtys[item.id] = 0; 
+      initialQtys[item.id] = 0;
     });
     setSelectedUnit(units);
     setQtyInput(initialQtys);
@@ -97,12 +98,12 @@ function StockOrder() {
     const unit = selectedUnit[itemId] || item.unit;
     const isGrams = ["g", "grams", "gram", "gm", "gms"].includes(unit.toLowerCase().trim());
     const currentVal = qtyInput[itemId] || 0;
-    
+
     let numVal;
     if (isStepButton) {
       if (isGrams) {
-        if (direction === 1) numVal = currentVal < 100 ? 100 : currentVal + 50;
-        else numVal = currentVal <= 100 ? 0 : currentVal - 50;
+        if (direction === 1) numVal = currentVal + 50;
+        else numVal = Math.max(0, currentVal - 50);
       } else {
         numVal = direction === 1 ? currentVal + 1 : Math.max(0, currentVal - 1);
       }
@@ -110,29 +111,43 @@ function StockOrder() {
       numVal = val === "" ? 0 : Number(val);
     }
 
+    // Prevent negative
+    if (numVal < 0) numVal = 0;
+
+    // Check availability
     const factor = getConversionFactor(unit);
-    const requestedBaseQty = parseFloat((numVal * factor).toFixed(3)); 
+    const requestedBaseQty = parseFloat((numVal * factor).toFixed(3));
     const availableBaseQty = parseFloat(Number(maxAvailable).toFixed(3));
 
     if (requestedBaseQty > availableBaseQty) {
       setStockAlert({ show: true, itemName: item.item_name, maxAvailable: availableBaseQty, unit: item.unit });
-      numVal = Math.floor((availableBaseQty / factor) * 1000) / 1000; 
+      // Clamp to max
+      numVal = Math.floor((availableBaseQty / factor) * 1000) / 1000;
     }
 
     setQtyInput(prev => ({ ...prev, [itemId]: numVal }));
-    
+  };
+
+  const handleAddToCart = (item) => {
+    const numVal = qtyInput[item.id] || 0;
+    if (numVal <= 0) return;
+
+    const unit = selectedUnit[item.id] || item.unit;
+    const factor = getConversionFactor(unit);
     const finalBaseQty = numVal * factor;
-    if (numVal <= 0) {
-      setCart(prev => prev.filter(c => c.id !== itemId));
-    } else {
-      setCart(prev => {
-        const exists = prev.find(c => c.id === itemId);
-        if (exists) {
-          return prev.map(c => c.id === itemId ? { ...c, qty: finalBaseQty, displayQty: numVal, cartUnit: unit } : c);
-        }
-        return [...prev, { ...item, qty: finalBaseQty, displayQty: numVal, cartUnit: unit }];
-      });
-    }
+
+    setCart(prev => {
+      const exists = prev.find(c => c.id === item.id);
+      if (exists) {
+        return prev.map(c => c.id === item.id ? { ...c, qty: finalBaseQty, displayQty: numVal, cartUnit: unit } : c);
+      }
+      return [...prev, { ...item, qty: finalBaseQty, displayQty: numVal, cartUnit: unit }];
+    });
+
+    // Optional: Reset input or keep it? User usually wants to know what they added.
+    // We'll keep it as feedback.
+
+    // Visual Pulse/Feedback could be handled by a transient state, but the 'border' change below is persistent feedback.
   };
 
   const handleUnitChange = (itemId, newUnit) => {
@@ -152,12 +167,12 @@ function StockOrder() {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       const orderItems = cart.map(item => ({
         stock_id: item.id,
         item_name: item.item_name,
-        quantity: item.qty, 
-        unit: item.cartUnit,       
+        quantity: item.qty,
+        unit: item.cartUnit,
         price: item.price
       }));
 
@@ -170,7 +185,7 @@ function StockOrder() {
         p_customer_address: profile?.address || null,
         p_branch_location: profile?.branch_location || "",
         p_franchise_id: profile?.franchise_id || null,
-        p_items: orderItems 
+        p_items: orderItems
       });
 
       if (error) throw error;
@@ -191,8 +206,8 @@ function StockOrder() {
 
   const filteredStocks = useMemo(() => {
     return stocks.filter(item => {
-      const matchesSearch = item.item_name.toLowerCase().includes(search.toLowerCase()) || 
-                            (item.item_code && item.item_code.toLowerCase().includes(search.toLowerCase()));
+      const matchesSearch = item.item_name.toLowerCase().includes(search.toLowerCase()) ||
+        (item.item_code && item.item_code.toLowerCase().includes(search.toLowerCase()));
       const matchesCategory = selectedCategory === "All" || item.category === selectedCategory;
       const isAvailable = item.quantity > 0;
       return showAvailableOnly ? (matchesSearch && matchesCategory && isAvailable) : (matchesSearch && matchesCategory);
@@ -200,7 +215,7 @@ function StockOrder() {
   }, [stocks, search, selectedCategory, showAvailableOnly]);
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] pb-10 font-sans text-black">
+    <div className="min-h-screen bg-[#F8F9FA] pb-32 md:pb-10 font-sans text-black">
       {/* Stock Alert Modal */}
       {stockAlert.show && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -209,7 +224,7 @@ function StockOrder() {
             <h3 className="text-xl font-black uppercase mb-2 text-black">Stock Limit</h3>
             <p className="text-slate-500 text-sm font-bold leading-relaxed mb-6 uppercase">
               Available in Godown: <span className="text-black">{stockAlert.maxAvailable} {stockAlert.unit}</span>.
-              <br/><br/>Contact Admin for bulk orders.
+              <br /><br />Contact Admin for bulk orders.
             </p>
             <button onClick={() => setStockAlert({ ...stockAlert, show: false })} className="w-full py-4 bg-black text-white rounded-xl font-black uppercase text-xs active:scale-95 transition-all">OK</button>
           </div>
@@ -217,12 +232,12 @@ function StockOrder() {
       )}
 
       {/* Navigation */}
-      <nav className="sticky top-0 z-40 bg-white border-b-2 border-slate-100 px-8 py-5 h-20 flex items-center justify-between shadow-sm">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-xs tracking-widest hover:opacity-50 transition-all"><FiArrowLeft size={18} /> BACK</button>
-        <h1 className="text-xl font-black uppercase tracking-[0.2em] text-black">Order Inventory</h1>
+      <nav className="sticky top-0 z-40 bg-white border-b-2 border-slate-100 px-4 md:px-8 py-4 md:py-5 h-auto md:h-20 flex items-center justify-between shadow-sm">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-all"><FiArrowLeft size={18} /> <span className="hidden md:inline">BACK</span></button>
+        <h1 className="text-lg md:text-xl font-black uppercase tracking-[0.2em] text-black text-center flex-1 md:flex-none">Order Inventory</h1>
         <div className="flex items-center gap-2">
-           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Franchise ID:</span>
-           <span className="text-xs font-black text-black uppercase bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">{profile?.franchise_id || "..."}</span>
+          <span className="hidden md:inline text-[10px] font-black text-slate-400 uppercase tracking-widest">Franchise ID:</span>
+          <span className="text-[10px] md:text-xs font-black text-black uppercase bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">{profile?.franchise_id || "..."}</span>
         </div>
       </nav>
 
@@ -259,9 +274,11 @@ function StockOrder() {
           {filteredStocks.map((item) => {
             const isOutOfStock = item.quantity <= 0;
             const unit = selectedUnit[item.id] ?? item.unit ?? "pcs";
-            
+
+            const isInCart = cart.some(c => c.id === item.id);
             return (
-              <div key={item.id} className={`relative bg-white p-5 rounded-2xl transition-all flex flex-col border-2 ${isOutOfStock ? 'border-slate-100 opacity-40' : 'border-slate-200 hover:border-black'}`}>
+              <div key={item.id} className={`relative bg-white p-5 rounded-2xl transition-all flex flex-col border-2 ${isOutOfStock ? 'border-slate-100 opacity-40' : isInCart ? 'border-emerald-500 shadow-lg' : 'border-slate-200 hover:border-black'}`}>
+                {isInCart && <div className="absolute top-2 right-2 bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-1 rounded-full uppercase">In Cart</div>}
                 <span className="text-[10px] font-black uppercase text-black mb-1">ITEM CODE : {item.item_code || '---'}</span>
                 <h3 className="font-black text-base uppercase text-black min-h-[48px] leading-tight mb-2">{item.item_name}</h3>
                 <div className="mb-6">
@@ -270,26 +287,21 @@ function StockOrder() {
                 <div className="mt-auto space-y-3">
                   <div className="flex items-center gap-2">
                     <div className={`flex flex-1 items-center border-2 rounded-lg h-10 overflow-hidden bg-white border-slate-200`}>
-                      <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, -1)} className="w-8 h-full flex items-center justify-center border-r border-slate-100 hover:bg-slate-50 transition-colors text-black"><FiMinus size={12}/></button>
+                      <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, -1)} className="w-10 md:w-8 h-full flex items-center justify-center border-r border-slate-100 hover:bg-slate-50 transition-colors text-black active:bg-slate-200"><FiMinus size={14} /></button>
                       <input type="number" value={qtyInput[item.id] || ""} placeholder="0" onChange={(e) => handleQtyChange(item.id, e.target.value, item.quantity)} className="w-full text-center font-black text-sm outline-none bg-transparent text-black" />
-                      <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, 1)} className="w-8 h-full flex items-center justify-center border-l border-slate-100 hover:bg-slate-50 transition-colors text-black"><FiPlus size={12}/></button>
+                      <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, 1)} className="w-10 md:w-8 h-full flex items-center justify-center border-l border-slate-100 hover:bg-slate-50 transition-colors text-black active:bg-slate-200"><FiPlus size={14} /></button>
                     </div>
                     <select disabled={isOutOfStock} value={unit} onChange={(e) => handleUnitChange(item.id, e.target.value)} className="w-20 bg-slate-50 border-2 border-slate-200 rounded-lg h-10 px-1 text-[9px] font-black uppercase outline-none focus:border-black appearance-none text-center cursor-pointer text-black">
                       <option value={item.unit}>{item.unit?.toUpperCase()}</option>
-                      {item.alt_unit && item.alt_unit !== item.unit && ( <option value={item.alt_unit}>{item.alt_unit.toUpperCase()}</option> )}
+                      {item.alt_unit && item.alt_unit !== item.unit && (<option value={item.alt_unit}>{item.alt_unit.toUpperCase()}</option>)}
                     </select>
                   </div>
-                  
+
                   {/* Logic: Clicking ADD TO CART increments the value and updates the cart state */}
-                  <button 
-                    onClick={() => {
-                      const currentVal = qtyInput[item.id] || 0;
-                      const isGrams = ["g", "grams", "gram", "gm", "gms"].includes(unit.toLowerCase().trim());
-                      const increment = isGrams ? 100 : 1;
-                      handleQtyChange(item.id, currentVal + increment, item.quantity);
-                    }} 
-                    disabled={isOutOfStock} 
-                    className="w-full py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-white" 
+                  <button
+                    onClick={() => handleAddToCart(item)}
+                    disabled={isOutOfStock || (qtyInput[item.id] || 0) <= 0}
+                    className="w-full py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-white disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ backgroundColor: isOutOfStock ? '#e2e8f0' : BRAND_COLOR }}
                   >
                     {isOutOfStock ? "NOT AVAILABLE" : "ADD TO CART"}
@@ -301,23 +313,23 @@ function StockOrder() {
         </div>
       </div>
 
-      {/* Order Summary Popup */}
+      {/* Order Summary Popup / Bottom Sheet */}
       {isCartOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center md:p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsCartOpen(false)} />
-          <div className="relative w-full max-w-7xl bg-white rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border-2 border-slate-100 text-black">
-            <div className="p-8 border-b-2 border-slate-100 flex justify-between items-center bg-white">
-              <h2 className="text-3xl font-black uppercase tracking-tighter text-black">Order Summary</h2>
-              <button onClick={() => setIsCartOpen(false)} className="p-3 rounded-full hover:bg-slate-50 transition-colors text-black"><FiX size={24} /></button>
+          <div className="relative w-full md:max-w-7xl bg-white md:rounded-[3rem] rounded-t-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[85vh] md:max-h-[90vh] border-t-2 md:border-2 border-slate-100 text-black animate-in slide-in-from-bottom duration-300">
+            <div className="p-6 md:p-8 border-b-2 border-slate-100 flex justify-between items-center bg-white shrink-0">
+              <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-black">Order Summary</h2>
+              <button onClick={() => setIsCartOpen(false)} className="p-3 rounded-full hover:bg-slate-50 transition-colors text-black bg-slate-50 md:bg-transparent"><FiX size={24} /></button>
             </div>
-            
+
             <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
               <div className="flex-[3] overflow-y-auto p-8 border-r-2 border-slate-100 bg-white">
-                {!cart.length ? ( 
+                {!cart.length ? (
                   <div className="text-center py-20 opacity-20 text-black">
                     <FiShoppingCart size={48} className="mx-auto mb-4" />
                     <p className="font-black uppercase text-xs">Your cart is empty</p>
-                  </div> 
+                  </div>
                 ) : (
                   <div className="w-full overflow-hidden rounded-2xl border-2 border-slate-100">
                     <table className="w-full text-left border-collapse font-black text-black">
@@ -338,17 +350,17 @@ function StockOrder() {
                             <td className="py-5 px-4 text-center text-xs opacity-60 font-black">{item.gst_rate}%</td>
                             <td className="py-5 px-4 text-center text-xs text-emerald-700 font-black">₹{item.preciseGst.toFixed(2)}</td>
                             <td className="py-5 px-4">
-                               <div className="flex items-center gap-2 justify-center">
-                                  <div className="flex items-center border-2 border-slate-200 rounded-lg h-9 bg-white overflow-hidden">
-                                    <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, -1)} className="px-2 h-full hover:bg-slate-50 border-r border-slate-200 text-black"><FiMinus size={10}/></button>
-                                    <input type="number" value={item.displayQty} onChange={(e) => handleQtyChange(item.id, e.target.value, item.quantity)} className="w-12 text-center outline-none bg-transparent text-xs font-black text-black" />
-                                    <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, 1)} className="px-2 h-full hover:bg-slate-50 border-l border-slate-200 text-black"><FiPlus size={10}/></button>
-                                  </div>
-                                  <span className="text-[10px] opacity-60 uppercase">{item.cartUnit}</span>
-                               </div>
+                              <div className="flex items-center gap-2 justify-center">
+                                <div className="flex items-center border-2 border-slate-200 rounded-lg h-9 bg-white overflow-hidden">
+                                  <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, -1)} className="px-2 h-full hover:bg-slate-50 border-r border-slate-200 text-black"><FiMinus size={10} /></button>
+                                  <input type="number" value={item.displayQty} onChange={(e) => handleQtyChange(item.id, e.target.value, item.quantity)} className="w-12 text-center outline-none bg-transparent text-xs font-black text-black" />
+                                  <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, 1)} className="px-2 h-full hover:bg-slate-50 border-l border-slate-200 text-black"><FiPlus size={10} /></button>
+                                </div>
+                                <span className="text-[10px] opacity-60 uppercase">{item.cartUnit}</span>
+                              </div>
                             </td>
                             <td className="py-5 px-6 text-right text-sm font-black">₹{item.preciseSubtotal.toFixed(2)}</td>
-                            <td className="py-5 px-4 text-center"><button onClick={() => removeFromCart(item.id)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><FiTrash2 size={18}/></button></td>
+                            <td className="py-5 px-4 text-center"><button onClick={() => removeFromCart(item.id)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><FiTrash2 size={18} /></button></td>
                           </tr>
                         ))}
                       </tbody>
@@ -361,7 +373,7 @@ function StockOrder() {
               <div className="flex-1 bg-slate-50/50 p-8 flex flex-col justify-between">
                 <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 space-y-4 shadow-sm">
                   <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Billing Breakdown</h3>
-                  
+
                   <div className="flex justify-between items-center text-xs font-black uppercase text-black">
                     <span>Items Subtotal</span>
                     <span>₹{calculations.subtotal.toFixed(2)}</span>
@@ -369,11 +381,11 @@ function StockOrder() {
 
                   <div className="pt-4 border-t border-dashed border-slate-200 space-y-3">
                     <div className="flex justify-between items-center text-xs font-black text-emerald-700 uppercase">
-                      <span>CGST (Central)</span>
+                      <span>CGST (Central) <span className="text-[9px] text-gray-400 font-bold ml-1">({(calculations.totalGst > 0 ? "~2.5-9%" : "0%")})</span></span>
                       <span>₹{calculations.cgst.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between items-center text-xs font-black text-emerald-700 uppercase">
-                      <span>SGST (State)</span>
+                      <span>SGST (State) <span className="text-[9px] text-gray-400 font-bold ml-1">({(calculations.totalGst > 0 ? "~2.5-9%" : "0%")})</span></span>
                       <span>₹{calculations.sgst.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] font-black pt-2 border-t border-slate-100 text-emerald-900 uppercase">
@@ -395,10 +407,10 @@ function StockOrder() {
                   </div>
                 </div>
 
-                <button 
-                  onClick={handlePlaceOrder} 
-                  disabled={loading || !cart.length} 
-                  className="w-full py-6 text-white rounded-lg font-black text-sm uppercase tracking-[0.3em] transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-4 mt-8 group relative overflow-hidden active:scale-[0.98]" 
+                <button
+                  onClick={handlePlaceOrder}
+                  disabled={loading || !cart.length}
+                  className="w-full py-6 text-white rounded-lg font-black text-sm uppercase tracking-[0.3em] transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-4 mt-8 group relative overflow-hidden active:scale-[0.98]"
                   style={{ backgroundColor: BRAND_COLOR }}
                 >
                   {loading ? (
@@ -418,6 +430,20 @@ function StockOrder() {
           </div>
         </div>
       )}
+      {/* Mobile Sticky Cart Bar */}
+      {!isCartOpen && cart.length > 0 && (
+        <div className="fixed bottom-[70px] left-4 right-4 z-40 md:hidden animate-in slide-in-from-bottom fade-in duration-300">
+          <button onClick={() => setIsCartOpen(true)} className="w-full bg-black text-white p-4 rounded-2xl shadow-xl flex items-center justify-between border-2 border-white/10" style={{ backgroundColor: BRAND_COLOR }}>
+            <div className="flex items-center gap-3">
+              <div className="bg-white/20 px-3 py-1 rounded-lg text-xs font-black text-white">{cart.length} ITEMS</div>
+              <span className="text-white/60 text-[10px] font-bold uppercase tracking-widest">View Cart</span>
+            </div>
+            <div className="text-lg font-black text-white">₹{calculations.roundedBill.toLocaleString()} <span className="text-[10px] opacity-60 font-bold ml-1">Est.</span></div>
+          </button>
+        </div>
+      )}
+
+      <BottomNav />
     </div>
   );
 }

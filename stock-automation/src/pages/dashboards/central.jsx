@@ -57,7 +57,7 @@ function CentralDashboard() {
             {!isMobile && <p style={styles.greeting}>Welcome back, {profile.name}</p>}
           </div>
           <div style={styles.headerRight}>
-             <div style={styles.franchiseBadge}>
+            <div style={styles.franchiseBadge}>
               <span style={{ opacity: 0.6, fontWeight: 500 }}>Franchise ID: </span>
               <span style={{ marginLeft: '8px' }}>{profile.franchise_id || 'N/A'}</span>
             </div>
@@ -97,7 +97,7 @@ const styles = {
   // Styles as provided in your original CentralDashboard code...
   page: { background: BACKGROUND, height: "100vh", width: '100vw', fontFamily: '"Inter", sans-serif', color: "#111827", display: 'flex', flexDirection: 'column', boxSizing: 'border-box', overflow: 'hidden' },
   container: { maxWidth: "1400px", width: '100%', height: '100%', margin: "0 auto", padding: "40px 40px", display: 'flex', flexDirection: 'column', boxSizing: 'border-box' },
-  header: { display: "flex", justifySpaceBetween: "space-between", alignItems: "center", paddingBottom: '40px', flexShrink: 0 },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: '40px', flexShrink: 0 },
   headerLeft: { display: 'flex', flexDirection: 'column' },
   headerRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end' },
   mainTitle: { fontWeight: "800", letterSpacing: "-0.04em", margin: 0, lineHeight: 1.1, color: "#111827" },

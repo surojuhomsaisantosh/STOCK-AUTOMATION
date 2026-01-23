@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import "./print-styles.css";
 
 /* AUTH */
 import Login from "./pages/login/Login";
@@ -21,8 +22,8 @@ import Settings from "./pages/stock/settings";
 /* FRANCHISE */
 import StockOrder from "./pages/franchise/stockorder";
 import FranchiseInvoices from "./pages/franchise/franchiseinvoices";
-import FranchiseAnalytics from "./pages/franchise/FranchiseAnalytics"; 
-import RequestPortal from "./pages/franchise/RequestPortal"; 
+import FranchiseAnalytics from "./pages/franchise/FranchiseAnalytics";
+import RequestPortal from "./pages/franchise/RequestPortal";
 import FranchiseMenu from "./pages/franchise/FranchiseMenu";
 import FranchiseSettingsCard from "./pages/franchise/FranchiseSettingsCard";
 
@@ -123,7 +124,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/central/reports"
             element={

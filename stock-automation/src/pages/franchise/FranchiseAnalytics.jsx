@@ -9,6 +9,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from "recharts";
+import BottomNav from "../../components/BottomNav";
 
 const PRIMARY = "#065f46";
 const COLORS = ["#065f46", "#0ea5e9", "#f59e0b", "#be185d", "#8b5cf6", "#10b981", "#f43f5e", "#6366f1", "#d946ef", "#047857"];
@@ -24,7 +25,7 @@ function FranchiseAnalytics() {
   const [bills, setBills] = useState([]);
   const [expandedBill, setExpandedBill] = useState(null);
   const [loading, setLoading] = useState(false);
-  
+
   // New state for the Franchise Profile
   const [franchiseId, setFranchiseId] = useState("...");
 
@@ -42,7 +43,7 @@ function FranchiseAnalytics() {
         .select("franchise_id")
         .eq("id", user.id)
         .single();
-      
+
       if (!error && data) {
         setFranchiseId(data.franchise_id);
       }
@@ -54,7 +55,7 @@ function FranchiseAnalytics() {
     try {
       const isStore = activeTab === "store";
       const table = isStore ? "bills_generated" : "invoices";
-      let query = isStore 
+      let query = isStore
         ? supabase.from(table).select("*")
         : supabase.from(table).select("*, profiles:created_by(franchise_id)");
 
@@ -136,19 +137,19 @@ function FranchiseAnalytics() {
             <div style={styles.dateInputs}>
               <Calendar size={14} color="#6b7280" />
               <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={styles.input} />
-              {dateRangeMode === "range" && <><span style={{color: '#d1d5db'}}>—</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={styles.input} /></>}
+              {dateRangeMode === "range" && <><span style={{ color: '#d1d5db' }}>—</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={styles.input} /></>}
             </div>
           </div>
         </div>
 
         {loading ? <div style={styles.loader}>Synchronizing Data...</div> : (
-          <div style={styles.dashboardGrid}>
+          <div style={styles.dashboardGrid} className="dashboard-grid pb-20 md:pb-0">
             <div style={styles.chartCard}>
               <h3 style={styles.chartTitle}>Revenue Trend</h3>
               <div style={{ height: "300px", width: "100%" }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={graphData}>
-                    <defs><linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={PRIMARY} stopOpacity={0.2}/><stop offset="95%" stopColor={PRIMARY} stopOpacity={0}/></linearGradient></defs>
+                    <defs><linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={PRIMARY} stopOpacity={0.2} /><stop offset="95%" stopColor={PRIMARY} stopOpacity={0} /></linearGradient></defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                     <XAxis dataKey="date" fontSize={11} tickLine={false} axisLine={false} />
                     <YAxis fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
@@ -191,12 +192,12 @@ function FranchiseAnalytics() {
                   <span style={styles.col3}>Amount</span>
                   <span style={{ width: 18 }} />
                 </div>
-                
+
                 {bills.map(bill => (
                   <div key={bill.id} style={styles.billRow} onClick={() => setExpandedBill(expandedBill === bill.id ? null : bill.id)}>
                     <div style={styles.billMain}>
                       <span style={{ ...styles.idTxt, ...styles.col1 }}>
-                        <Hash size={12} color={PRIMARY} /> 
+                        <Hash size={12} color={PRIMARY} />
                         {bill.profiles?.franchise_id || bill.franchise_id || "N/A"}
                       </span>
 
@@ -205,7 +206,7 @@ function FranchiseAnalytics() {
                           {new Date(bill.created_at).toLocaleDateString("en-IN", { day: '2-digit', month: 'short' })}
                         </span>
                         <span style={styles.timeHeaderTxt}>
-                          <Clock size={10} style={{marginRight: 4}} />
+                          <Clock size={10} style={{ marginRight: 4 }} />
                           {new Date(bill.created_at).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', hour12: true })}
                         </span>
                       </div>
@@ -229,6 +230,14 @@ function FranchiseAnalytics() {
           </div>
         )}
       </div>
+      <BottomNav />
+      {/* Responsive Styles Injection */}
+      <style>{`
+        @media (max-width: 768px) {
+           .dashboard-grid { grid-template-columns: 1fr !important; }
+           .chart-card { grid-column: span 1 !important; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -247,11 +256,11 @@ function BillItems({ billId, type }) {
 
   return (
     <div style={styles.itemsTable}>
-       <div style={styles.itemLineHeader}>
-          <span style={{ flex: 2 }}>Item Name</span>
-          <span style={{ flex: 1, textAlign: 'center' }}>Quantity</span>
-          <span style={{ flex: 1, textAlign: 'right' }}>Total</span>
-       </div>
+      <div style={styles.itemLineHeader}>
+        <span style={{ flex: 2 }}>Item Name</span>
+        <span style={{ flex: 1, textAlign: 'center' }}>Quantity</span>
+        <span style={{ flex: 1, textAlign: 'right' }}>Total</span>
+      </div>
       {items.map((i, idx) => {
         const qty = Number(i.qty ?? i.quantity ?? 0);
         const price = Number(i.price ?? 0);
@@ -269,28 +278,28 @@ function BillItems({ billId, type }) {
 
 const styles = {
   page: { background: "#f8fafc", minHeight: "100vh", fontFamily: '"Inter", sans-serif' },
-  navBar: { 
-    padding: "0 40px", 
-    display: "flex", 
-    alignItems: "center", 
-    justifyContent: "space-between", 
-    background: "#fff", 
-    borderBottom: "1px solid #e2e8f0", 
-    position: 'sticky', 
-    top: 0, 
+  navBar: {
+    padding: "0 40px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    background: "#fff",
+    borderBottom: "1px solid #e2e8f0",
+    position: 'sticky',
+    top: 0,
     zIndex: 10,
     height: "70px"
   },
   backBtn: { border: "none", background: "none", cursor: "pointer", color: PRIMARY, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 },
   headerTitle: { fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '16px', color: '#1e293b', margin: 0 },
-  franchiseBadge: { 
-    display: 'flex', 
-    alignItems: 'center', 
-    gap: '10px', 
-    background: '#f0fdf4', 
-    padding: '8px 16px', 
-    borderRadius: '12px', 
-    border: `1px solid #dcfce7` 
+  franchiseBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    background: '#f0fdf4',
+    padding: '8px 16px',
+    borderRadius: '12px',
+    border: `1px solid #dcfce7`
   },
   franchiseLabel: { fontSize: '12px', fontWeight: 700, color: '#166534', textTransform: 'uppercase' },
   franchiseValue: { color: PRIMARY, fontWeight: 900 },

@@ -2,8 +2,8 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
-import { 
-  ArrowLeft, Search, X, Download, RotateCcw, FileX, MapPin, User, 
+import {
+  ArrowLeft, Search, X, Download, RotateCcw, FileX, MapPin, User,
   FileText, IndianRupee, Printer, Package, Phone, Mail, Hash, Calendar, ShoppingBag, Shield, Activity
 } from "lucide-react";
 
@@ -12,24 +12,24 @@ const BORDER = "#e5e7eb";
 
 function CentralInvoices() {
   const navigate = useNavigate();
-  const { user } = useAuth(); 
-  
+  const { user } = useAuth();
+
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState(null);
-  
+
   const [search, setSearch] = useState("");
-  const [rangeMode, setRangeMode] = useState(false); 
+  const [rangeMode, setRangeMode] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  
+
   const [showModal, setShowModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [items, setItems] = useState([]);
   const [itemsLoading, setItemsLoading] = useState(false);
 
-  useEffect(() => { 
-    fetchInvoices(); 
+  useEffect(() => {
+    fetchInvoices();
     fetchUserProfile();
   }, [user]);
 
@@ -75,7 +75,7 @@ function CentralInvoices() {
     try {
       const { data, error } = await supabase
         .from("invoice_items")
-        .select("*")
+        .select("*, stocks:stock_id (*)")
         .eq("invoice_id", invoice.id);
       if (error) throw error;
       setItems(data || []);
@@ -100,7 +100,7 @@ function CentralInvoices() {
       const fId = (inv.franchise_id || "").toString().toLowerCase();
       const custName = (inv.customer_name || "").toLowerCase();
       const matchesSearch = !search || fId.includes(q) || custName.includes(q);
-      
+
       const invDate = inv.created_at?.split('T')[0];
       let matchesDate = true;
       if (rangeMode && startDate && endDate) matchesDate = invDate >= startDate && invDate <= endDate;
@@ -117,11 +117,11 @@ function CentralInvoices() {
 
   // Status Color Helper
   const getStatusStyle = (status) => {
-    switch(status?.toLowerCase()) {
-        case 'dispatched': return { bg: '#ecfdf5', text: '#065f46', border: '#10b981' };
-        case 'packed': return { bg: '#fffbeb', text: '#92400e', border: '#f59e0b' };
-        case 'incoming': return { bg: '#eff6ff', text: '#1e40af', border: '#3b82f6' };
-        default: return { bg: '#f3f4f6', text: '#374151', border: '#9ca3af' };
+    switch (status?.toLowerCase()) {
+      case 'dispatched': return { bg: '#ecfdf5', text: '#065f46', border: '#10b981' };
+      case 'packed': return { bg: '#fffbeb', text: '#92400e', border: '#f59e0b' };
+      case 'incoming': return { bg: '#eff6ff', text: '#1e40af', border: '#3b82f6' };
+      default: return { bg: '#f3f4f6', text: '#374151', border: '#9ca3af' };
     }
   };
 
@@ -151,11 +151,11 @@ function CentralInvoices() {
 
         <div style={styles.statsRow}>
           <div style={styles.statCard}>
-            <div style={styles.statIcon}><FileText size={20} color={PRIMARY}/></div>
+            <div style={styles.statIcon}><FileText size={20} color={PRIMARY} /></div>
             <div><p style={styles.statLabel}>Total Records</p><h2 style={styles.statValue}>{stats.total}</h2></div>
           </div>
           <div style={styles.statCard}>
-            <div style={{...styles.statIcon, background: '#ecfdf5'}}><IndianRupee size={20} color={PRIMARY}/></div>
+            <div style={{ ...styles.statIcon, background: '#ecfdf5' }}><IndianRupee size={20} color={PRIMARY} /></div>
             <div><p style={styles.statLabel}>Total Billing</p><h2 style={styles.statValue}>₹{stats.revenue.toLocaleString('en-IN')}</h2></div>
           </div>
         </div>
@@ -166,14 +166,14 @@ function CentralInvoices() {
             <input style={styles.input} placeholder="Search by Name or Franchise ID..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <div style={styles.dateSection}>
-             <input type="date" style={styles.dateInput} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-             {rangeMode && <input type="date" style={styles.dateInput} value={endDate} onChange={(e) => setEndDate(e.target.value)} />}
-             <button onClick={() => setRangeMode(!rangeMode)} style={styles.toggleBtn}>{rangeMode ? "Daily" : "Range"}</button>
-             <button onClick={resetFilters} style={styles.resetBtn}><RotateCcw size={16} /></button>
+            <input type="date" style={styles.dateInput} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            {rangeMode && <input type="date" style={styles.dateInput} value={endDate} onChange={(e) => setEndDate(e.target.value)} />}
+            <button onClick={() => setRangeMode(!rangeMode)} style={styles.toggleBtn}>{rangeMode ? "Daily" : "Range"}</button>
+            <button onClick={resetFilters} style={styles.resetBtn}><RotateCcw size={16} /></button>
           </div>
         </div>
 
-        <div style={styles.tableWrapper} className="custom-scroll">
+        <div style={styles.tableWrapper} className="custom-scroll hidden md:block">
           <table style={styles.table}>
             <thead style={styles.thead}>
               <tr>
@@ -182,7 +182,7 @@ function CentralInvoices() {
                 <th style={styles.th}>CUSTOMER</th>
                 <th style={styles.th}>STATUS</th>
                 <th style={styles.th}>DATE & TIME</th>
-                <th style={{...styles.th, textAlign: 'right'}}>AMOUNT</th>
+                <th style={{ ...styles.th, textAlign: 'right' }}>AMOUNT</th>
               </tr>
             </thead>
             <tbody>
@@ -193,13 +193,13 @@ function CentralInvoices() {
                     <td style={styles.td}><span style={styles.idBadge}>#{inv.id.toString().slice(-6).toUpperCase()}</span></td>
                     <td style={styles.td}><span style={styles.fIdBadge}>ID: {inv.franchise_id}</span></td>
                     <td style={styles.td}>
-                      <div style={{fontWeight: '700'}}>{inv.customer_name}</div>
-                      <div style={{fontSize: '11px', color: '#6b7280'}}>{inv.customer_phone}</div>
+                      <div style={{ fontWeight: '700' }}>{inv.customer_name}</div>
+                      <div style={{ fontSize: '11px', color: '#6b7280' }}>{inv.customer_phone}</div>
                     </td>
                     <td style={styles.td}>
                       <span style={{
-                        ...styles.statusBadge, 
-                        backgroundColor: statusStyle.bg, 
+                        ...styles.statusBadge,
+                        backgroundColor: statusStyle.bg,
                         color: statusStyle.text,
                         borderColor: statusStyle.border
                       }}>
@@ -207,46 +207,85 @@ function CentralInvoices() {
                       </span>
                     </td>
                     <td style={styles.td}>{formatDateTime(inv.created_at)}</td>
-                    <td style={{...styles.td, textAlign: 'right', fontWeight: '800', color: PRIMARY}}>₹{Number(inv.total_amount).toLocaleString('en-IN')}</td>
+                    <td style={{ ...styles.td, textAlign: 'right', fontWeight: '800', color: PRIMARY }}>₹{Number(inv.total_amount).toLocaleString('en-IN')}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
+
+        {/* MOBILE CARDS */}
+        <div className="md:hidden space-y-4 overflow-y-auto pb-20">
+          {filteredInvoices.map((inv) => {
+            const statusStyle = getStatusStyle(inv.status);
+            return (
+              <div key={inv.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm" onClick={() => openInvoiceModal(inv)}>
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Invoice ID</span>
+                    <p className="text-lg font-black text-black">#{inv.id.toString().slice(-6).toUpperCase()}</p>
+                  </div>
+                  <span style={{
+                    backgroundColor: statusStyle.bg, color: statusStyle.text, borderColor: statusStyle.border,
+                    borderWidth: '1px', borderStyle: 'solid'
+                  }} className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                    {inv.status || 'Incoming'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-end border-t border-slate-50 pt-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <User size={12} className="text-slate-400" />
+                      <span className="text-xs font-bold text-black uppercase">{inv.customer_name}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-medium pl-5">{formatDateTime(inv.created_at)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-black" style={{ color: PRIMARY }}>₹{Number(inv.total_amount).toLocaleString('en-IN')}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {showModal && selectedInvoice && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent} className="custom-scroll" id="printable-area">
+            <div className="hidden print:block p-8 font-mono text-xs text-center border-b border-black">
+              Printed On: {new Date().toLocaleString()}
+            </div>
             <div style={styles.modalHeader} className="no-print">
               <div style={styles.modalHeaderLeft}>
                 <Hash size={20} color={PRIMARY} />
                 <h2 style={styles.modalTitle}>Invoice Details</h2>
               </div>
-              <div style={{display: 'flex', gap: '10px'}}>
-                <button onClick={handlePrint} style={styles.printBtn}><Printer size={16}/> PRINT</button>
-                <button onClick={() => setShowModal(false)} style={styles.closeBtn}><X size={20}/></button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={handlePrint} style={styles.printBtn}><Printer size={16} /> PRINT</button>
+                <button onClick={() => setShowModal(false)} style={styles.closeBtn}><X size={20} /></button>
               </div>
             </div>
 
             <div style={styles.invoiceMetaGrid}>
               {/* Franchise ID Card */}
-              <div style={{...styles.metaCard, borderLeft: `4px solid ${PRIMARY}`}}>
+              <div style={{ ...styles.metaCard, borderLeft: `4px solid ${PRIMARY}` }}>
                 <div style={styles.metaIcon}><Shield size={16} /></div>
                 <div>
                   <p style={styles.metaLabel}>Origin Office</p>
-                  <p style={{...styles.metaValue, fontSize: '16px'}}>Franchise ID : {selectedInvoice.franchise_id}</p>
+                  <p style={{ ...styles.metaValue, fontSize: '16px' }}>Franchise ID : {selectedInvoice.franchise_id}</p>
                   <p style={styles.metaSubValue}>Location: {selectedInvoice.branch_location || 'Main Outlets'}</p>
                 </div>
               </div>
 
               {/* Status Card Added Back */}
-              <div style={{...styles.metaCard, borderLeft: `4px solid ${getStatusStyle(selectedInvoice.status).border}`}}>
+              <div style={{ ...styles.metaCard, borderLeft: `4px solid ${getStatusStyle(selectedInvoice.status).border}` }}>
                 <div style={styles.metaIcon}><Activity size={16} /></div>
                 <div>
                   <p style={styles.metaLabel}>Order Status</p>
-                  <p style={{...styles.metaValue, textTransform: 'uppercase'}}>{selectedInvoice.status || 'Incoming'}</p>
+                  <p style={{ ...styles.metaValue, textTransform: 'uppercase' }}>{selectedInvoice.status || 'Incoming'}</p>
                   <p style={styles.metaSubValue}>Last Updated: {formatDateTime(selectedInvoice.created_at)}</p>
                 </div>
               </div>
@@ -267,25 +306,37 @@ function CentralInvoices() {
                 <thead>
                   <tr style={styles.itemThead}>
                     <th style={styles.itemTh}>Item Name</th>
+                    <th style={styles.itemTh}>Code / HSN</th>
                     <th style={styles.itemTh}>Qty</th>
                     <th style={styles.itemTh}>Price</th>
-                    <th style={{...styles.itemTh, textAlign: 'right'}}>Subtotal</th>
+                    <th style={styles.itemTh}>Tax</th>
+                    <th style={{ ...styles.itemTh, textAlign: 'right' }}>Subtotal</th>
                   </tr>
                 </thead>
                 <tbody>
                   {itemsLoading ? (
-                    <tr><td colSpan="4" style={{padding: '40px', textAlign: 'center'}}>Loading items...</td></tr>
-                  ) : items.map((item) => (
-                    <tr key={item.id} style={styles.itemTr}>
-                      <td style={styles.itemTd}>
-                        <div style={{fontWeight: '700', fontSize: '13px'}}>{item.item_name}</div>
-                        <div style={{fontSize: '10px', color: '#9ca3af'}}>SKU: {item.stock_id.slice(0,8)}</div>
-                      </td>
-                      <td style={styles.itemTd}>{item.quantity} {item.unit}</td>
-                      <td style={styles.itemTd}>₹{item.price}</td>
-                      <td style={{...styles.itemTd, textAlign: 'right', fontWeight: '700'}}>₹{(item.quantity * item.price).toFixed(2)}</td>
-                    </tr>
-                  ))}
+                    <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center' }}>Loading items...</td></tr>
+                  ) : items.map((item) => {
+                    const stock = item.stocks || {};
+                    const itemTotal = item.quantity * item.price;
+                    const taxAmt = itemTotal * ((stock.gst_rate || item.gst_rate || 0) / 100);
+
+                    return (
+                      <tr key={item.id} style={styles.itemTr}>
+                        <td style={styles.itemTd}>
+                          <div style={{ fontWeight: '700', fontSize: '13px' }}>{item.item_name}</div>
+                        </td>
+                        <td style={styles.itemTd}>
+                          <div style={{ fontSize: '11px', color: '#1e293b', fontWeight: 'bold' }}>{stock.item_code || item.item_code || "-"}</div>
+                          <div style={{ fontSize: '10px', color: '#9ca3af' }}>HSN: {stock.hsn_code || item.hsn_code || "-"}</div>
+                        </td>
+                        <td style={styles.itemTd}>{item.quantity} {item.unit}</td>
+                        <td style={styles.itemTd}>₹{item.price}</td>
+                        <td style={{ ...styles.itemTd, color: PRIMARY, fontWeight: '700' }}>₹{taxAmt.toFixed(2)}</td>
+                        <td style={{ ...styles.itemTd, textAlign: 'right', fontWeight: '700' }}>₹{itemTotal.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -293,7 +344,7 @@ function CentralInvoices() {
             <div style={styles.modalFooter}>
               <div style={styles.totalRow}>
                 <span>Total Amount Payable</span>
-                <span style={{fontSize: '24px', fontWeight: '900', color: PRIMARY}}>₹{Number(selectedInvoice.total_amount).toLocaleString('en-IN')}</span>
+                <span style={{ fontSize: '24px', fontWeight: '900', color: PRIMARY }}>₹{Number(selectedInvoice.total_amount).toLocaleString('en-IN')}</span>
               </div>
             </div>
           </div>
@@ -330,9 +381,9 @@ const styles = {
   idBadge: { background: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '6px', fontWeight: '800', fontSize: '11px' },
   fIdBadge: { background: '#ecfdf5', color: PRIMARY, padding: '4px 10px', borderRadius: '6px', fontWeight: '800', fontSize: '11px' },
   statusBadge: { padding: '4px 10px', borderRadius: '6px', fontWeight: '800', fontSize: '10px', textTransform: 'uppercase', border: '1px solid' },
-  
+
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropBlur: '4px', zIndex: 1000, display: 'flex', justifyContent: 'flex-end' },
-  modalContent: { width: '600px', background: '#fff', height: '100%', boxShadow: '-10px 0 30px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', padding: '40px' },
+  modalContent: { width: '100%', maxWidth: '600px', background: '#fff', height: '100%', boxShadow: '-10px 0 30px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', padding: '20px' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', paddingBottom: '20px', borderBottom: `1px solid ${BORDER}` },
   modalHeaderLeft: { display: 'flex', alignItems: 'center', gap: '12px' },
   modalTitle: { fontSize: '20px', fontWeight: '900', color: '#1e293b' },

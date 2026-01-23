@@ -32,9 +32,15 @@ function FranchiseOwnerDashboard() {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
+
+    // Redirect mobile users to Order Inventory
+    if (window.innerWidth < 768) {
+      navigate("/stock-orders");
+    }
+
     fetchProfileAndNotifications();
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [navigate]);
 
   const fetchProfileAndNotifications = async () => {
     const { data: { user } } = await supabase.auth.getUser();
