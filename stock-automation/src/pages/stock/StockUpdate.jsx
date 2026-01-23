@@ -255,8 +255,8 @@ function StockUpdate() {
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-2">
-                        <button onClick={() => openEdit(item)} className="p-2.5 bg-white text-black border-2 border-black rounded-xl hover:bg-black hover:text-white transition-all">
-                          <Edit3 size={16} />
+                        <button onClick={() => openEdit(item)} className="px-4 py-2 bg-black text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:opacity-80 transition-all">
+                          UPDATE
                         </button>
                         <button onClick={() => deleteItem(item.id)} className="p-2.5 bg-white text-rose-600 border-2 border-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all">
                           <Trash2 size={16} />
