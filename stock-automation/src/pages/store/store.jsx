@@ -6,10 +6,10 @@ import {
   Loader2, 
   Search, 
   Trash2, 
-  X
+  X,
+  Printer,       
+  Unplug         
 } from "lucide-react";
-
-// --- BLUETOOTH PRINTER HOOK ---
 import { useBluetoothPrinter } from "../printer/BluetoothPrinter";
 
 const PRIMARY = "#065f46";
@@ -21,12 +21,12 @@ function Store() {
   const navigate = useNavigate();
   const { user, role, loading: authLoading } = useAuth();
   
-  const { connectPrinter, printReceipt, isConnected } = useBluetoothPrinter();
+  const { connectPrinter, disconnectPrinter, printReceipt, isConnected, isConnecting } = useBluetoothPrinter();
   
   // DATA STATES
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [storeProfile, setStoreProfile] = useState(null); // Stores Company/Address info
+  const [storeProfile, setStoreProfile] = useState(null);
 
   // UI STATES
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -39,7 +39,6 @@ function Store() {
   const [discountValue, setDiscountValue] = useState(0);
   const [discountType, setDiscountType] = useState("fixed");
 
-  // Get Franchise ID safely
   const franchiseId = user?.franchise_id ? String(user.franchise_id) : null;
 
   useEffect(() => {
@@ -49,31 +48,42 @@ function Store() {
   }, []);
 
   /* ==========================================================
-     1. FETCH STORE PROFILE (FIXED LOGIC)
-     Fetch based on FRANCHISE_ID, not User ID.
+     1. FETCH STORE PROFILE (WITH DEBUG LOGS)
   ========================================================== */
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!franchiseId) return; // Need franchise ID to find the store details
+      console.log("🔍 FRANCHISE ID DETECTED:", franchiseId); // DEBUG 1
+      
+      if (!franchiseId) {
+        console.warn("⚠️ NO FRANCHISE ID, SKIPPING PROFILE FETCH");
+        return;
+      }
 
       try {
-        // We search the 'profiles' table where franchise_id matches.
-        // This finds the Owner's profile (which contains the address/company)
-        // even if the logged-in user is a Staff member.
+        console.log("⏳ Fetching profile from DB...");
+        
+        // Fetching company, address, city
         const { data, error } = await supabase
           .from('profiles')
-          .select('company, address, city, state, pincode, phone')
+          .select('company, address, city') 
           .eq('franchise_id', franchiseId)
-          .limit(1) // Ensure we just get one row
-          .maybeSingle(); // Use maybeSingle to prevent 406 error if not found
+          .limit(1)
+          .maybeSingle();
           
-        if (error) throw error;
+        if (error) {
+            console.error("❌ DB ERROR FETCHING PROFILE:", error);
+            throw error;
+        }
+        
+        console.log("✅ PROFILE DATA FROM DB:", data); // DEBUG 2: IS THIS NULL?
         
         if (data) {
           setStoreProfile(data);
+        } else {
+            console.warn("⚠️ QUERY SUCCEEDED BUT RETURNED NO DATA");
         }
       } catch (err) {
-        console.error("❌ Profile Load Error:", err.message);
+        console.error("❌ Profile Load Exception:", err.message);
       }
     };
 
@@ -144,13 +154,12 @@ function Store() {
   });
 
   /* ==========================================================
-     TRANSACTION LOGIC
+     TRANSACTION LOGIC (WITH PRINTER DEBUGGING)
   ========================================================== */
   const handleCompleteTransaction = async (method) => {
     try {
       if (!franchiseId) throw new Error("Franchise identification failed.");
       
-      // 1. Save to Database
       const { data: bill, error: billError } = await supabase.from("bills_generated").insert([{
         franchise_id: franchiseId, 
         subtotal: totals.subtotal, 
@@ -175,42 +184,52 @@ function Store() {
       const { error: itemsError } = await supabase.from("bills_items_generated").insert(billItems);
       if (itemsError) throw new Error(`Items Error: ${itemsError.message}`);
 
-      // 2. Print Receipt
+      // --- PRINT LOGIC WITH DEBUGGING ---
       if (isConnected) {
         try {
-          // CONSTRUCT DYNAMIC ADDRESS FROM DB
-          // This uses the data fetched in Step 1
-          let addressLine = "Store Address Unavailable";
+          console.log("🔌 Printer Connected. Preparing Data...");
           
+          // Debug the raw profile state before building string
+          console.log("📊 Current Store Profile State:", storeProfile);
+
+          // 1. Construct Address
+          let finalAddress = "";
           if (storeProfile) {
-            // Build address string: Address, City - Pincode
-            const parts = [
-              storeProfile.address,
-              storeProfile.city,
-            ].filter(Boolean).join(", ");
-            
-            if (parts) addressLine = parts;
-            if (storeProfile.pincode) addressLine += ` - ${storeProfile.pincode}`;
-            if (storeProfile.phone) addressLine += `\nPh: ${storeProfile.phone}`;
+            const parts = [storeProfile.address, storeProfile.city].filter(Boolean);
+            finalAddress = parts.join(", ");
+          } else {
+             console.warn("⚠️ storeProfile is NULL. Address will be empty.");
           }
 
-          // SEND TO PRINTER
-          await printReceipt({ 
-            // Use DB Company name, fallback to "T VANAMM" only if DB is empty
-            company: storeProfile?.company || "T VANAMM", 
-            address: addressLine,                          
+          const printPayload = { 
+            // Fetch company directly from DB profile state. 
+            company: storeProfile?.company || "COMPANY UNKNOWN", 
+            
+            // Clean address string
+            address: finalAddress || "ADDRESS UNKNOWN",                          
+            
             total: totals.total.toFixed(2), 
+            
+            thankYouMsg: "THANK YOU! VISIT AGAIN",
+
             items: cart.map(i => ({ 
                 name: i.item_name, 
                 qty: i.qty, 
                 subtotal: (i.price * i.qty).toFixed(2) 
             }))
-          });
+          };
+
+          // DEBUG 3: THIS IS WHAT IS ACTUALLY SENT
+          console.log("🖨️ SENDING TO PRINTER:", printPayload);
+
+          await printReceipt(printPayload);
+
         } catch (printErr) {
-          console.error("Printing failed:", printErr);
-          alert("Bill saved, but printing failed. Check printer connection.");
+          console.error("❌ Printing failed:", printErr);
+          alert("Bill saved, but printing failed. Check console for details.");
         }
       } else {
+        console.log("Printer not connected. Skipping print.");
         alert("Bill saved! (Printer was not connected)");
       }
 
@@ -254,16 +273,40 @@ function Store() {
                 <Search size={18} color={BLACK} style={styles.searchIcon} />
                 <input style={styles.searchInput} placeholder="Search product..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
               </div>
-              <button 
-                style={{ 
-                    ...styles.greenCardBtn, 
-                    background: isConnected ? "#10b981" : PRIMARY,
-                    cursor: isConnected ? "default" : "pointer" 
-                }} 
-                onClick={!isConnected ? connectPrinter : undefined}
-              >
-                {isConnected ? "✅ PRINTER CONNECTED" : "🔌 CONNECT PRINTER"}
-              </button>
+
+              {/* ----- PRINTER CONTROLS ----- */}
+              <div style={styles.printerControlGroup}>
+                {isConnected ? (
+                  <>
+                    <button style={styles.connectedBadge}>
+                       <Printer size={16} /> CONNECTED
+                    </button>
+                    <button onClick={disconnectPrinter} style={styles.disconnectBtn} title="Disconnect Printer">
+                      <Unplug size={18} />
+                    </button>
+                  </>
+                ) : (
+                  <button 
+                    style={{ 
+                        ...styles.connectBtn, 
+                        opacity: isConnecting ? 0.7 : 1,
+                        cursor: isConnecting ? "wait" : "pointer"
+                    }} 
+                    onClick={connectPrinter}
+                    disabled={isConnecting}
+                  >
+                    {isConnecting ? (
+                      <>
+                        <Loader2 className="animate-spin" size={16} /> CONNECTING...
+                      </>
+                    ) : (
+                      <>
+                        <Printer size={16} /> CONNECT PRINTER
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
             <div style={styles.categoryRow}>
               {categories.map(cat => (
@@ -414,7 +457,21 @@ const styles = {
   searchBox: { flex: 1, position: 'relative', display: 'flex', alignItems: 'center' },
   searchIcon: { position: 'absolute', left: '15px' },
   searchInput: { width: '100%', padding: "14px 14px 14px 45px", borderRadius: "12px", border: `1px solid ${BORDER}`, outline: 'none', color: BLACK, fontWeight: '700' },
-  greenCardBtn: { color: "#fff", border: "none", padding: "0 20px", borderRadius: "12px", fontWeight: "900", fontSize: '12px', transition: '0.3s' },
+  printerControlGroup: { display: 'flex', gap: '8px' },
+  connectBtn: { 
+    background: PRIMARY, color: "#fff", border: "none", padding: "0 20px", borderRadius: "12px", 
+    fontWeight: "900", fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px',
+    transition: '0.3s'
+  },
+  connectedBadge: { 
+    background: "#10b981", color: "#fff", border: "none", padding: "0 20px", borderRadius: "12px", 
+    fontWeight: "900", fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px',
+    cursor: 'default'
+  },
+  disconnectBtn: {
+    background: "#fee2e2", color: DANGER, border: "none", width: '42px', borderRadius: "12px",
+    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: '0.2s'
+  },
   categoryRow: { display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "5px" },
   catBtn: { padding: "10px 18px", borderRadius: "10px", border: `1px solid ${BORDER}`, background: "#fff", whiteSpace: "nowrap", fontWeight: '800', color: BLACK, cursor: 'pointer', fontSize: '12px' },
   catBtnActive: { background: PRIMARY, color: "#fff", borderColor: PRIMARY },

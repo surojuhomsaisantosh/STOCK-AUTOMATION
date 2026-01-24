@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import React, { createContext, useContext, useRef, useState } from "react";
 
-// DEFINING BOTH COMMON PRINTER STANDARDS
-// 58Printers usually use the GENERIC profile (ffe0)
+// Create Context
+const PrinterContext = createContext();
+
+// Common UUIDs for 58mm Thermal Printers
 const PROFILES = {
   STANDARD: {
     service: '000018f0-0000-1000-8000-00805f9b34fb',
@@ -13,26 +15,26 @@ const PROFILES = {
   }
 };
 
-export function useBluetoothPrinter() {
+export function PrinterProvider({ children }) {
   const deviceRef = useRef(null);
   const characteristicRef = useRef(null);
   
-  // Initialize state based on previous successful connection
-  const [isConnected, setIsConnected] = useState(
-    localStorage.getItem("printer_connected") === "true"
-  );
+  const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
   /* ---------------- CONNECT ---------------- */
   const connectPrinter = async () => {
+    if (isConnected) {
+      console.log("⚠️ Printer already connected");
+      return;
+    }
     if (isConnecting) return;
+    
     setIsConnecting(true);
 
     try {
       console.log("🔍 Requesting Device...");
       
-      // 1. Request Device - acceptAllDevices allows seeing "58Printer"
-      // optionalServices MUST list both to allow the browser to talk to either
       const device = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true,
         optionalServices: [PROFILES.STANDARD.service, PROFILES.GENERIC.service]
@@ -42,12 +44,10 @@ export function useBluetoothPrinter() {
       
       device.addEventListener('gattserverdisconnected', handleDisconnect);
 
-      // 2. Connect to GATT Server
       const server = await device.gatt.connect();
       console.log("✅ GATT Connected");
 
-      // 3. SERVICE DISCOVERY (Smart Auto-Detect)
-      // Check if we have saved UUIDs from a previous successful connection
+      // SERVICE DISCOVERY
       const savedServiceUUID = localStorage.getItem("printer_service_uuid");
       const savedCharUUID = localStorage.getItem("printer_char_uuid");
 
@@ -55,38 +55,32 @@ export function useBluetoothPrinter() {
 
       if (savedServiceUUID && savedCharUUID) {
         try {
-          console.log("⚡ Using Cached UUIDs for speed...");
+          console.log("⚡ Trying Cached UUIDs...");
           service = await server.getPrimaryService(savedServiceUUID);
           characteristic = await service.getCharacteristic(savedCharUUID);
+          console.log("⚡ Cached UUIDs worked!");
         } catch (e) {
-          console.log("⚠️ Cached UUID failed. Retrying full scan...");
-          // If cache fails, fall back to manual scan
+          console.warn("⚠️ Cached UUIDs failed. Scanning fresh...");
           const result = await scanForService(server);
           service = result.service;
           characteristic = result.characteristic;
         }
       } else {
-        // No cache, do full scan
         const result = await scanForService(server);
         service = result.service;
         characteristic = result.characteristic;
       }
 
-      // 4. Success! Save references
       deviceRef.current = device;
       characteristicRef.current = characteristic;
 
-      // Save the specific UUIDs that worked so next time it's instant
       localStorage.setItem("printer_service_uuid", service.uuid);
       localStorage.setItem("printer_char_uuid", characteristic.uuid);
-      localStorage.setItem("printer_connected", "true");
       
       setIsConnected(true);
-      alert(`✅ Connected to ${device.name}`);
 
     } catch (err) {
       console.error("Connection Error:", err);
-      // Only show alert if it wasn't the user just clicking "Cancel"
       if (err.name !== 'NotFoundError') {
         alert("Connection failed: " + err.message);
       }
@@ -96,7 +90,6 @@ export function useBluetoothPrinter() {
     }
   };
 
-  // Helper function to try Standard UUID first, then Generic UUID
   const scanForService = async (server) => {
     try {
       console.log("Trying Standard UUID (18f0)...");
@@ -116,29 +109,40 @@ export function useBluetoothPrinter() {
   };
 
   /* ---------------- DISCONNECT ---------------- */
-  const handleDisconnect = () => {
-    console.log("⚠️ Disconnected");
-    if (deviceRef.current && deviceRef.current.gatt.connected) {
-      deviceRef.current.gatt.disconnect();
+  const disconnectPrinter = () => {
+    console.log("🔌 Disconnecting...");
+    if (deviceRef.current) {
+      deviceRef.current.removeEventListener('gattserverdisconnected', handleDisconnect); // Prevent loop
+      if (deviceRef.current.gatt.connected) {
+        deviceRef.current.gatt.disconnect();
+      }
     }
+    
     deviceRef.current = null;
     characteristicRef.current = null;
     setIsConnected(false);
-    localStorage.removeItem("printer_connected");
+    setIsConnecting(false);
+  };
+  
+  // Internal handler for event listener
+  const handleDisconnect = () => {
+      console.log("⚠️ Printer Disconnected (Event)");
+      deviceRef.current = null;
+      characteristicRef.current = null;
+      setIsConnected(false);
+      setIsConnecting(false);
   };
 
   /* ---------------- PRINT ---------------- */
   const printReceipt = async (billData) => {
     if (!isConnected || !characteristicRef.current) {
       alert("⚠️ Printer disconnected. Please reconnect.");
-      handleDisconnect();
+      disconnectPrinter();
       return;
     }
 
     try {
       const encoder = new TextEncoder();
-
-      // ESC/POS COMMANDS
       const CMD = {
         RESET: '\x1B\x40',
         CENTER: '\x1B\x61\x01',
@@ -149,54 +153,67 @@ export function useBluetoothPrinter() {
         CUT: '\x1D\x56\x00'
       };
 
-      // 1. Header: Company Name
-      let text = `${CMD.RESET}${CMD.CENTER}${CMD.BOLD_ON}${billData.company || "STORE"}${CMD.BOLD_OFF}\n`;
+      let text = '';
+      text += CMD.RESET + CMD.CENTER + CMD.BOLD_ON + (billData.company || "STORE") + CMD.BOLD_OFF + '\n\n';
 
-      // 2. Header: Address (UPDATED LOGIC)
       if (billData.address) {
-        text += `${CMD.RESET}${CMD.CENTER}${billData.address}\n`;
+        text += CMD.CENTER + billData.address + '\n';
       }
-
-      // 3. Separator
-      text += `--------------------------------\n${CMD.LEFT}`;
+      
+      text += '\n'; 
+      text += "--------------------------------\n";
+      text += CMD.LEFT + CMD.BOLD_ON + "ITEM             QTY     TOTAL" + CMD.BOLD_OFF + '\n';
+      text += "--------------------------------\n";
 
       billData.items.forEach(i => {
-        // Formatting for 32-column printers (Standard 58mm)
-        const name = i.name.substring(0, 15);
-        const qty = `x${i.qty}`;
-        const price = i.subtotal; // Assumed to be string or number
-        
-        // Manual column spacing: Name(16) + Qty(6) + Price(10)
-        text += `${name.padEnd(16)} ${qty.padEnd(6)} ${String(price).padStart(8)}\n`;
+        let name = (i.name || "Item").substring(0, 16).padEnd(16, " ");
+        let qty = String(i.qty).padStart(3, " ");
+        let price = String(i.subtotal).padStart(10, " ");
+        text += `${name} ${qty} ${price}\n`;
       });
 
-      text += `--------------------------------\n`;
-      text += `${CMD.RIGHT}${CMD.BOLD_ON}TOTAL: ${billData.total}${CMD.BOLD_OFF}\n`;
-      text += `${CMD.CENTER}\nThank You!\n\n\n${CMD.CUT}`;
+      text += "--------------------------------\n";
+      text += '\n';
+      text += CMD.CENTER + CMD.BOLD_ON + "TOTAL: " + billData.total + CMD.BOLD_OFF + '\n\n';
 
-      // CHUNKING LOGIC: Essential for Android/Generic Printers
-      // Sending too much data at once causes 58Printers to crash/disconnect
+      if (billData.thankYouMsg) {
+        text += CMD.CENTER + billData.thankYouMsg + '\n';
+      } else {
+         text += CMD.CENTER + "Thank You!\n";
+      }
+
+      text += "\n\n\n"; 
+
       const data = encoder.encode(text);
-      const CHUNK_SIZE = 50; // 50 bytes per packet is safe
+      const CHUNK_SIZE = 50; 
       
       for (let i = 0; i < data.length; i += CHUNK_SIZE) {
         const chunk = data.slice(i, i + CHUNK_SIZE);
         await characteristicRef.current.writeValue(chunk);
-        // Small delay to let printer buffer clear
         await new Promise(resolve => setTimeout(resolve, 20)); 
       }
 
     } catch (err) {
       console.error("Print Error:", err);
       alert("❌ Print failed. Connection lost.");
-      handleDisconnect();
+      disconnectPrinter();
     }
   };
 
-  return {
-    connectPrinter,
-    printReceipt,
-    isConnected,
-    isConnecting
-  };
+  return (
+    <PrinterContext.Provider value={{
+      connectPrinter,
+      disconnectPrinter,
+      printReceipt,
+      isConnected,
+      isConnecting
+    }}>
+      {children}
+    </PrinterContext.Provider>
+  );
+}
+
+// Hook to consume the context
+export function useBluetoothPrinter() {
+  return useContext(PrinterContext);
 }
