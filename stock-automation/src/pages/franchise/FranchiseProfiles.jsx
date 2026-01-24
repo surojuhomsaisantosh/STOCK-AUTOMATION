@@ -78,7 +78,7 @@ const FranchiseProfiles = () => {
     setFormData({
       name: profile.name,
       staff_id: profile.staff_id,
-      password: "UNCHANGED",
+      password: "", // Start empty so they can type a new one
       phone: profile.phone,
       email: profile.email || "",
       address: profile.address || "",
@@ -97,10 +97,27 @@ const FranchiseProfiles = () => {
     e.preventDefault();
     setSubmitting(true);
 
+    // --- VALIDATION LOGIC ---
+    if (editingId) {
+        // EDIT MODE: If they typed something, it MUST be >= 8 chars
+        if (formData.password && formData.password.length > 0 && formData.password.length < 8) {
+            alert("⚠️ Password too short! It must be at least 8 characters.");
+            setSubmitting(false);
+            return;
+        }
+    } else {
+        // CREATE MODE: Password is REQUIRED and MUST be >= 8 chars
+        if (!formData.password || formData.password.length < 8) {
+            alert("⚠️ Password is required and must be at least 8 characters.");
+            setSubmitting(false);
+            return;
+        }
+    }
+
     try {
       if (editingId) {
-        // --- UPDATE ---
-        const { error } = await supabase
+        // --- UPDATE PROFILE ---
+        const { error: profileError } = await supabase
           .from('staff_profiles')
           .update({
             name: formData.name,
@@ -112,12 +129,28 @@ const FranchiseProfiles = () => {
           })
           .eq('id', editingId);
 
-        if (error) throw error;
-        alert("Profile updated successfully!");
+        if (profileError) throw profileError;
+
+        // --- UPDATE PASSWORD (IF TYPED) ---
+        if (formData.password && formData.password.trim() !== "") {
+            const { error: passwordError } = await supabase.rpc('update_staff_password', {
+                target_user_id: editingId,
+                new_password: formData.password
+            });
+
+            if (passwordError) {
+                console.error("Password Update Failed:", passwordError);
+                alert("⚠️ Profile updated, but Password failed to reset. (Check Database RPC)");
+            } else {
+                alert("✅ Profile updated and Password successfully reset!");
+            }
+        } else {
+            alert("✅ Profile updated successfully!");
+        }
+
         fetchStaffProfiles(franchiseId);
       } else {
-        // --- CREATE ---
-        // Using a temporary client to create a user without logging out the admin
+        // --- CREATE USER ---
         const loginEmail = formData.email || `${formData.staff_id}@${franchiseId.toLowerCase()}.com`;
         
         const tempSupabase = createClient(supabase.supabaseUrl, supabase.supabaseKey, {
@@ -156,28 +189,21 @@ const FranchiseProfiles = () => {
 
   // --- DELETE LOGIC ---
   const handleDelete = async (id) => {
-    // 1. Confirmation Dialog
     if (window.confirm("⚠️ Are you sure you want to delete this staff member? This will wipe their profile, login history, and created bills.")) {
       try {
-        console.log("Attempting to delete ID:", id);
-        
-        // 2. Call the Database RPC Function
         const { error } = await supabase.rpc('delete_staff_user', { target_id: id });
         
-        // 3. Error Handling
         if (error) {
             console.error("Delete Error:", error);
-            // Specific check for missing SQL function
             if (error.message && (error.message.includes("function delete_staff_user") || error.message.includes("does not exist"))) {
-                alert("❌ ERROR: Missing SQL Function. Please run the provided SQL code in your Supabase SQL Editor.");
+                alert("❌ ERROR: Missing SQL Function in Database.");
             } else {
                 alert("❌ Delete Failed: " + error.message);
             }
             return;
         }
         
-        // 4. Success UI Update
-        alert("✅ User and all associated data deleted successfully.");
+        alert("✅ User deleted successfully.");
         setProfiles(prev => prev.filter(p => p.id !== id));
         
       } catch (err) {
@@ -315,26 +341,27 @@ const FranchiseProfiles = () => {
                 <input required style={styles.input} type="text" value={formData.staff_id} onChange={e => setFormData({...formData, staff_id: e.target.value})} />
               </div>
               
+              {/* --- PASSWORD FIELD (EDITABLE) --- */}
               <div style={styles.inputGroup}>
-                <label style={styles.label}>Password *</label>
+                <label style={styles.label}>
+                  {editingId ? "Set New Password" : "Password"} {editingId && "*"}
+                </label>
                 <div style={{ position: 'relative' }}>
                   <input 
-                    required={!editingId}
-                    disabled={!!editingId}
+                    // 'required' handled by manual validation in handleSubmit
                     style={{ ...styles.input, width: '100%' }} 
                     type={showPassword ? "text" : "password"} 
                     value={formData.password} 
-                    onChange={e => setFormData({...formData, password: e.target.value})} 
+                    onChange={e => setFormData({...formData, password: e.target.value})}
+                    placeholder={editingId ? "Enter new password" : "Enter password"}
                   />
-                  {!editingId && (
-                    <button 
-                      type="button" 
-                      onClick={() => setShowPassword(!showPassword)} 
-                      style={styles.eyeBtn}
-                    >
-                      {showPassword ? <EyeOff size={18} color={BLACK} /> : <Eye size={18} color={BLACK} />}
-                    </button>
-                  )}
+                  <button 
+                    type="button" 
+                    onClick={() => setShowPassword(!showPassword)} 
+                    style={styles.eyeBtn}
+                  >
+                    {showPassword ? <EyeOff size={18} color={BLACK} /> : <Eye size={18} color={BLACK} />}
+                  </button>
                 </div>
               </div>
 
@@ -358,7 +385,7 @@ const FranchiseProfiles = () => {
               <div style={styles.modalFooter}>
                 <button type="button" onClick={closeModal} style={styles.cancelBtn}>Cancel</button>
                 <button type="submit" disabled={submitting} style={styles.submitBtn}>
-                  {submitting ? "Processing..." : editingId ? "Save Changes" : "Create Account"}
+                  {submitting ? "Processing..." : editingId ? "Update User" : "Create Account"}
                 </button>
               </div>
             </form>
