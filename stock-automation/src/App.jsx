@@ -33,6 +33,9 @@ import LoginTimings from "./pages/franchise/LoginTimings";
 import CentralInvoices from "./pages/central/centralinvoices";
 import CentralSettings from "./pages/central/centralsettings";
 import CentralProfiles from "./pages/central/centralprofiles";
+import CentralStaffProfiles from "./pages/central/CentralStaffProfiles"; 
+import CentralStaffLogins from "./pages/central/CentralStaffLogins";
+import CentralVendors from "./pages/central/CentralVendors"; // <--- 1. IMPORT ADDED HERE
 import Accounts from "./pages/central/accounts";
 import PosManagement from "./pages/central/posmanagement";
 import Reports from "./pages/central/reports";
@@ -42,16 +45,13 @@ import InvoiceDesign from "./pages/invoiceDesign/InvoiceDesign";
 
 /* CONTEXTS */
 import { AuthProvider } from "./context/AuthContext";
-
-// FIX: CHANGED FROM ./components/... TO ./pages/...
 import { PrinterProvider } from "./pages/printer/BluetoothPrinter"; 
-
 import ProtectedRoute from "./routes/ProtectedRoute";
 
 function App() {
   return (
     <AuthProvider>
-      <PrinterProvider> {/* <--- WRAPPED APP HERE TO KEEP CONNECTION ALIVE */}
+      <PrinterProvider> 
         <BrowserRouter>
           <Routes>
 
@@ -104,6 +104,16 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            
+            {/* --- 2. NEW ROUTE FOR VENDORS --- */}
+            <Route
+              path="/central/vendors"
+              element={
+                <ProtectedRoute allowedRoles={["central"]}>
+                  <CentralVendors />
+                </ProtectedRoute>
+              }
+            />
 
             <Route
               path="/central/invoices"
@@ -141,6 +151,34 @@ function App() {
               }
             />
 
+            <Route
+              path="/central/staff-profiles"
+              element={
+                <ProtectedRoute allowedRoles={["central"]}>
+                  <CentralStaffProfiles />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/central/staff-logins"
+              element={
+                <ProtectedRoute allowedRoles={["central"]}>
+                  <CentralStaffLogins />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Timings Fallback */}
+            <Route
+              path="/central/timings"
+              element={
+                <ProtectedRoute allowedRoles={["central"]}>
+                  <CentralStaffLogins />
+                </ProtectedRoute>
+              }
+            />
+            
             <Route
               path="/central/accounts"
               element={
@@ -325,7 +363,7 @@ function App() {
 
           </Routes>
         </BrowserRouter>
-      </PrinterProvider> {/* <--- CLOSED PRINTER PROVIDER */}
+      </PrinterProvider> 
     </AuthProvider>
   );
 }

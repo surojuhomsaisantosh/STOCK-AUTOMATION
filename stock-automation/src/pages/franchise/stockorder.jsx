@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../../supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
-import { FiArrowLeft, FiSearch, FiTrash2, FiPlus, FiMinus, FiShoppingCart, FiCalendar, FiCheckCircle, FiCreditCard, FiAlertTriangle, FiX } from "react-icons/fi";
+import { FiArrowLeft, FiSearch, FiTrash2, FiPlus, FiMinus, FiShoppingCart, FiCalendar, FiCreditCard, FiAlertTriangle, FiX } from "react-icons/fi";
 
 const BRAND_COLOR = "rgb(0, 100, 55)";
 
@@ -22,7 +22,7 @@ function StockOrder() {
   const [profile, setProfile] = useState(null);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [showAvailableOnly, setShowAvailableOnly] = useState(false);
+  // REMOVED: showAvailableOnly state
   const [qtyInput, setQtyInput] = useState({});
   const [selectedUnit, setSelectedUnit] = useState({});
   const [cart, setCart] = useState([]);
@@ -46,18 +46,41 @@ function StockOrder() {
   };
 
   const fetchStocks = async () => {
-    const { data } = await supabase.from("stocks").select("*").order("item_name");
-    const stockData = data || [];
-    setStocks(stockData);
+    console.log("--- 🚀 STARTING STOCK FETCH ---");
     
-    const units = {};
-    const initialQtys = {};
-    stockData.forEach(item => {
-      units[item.id] = item.unit || 'pcs';
-      initialQtys[item.id] = 0; 
-    });
-    setSelectedUnit(units);
-    setQtyInput(initialQtys);
+    try {
+        console.log("📡 Sending Query: .eq('online_store', true)");
+        
+        const { data, error } = await supabase
+            .from("stocks")
+            .select("*")
+            .eq('online_store', true)
+            .order("item_name");
+
+        if (error) {
+            console.error("❌ SUPABASE ERROR:", error);
+            return;
+        }
+
+        console.log(`✅ Received ${data?.length || 0} items from DB`);
+        
+        const stockData = data || [];
+        setStocks(stockData);
+        
+        const units = {};
+        const initialQtys = {};
+        stockData.forEach(item => {
+            units[item.id] = item.unit || 'pcs';
+            initialQtys[item.id] = 0; 
+        });
+        setSelectedUnit(units);
+        setQtyInput(initialQtys);
+
+    } catch (err) {
+        console.error("❌ UNEXPECTED ERROR:", err);
+    } finally {
+        console.log("--- 🏁 END STOCK FETCH ---");
+    }
   };
 
   const calculations = useMemo(() => {
@@ -137,7 +160,6 @@ function StockOrder() {
 
   const handleUnitChange = (itemId, newUnit) => {
     setSelectedUnit(prev => ({ ...prev, [itemId]: newUnit }));
-    // Reset quantity when unit changes to prevent calculation errors
     setQtyInput(prev => ({ ...prev, [itemId]: 0 }));
     setCart(prev => prev.filter(c => c.id !== itemId));
   };
@@ -157,7 +179,7 @@ function StockOrder() {
         stock_id: item.id,
         item_name: item.item_name,
         quantity: item.qty, 
-        unit: item.cartUnit,       
+        unit: item.cartUnit,        
         price: item.price
       }));
 
@@ -194,10 +216,12 @@ function StockOrder() {
       const matchesSearch = item.item_name.toLowerCase().includes(search.toLowerCase()) || 
                             (item.item_code && item.item_code.toLowerCase().includes(search.toLowerCase()));
       const matchesCategory = selectedCategory === "All" || item.category === selectedCategory;
+      
       const isAvailable = item.quantity > 0;
-      return showAvailableOnly ? (matchesSearch && matchesCategory && isAvailable) : (matchesSearch && matchesCategory);
+      
+      return matchesSearch && matchesCategory && isAvailable;
     });
-  }, [stocks, search, selectedCategory, showAvailableOnly]);
+  }, [stocks, search, selectedCategory]);
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] pb-10 font-sans text-black">
@@ -234,9 +258,6 @@ function StockOrder() {
             <input placeholder="SEARCH ITEM NAME OR CODE..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full h-full pl-14 pr-6 py-4 bg-white border-2 border-slate-100 rounded-2xl text-sm outline-none focus:border-black transition-all text-black font-black placeholder:text-slate-300 uppercase shadow-sm" />
           </div>
           <div className="flex items-center gap-3 w-full md:w-auto">
-            <button onClick={() => setShowAvailableOnly(!showAvailableOnly)} className={`flex items-center gap-3 px-6 py-4 rounded-2xl font-black border-2 transition-all text-xs uppercase tracking-widest flex-1 md:flex-none ${showAvailableOnly ? "bg-emerald-50 border-emerald-600 text-emerald-700 shadow-md" : "bg-white text-slate-400 border-slate-100 hover:border-black"}`} >
-              <FiCheckCircle size={18} className={showAvailableOnly ? "text-emerald-600" : "inherit"} /> Available Only
-            </button>
             <div className="flex items-center gap-3 bg-white px-6 py-4 rounded-2xl border-2 border-slate-100 whitespace-nowrap shadow-sm flex-1 md:flex-none font-black text-sm uppercase text-black"><FiCalendar size={18} className="opacity-40" /> {today}</div>
             <button onClick={() => setIsCartOpen(true)} className="relative p-4 bg-white border-2 border-slate-100 rounded-2xl hover:border-black transition-all shadow-sm text-black group">
               <FiShoppingCart size={22} className="group-hover:scale-110 transition-transform" />
@@ -280,7 +301,6 @@ function StockOrder() {
                     </select>
                   </div>
                   
-                  {/* Logic: Clicking ADD TO CART increments the value and updates the cart state */}
                   <button 
                     onClick={() => {
                       const currentVal = qtyInput[item.id] || 0;
@@ -369,22 +389,20 @@ function StockOrder() {
 
                   <div className="pt-4 border-t border-dashed border-slate-200 space-y-3">
                     <div className="flex justify-between items-center text-xs font-black text-emerald-700 uppercase">
-                      <span>CGST (Central)</span>
-                      <span>₹{calculations.cgst.toFixed(2)}</span>
+                      <span>Total GST</span>
+                      <span>₹{calculations.totalGst.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between items-center text-xs font-black text-emerald-700 uppercase">
-                      <span>SGST (State)</span>
-                      <span>₹{calculations.sgst.toFixed(2)}</span>
+
+                    {/* CHANGED: Moved Round Off Adjustment HERE (above Exact Total Bill) */}
+                    <div className="flex justify-between items-center text-[10px] font-black text-rose-600 uppercase italic">
+                      <span>Round Off Adjustment</span>
+                      <span>{calculations.roundOff >= 0 ? "+" : ""}{calculations.roundOff.toFixed(2)}</span>
                     </div>
+                    
                     <div className="flex justify-between items-center text-[10px] font-black pt-2 border-t border-slate-100 text-emerald-900 uppercase">
                       <span>Exact Total Bill</span>
                       <span>₹{calculations.exactBill.toFixed(2)}</span>
                     </div>
-                  </div>
-
-                  <div className="flex justify-between items-center text-[10px] font-black text-rose-600 uppercase italic">
-                    <span>Round Off Adjustment</span>
-                    <span>{calculations.roundOff >= 0 ? "+" : ""}{calculations.roundOff.toFixed(2)}</span>
                   </div>
 
                   <div className="pt-6 border-t-2 border-black">
