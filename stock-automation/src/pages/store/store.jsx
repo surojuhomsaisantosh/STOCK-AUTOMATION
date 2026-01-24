@@ -21,9 +21,7 @@ function Store() {
   const navigate = useNavigate();
   const { user, role, loading: authLoading } = useAuth();
   
-  // Assuming your hook provides a 'disconnectPrinter' if you want to explicitly kill it
   const { connectPrinter, printReceipt, isConnected } = useBluetoothPrinter();
-
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -41,7 +39,8 @@ function Store() {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
-    return () => window.removeResizeListener('resize', handleResize);
+    // FIXED: Changed removeResizeListener to removeEventListener
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   /* ==========================================================
@@ -59,16 +58,13 @@ function Store() {
 
   const fetchMenu = async () => {
     if (!franchiseId) return;
-
     try {
       const { data, error } = await supabase
         .from("menus")
         .select("*")
         .eq("franchise_id", franchiseId.trim())
         .eq("is_active", true);
-
       if (error) throw error;
-
       if (data) {
         setMenuItems(data);
         setCategories(["All", ...new Set(data.map(item => item.category).filter(Boolean))]);
@@ -126,7 +122,7 @@ function Store() {
   const handleCompleteTransaction = async (method) => {
     try {
       if (!franchiseId) throw new Error("Franchise identification failed.");
-
+      
       // 1. Save to Database
       const { data: bill, error: billError } = await supabase.from("bills_generated").insert([{
         franchise_id: franchiseId, 
@@ -153,19 +149,18 @@ function Store() {
       if (itemsError) throw new Error(`Items Error: ${itemsError.message}`);
 
       // 2. Print Receipt (If Connected)
+      // UPDATED: Aligned keys with your provided printReceipt encoder logic
       if (isConnected) {
         try {
           await printReceipt({ 
-            storeName: "T VANAMM",
-            // UPDATE THESE LINES WITH YOUR ACTUAL ADDRESS
+            company: "T VANAMM", // Matches billData.company
             address: "Line 1: Street Address Here\nLine 2: Area, City\nLine 3: State - PinCode",
             total: totals.total.toFixed(2), 
             items: cart.map(i => ({ 
                 name: i.item_name, 
                 qty: i.qty, 
-                total: (i.price * i.qty).toFixed(2) 
-            })),
-            footerTag: `[Franchise: ${franchiseId}]`
+                subtotal: (i.price * i.qty).toFixed(2) // Matches i.subtotal in your hook
+            }))
           });
         } catch (printErr) {
           console.error("Printing failed:", printErr);
@@ -178,7 +173,6 @@ function Store() {
       setCart([]); 
       setDiscountValue(0); 
       setShowPaymentModal(false);
-
     } catch (err) { 
       console.error(err);
       alert(`Checkout failed: ${err.message}`); 
@@ -219,7 +213,7 @@ function Store() {
               <button 
                 style={{ 
                     ...styles.greenCardBtn, 
-                    background: isConnected ? "#10b981" : PRIMARY, // Brighter green when connected
+                    background: isConnected ? "#10b981" : PRIMARY,
                     cursor: isConnected ? "default" : "pointer" 
                 }} 
                 onClick={!isConnected ? connectPrinter : undefined}
@@ -274,6 +268,7 @@ function Store() {
               </div>
             ))}
           </div>
+
           <div style={styles.billingFooter}>
             <div style={styles.summaryLine}>
                 <span style={{ fontWeight: '900', fontSize: '18px', color: BLACK }}>Subtotal</span>
@@ -289,7 +284,6 @@ function Store() {
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
             <button style={styles.closeModalBtn} onClick={() => setShowPaymentModal(false)}><X size={24} color={BLACK} /></button>
-
             <div style={styles.modalBody}>
               <div style={styles.modalLeft}>
                 <h3 style={styles.modalSectionTitle}>BILL SUMMARY</h3>
@@ -341,10 +335,12 @@ function Store() {
                     style={styles.modalDiscountInput}
                   />
                 </div>
+
                 <div style={styles.finalAmountDisplay}>
                   <span style={{ fontSize: '11px', color: BLACK, fontWeight: '900', textTransform: 'uppercase' }}>Net Payable</span>
                   <div style={{ fontSize: '42px', fontWeight: '900', color: PRIMARY }}>₹{totals.total.toFixed(2)}</div>
                 </div>
+
                 <div style={styles.paymentButtonRow}>
                   <button style={styles.payMethodBtn} onClick={() => handleCompleteTransaction("CASH")}>CASH</button>
                   <button style={styles.payMethodBtn} onClick={() => handleCompleteTransaction("UPI")}>UPI / ONLINE</button>
