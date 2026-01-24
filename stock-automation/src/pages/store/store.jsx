@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 // --- BLUETOOTH PRINTER HOOK ---
+// Ensure the path matches where you saved BluetoothPrinter.jsx
 import { useBluetoothPrinter } from "../printer/BluetoothPrinter";
 
 const PRIMARY = "#065f46";
@@ -39,7 +40,6 @@ function Store() {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
-    // FIXED: Changed removeResizeListener to removeEventListener
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -149,17 +149,17 @@ function Store() {
       if (itemsError) throw new Error(`Items Error: ${itemsError.message}`);
 
       // 2. Print Receipt (If Connected)
-      // UPDATED: Aligned keys with your provided printReceipt encoder logic
       if (isConnected) {
         try {
+          // IMPORTANT: Keys here must match what printReceipt expects
           await printReceipt({ 
-            company: "T VANAMM", // Matches billData.company
-            address: "Line 1: Street Address Here\nLine 2: Area, City\nLine 3: State - PinCode",
+            company: "T VANAMM", 
+            address: "Line 1: Street Address Here",
             total: totals.total.toFixed(2), 
             items: cart.map(i => ({ 
                 name: i.item_name, 
                 qty: i.qty, 
-                subtotal: (i.price * i.qty).toFixed(2) // Matches i.subtotal in your hook
+                subtotal: (i.price * i.qty).toFixed(2) 
             }))
           });
         } catch (printErr) {
