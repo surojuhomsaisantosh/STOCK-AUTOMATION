@@ -6,6 +6,7 @@ import RegisterUser from "./pages/register/Registeruser";
 
 /* STORE */
 import Store from "./pages/store/store";
+import BillingHistory from "./pages/store/BillingHistory";
 
 /* DASHBOARDS */
 import StockManagerDashboard from "./pages/dashboards/stockmanager";
@@ -25,6 +26,8 @@ import FranchiseAnalytics from "./pages/franchise/FranchiseAnalytics";
 import RequestPortal from "./pages/franchise/RequestPortal"; 
 import FranchiseMenu from "./pages/franchise/FranchiseMenu";
 import FranchiseSettingsCard from "./pages/franchise/FranchiseSettingsCard";
+import FranchiseProfiles from "./pages/franchise/FranchiseProfiles";
+import LoginTimings from "./pages/franchise/LoginTimings"; // <--- NEW IMPORT
 
 /* CENTRAL */
 import CentralInvoices from "./pages/central/centralinvoices";
@@ -35,6 +38,7 @@ import PosManagement from "./pages/central/posmanagement";
 import Reports from "./pages/central/reports";
 import FranchiseReplies from "./pages/central/FranchiseReplies";
 import CentralStockMaster from "./pages/central/CentralStockMaster";
+import InvoiceDesign from "./pages/invoiceDesign/InvoiceDesign"; 
 
 /* AUTH CONTEXT */
 import { AuthProvider } from "./context/AuthContext";
@@ -58,6 +62,15 @@ function App() {
               </ProtectedRoute>
             }
           />
+          
+          <Route
+            path="/history"
+            element={
+              <ProtectedRoute storeOnly={true}>
+                <BillingHistory />
+              </ProtectedRoute>
+            }
+          />
 
           {/* ================= CENTRAL ADMIN ================= */}
           <Route
@@ -78,7 +91,6 @@ function App() {
             }
           />
 
-          {/* Route: Central Internal Order Entry */}
           <Route
             path="/central/internal-order"
             element={
@@ -102,6 +114,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["central"]}>
                 <CentralSettings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/central/invoice-design"
+            element={
+              <ProtectedRoute allowedRoles={["central"]}>
+                <InvoiceDesign />
               </ProtectedRoute>
             }
           />
@@ -151,9 +172,17 @@ function App() {
             }
           />
 
-          {/* Updated Route: This now matches the navigate path in CentralDashboard */}
           <Route
             path="/central/support"
+            element={
+              <ProtectedRoute allowedRoles={["central"]}>
+                <FranchiseReplies />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/central/replies"
             element={
               <ProtectedRoute allowedRoles={["central"]}>
                 <FranchiseReplies />
@@ -212,6 +241,25 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["franchise"]}>
                 <FranchiseMenu />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/franchise/staff"
+            element={
+              <ProtectedRoute allowedRoles={["franchise"]}>
+                <FranchiseProfiles />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* NEW ROUTE FOR LOGIN TIMINGS */}
+          <Route
+            path="/franchise/timings"
+            element={
+              <ProtectedRoute allowedRoles={["franchise"]}>
+                <LoginTimings />
               </ProtectedRoute>
             }
           />

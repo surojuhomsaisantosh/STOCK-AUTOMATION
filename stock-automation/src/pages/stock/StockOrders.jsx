@@ -389,5 +389,5 @@ function StockOrders() {
     </div>
   );
 }
-
+  
 export default StockOrders;

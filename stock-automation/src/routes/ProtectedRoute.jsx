@@ -6,6 +6,7 @@ const ROLE_DASHBOARD = {
   stock: "/dashboard/stockmanager",
   franchise: "/dashboard/franchiseowner",
   central: "/dashboard/central",
+  staff: "/store", // Staff "dashboard" is the store itself
 };
 
 function ProtectedRoute({ children, allowedRoles, storeOnly = false }) {
@@ -27,7 +28,7 @@ function ProtectedRoute({ children, allowedRoles, storeOnly = false }) {
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-2">
           <div className="w-8 h-8 border-4 border-slate-100 border-t-slate-900 rounded-full animate-spin" />
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Authenticating</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black">Authenticating</p>
         </div>
       </div>
     );
@@ -43,10 +44,11 @@ function ProtectedRoute({ children, allowedRoles, storeOnly = false }) {
 
   /* =========================
      3. STORE MODE RULES
-     (Only Franchise + Central allowed)
+     (Franchise + Central + Staff allowed)
   ========================== */
   if (storeOnly) {
-    const isAuthorizedForStore = ["franchise", "central"].includes(normalizedRole);
+    // Added 'staff' to the authorized list for the store
+    const isAuthorizedForStore = ["franchise", "central", "staff"].includes(normalizedRole);
     
     if (!isAuthorizedForStore) {
       console.error(`🚫 Store Access Denied: Role '${normalizedRole}' is not permitted.`);
@@ -74,8 +76,11 @@ function ProtectedRoute({ children, allowedRoles, storeOnly = false }) {
     console.warn(
       `⚠️ Unauthorized: Role '${normalizedRole}' attempted to access a restricted route. Redirecting to their dashboard.`
     );
-    // Redirect them to their own home dashboard instead of login
-    return <Navigate to={ROLE_DASHBOARD[normalizedRole]} replace />;
+    
+    // If a staff member tries to access an admin route, send them to /store
+    // Otherwise, send admin users to their respective dashboards
+    const redirectPath = normalizedRole === "staff" ? "/store" : ROLE_DASHBOARD[normalizedRole];
+    return <Navigate to={redirectPath} replace />;
   }
 
   /* =========================
