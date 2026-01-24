@@ -5,11 +5,8 @@ import { useAuth } from "../../context/AuthContext";
 import { 
   Loader2, 
   Search, 
-  Printer, 
   Trash2, 
-  X, 
-  ChevronRight,
-  Clock
+  X
 } from "lucide-react";
 
 // --- BLUETOOTH PRINTER HOOK ---
@@ -24,6 +21,7 @@ function Store() {
   const navigate = useNavigate();
   const { user, role, loading: authLoading } = useAuth();
   
+  // Assuming your hook provides a 'disconnectPrinter' if you want to explicitly kill it
   const { connectPrinter, printReceipt, isConnected } = useBluetoothPrinter();
 
   const [menuItems, setMenuItems] = useState([]);
@@ -43,7 +41,7 @@ function Store() {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => window.removeResizeListener('resize', handleResize);
   }, []);
 
   /* ==========================================================
@@ -62,7 +60,6 @@ function Store() {
   const fetchMenu = async () => {
     if (!franchiseId) return;
 
-    console.log(`🟢 Fetching menu for: ${franchiseId}`);
     try {
       const { data, error } = await supabase
         .from("menus")
@@ -75,7 +72,6 @@ function Store() {
       if (data) {
         setMenuItems(data);
         setCategories(["All", ...new Set(data.map(item => item.category).filter(Boolean))]);
-        console.log(`✅ Loaded ${data.length} items successfully.`);
       }
     } catch (err) {
       console.error("❌ Menu Load Error:", err.message);
@@ -131,6 +127,7 @@ function Store() {
     try {
       if (!franchiseId) throw new Error("Franchise identification failed.");
 
+      // 1. Save to Database
       const { data: bill, error: billError } = await supabase.from("bills_generated").insert([{
         franchise_id: franchiseId, 
         subtotal: totals.subtotal, 
@@ -155,16 +152,29 @@ function Store() {
       const { error: itemsError } = await supabase.from("bills_items_generated").insert(billItems);
       if (itemsError) throw new Error(`Items Error: ${itemsError.message}`);
 
-      try {
-        await printReceipt({ 
-          total: totals.total.toFixed(2), 
-          items: cart.map(i => ({ name: i.item_name, qty: i.qty, total: (i.price * i.qty).toFixed(2) })) 
-        });
-      } catch (printErr) {
-        alert("Transaction saved, but printer is offline.");
+      // 2. Print Receipt (If Connected)
+      if (isConnected) {
+        try {
+          await printReceipt({ 
+            storeName: "T VANAMM",
+            // UPDATE THESE LINES WITH YOUR ACTUAL ADDRESS
+            address: "Line 1: Street Address Here\nLine 2: Area, City\nLine 3: State - PinCode",
+            total: totals.total.toFixed(2), 
+            items: cart.map(i => ({ 
+                name: i.item_name, 
+                qty: i.qty, 
+                total: (i.price * i.qty).toFixed(2) 
+            })),
+            footerTag: `[Franchise: ${franchiseId}]`
+          });
+        } catch (printErr) {
+          console.error("Printing failed:", printErr);
+          alert("Bill saved to cloud, but printing failed. Check printer connection.");
+        }
+      } else {
+        alert("Bill saved! (Printer was not connected)");
       }
 
-      alert(`✅ Bill Generated: ₹${totals.total.toFixed(2)}`);
       setCart([]); 
       setDiscountValue(0); 
       setShowPaymentModal(false);
@@ -186,11 +196,8 @@ function Store() {
     <div style={{ ...styles.page, overflow: isMobile ? "visible" : "hidden", height: isMobile ? "auto" : "100vh" }}>
       {/* HEADER */}
       <div style={styles.topBar}>
-        {/* Spacer for centering title */}
         {!isMobile && <div style={{ width: '100px' }}></div>}
-        
         <h1 style={styles.centerTitle}>STORE DASHBOARD</h1>
-        
         <div style={styles.franchiseLabel}>{franchiseId}</div>
       </div>
 
@@ -209,8 +216,15 @@ function Store() {
                 <Search size={18} color={BLACK} style={styles.searchIcon} />
                 <input style={styles.searchInput} placeholder="Search product..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
               </div>
-              <button style={styles.greenCardBtn} onClick={connectPrinter}>
-                {isConnected ? "✅ PRINTER ON" : "🔌 CONNECT PRINTER"}
+              <button 
+                style={{ 
+                    ...styles.greenCardBtn, 
+                    background: isConnected ? "#10b981" : PRIMARY, // Brighter green when connected
+                    cursor: isConnected ? "default" : "pointer" 
+                }} 
+                onClick={!isConnected ? connectPrinter : undefined}
+              >
+                {isConnected ? "✅ PRINTER CONNECTED" : "🔌 CONNECT PRINTER"}
               </button>
             </div>
             <div style={styles.categoryRow}>
@@ -307,7 +321,6 @@ function Store() {
 
               <div style={styles.modalRight}>
                 <h3 style={styles.modalSectionTitle}>CHECKOUT</h3>
-                
                 <div style={styles.discountBox}>
                   <label style={styles.discountLabel}>Apply Discount</label>
                   <div style={styles.discountToggleRow}>
@@ -328,12 +341,10 @@ function Store() {
                     style={styles.modalDiscountInput}
                   />
                 </div>
-
                 <div style={styles.finalAmountDisplay}>
                   <span style={{ fontSize: '11px', color: BLACK, fontWeight: '900', textTransform: 'uppercase' }}>Net Payable</span>
                   <div style={{ fontSize: '42px', fontWeight: '900', color: PRIMARY }}>₹{totals.total.toFixed(2)}</div>
                 </div>
-
                 <div style={styles.paymentButtonRow}>
                   <button style={styles.payMethodBtn} onClick={() => handleCompleteTransaction("CASH")}>CASH</button>
                   <button style={styles.payMethodBtn} onClick={() => handleCompleteTransaction("UPI")}>UPI / ONLINE</button>
@@ -352,30 +363,25 @@ const styles = {
   topBar: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 30px", borderBottom: `1px solid ${BORDER}`, background: "#fff" },
   centerTitle: { fontSize: "22px", fontWeight: "900", margin: 0, color: BLACK, letterSpacing: '-0.5px' },
   franchiseLabel: { fontSize: "16px", fontWeight: "900", color: PRIMARY, background: '#ecfdf5', padding: '6px 15px', borderRadius: '10px' },
-  
   fullToggleBar: { display: "flex", width: "100%", padding: "6px", background: "#f3f4f6", borderBottom: `1px solid ${BORDER}` },
   toggleBtn: { flex: 1, padding: "15px", cursor: "pointer", fontWeight: "900", fontSize: "13px", border: "none", background: "#fff" },
   activeToggle: { color: PRIMARY, borderBottom: `4px solid ${PRIMARY}` },
   inactiveToggle: { color: "#6b7280" },
   splitLayout: { display: "flex", height: "calc(100vh - 130px)" },
-  
   menuContainer: { flex: 0.65, overflowY: "auto" },
   stickyActionHeader: { position: 'sticky', top: 0, background: '#f9fafb', zIndex: 10, padding: "20px" },
   actionRow: { display: "flex", gap: "10px", marginBottom: "15px" },
   searchBox: { flex: 1, position: 'relative', display: 'flex', alignItems: 'center' },
   searchIcon: { position: 'absolute', left: '15px' },
   searchInput: { width: '100%', padding: "14px 14px 14px 45px", borderRadius: "12px", border: `1px solid ${BORDER}`, outline: 'none', color: BLACK, fontWeight: '700' },
-  greenCardBtn: { background: PRIMARY, color: "#fff", border: "none", padding: "0 20px", borderRadius: "12px", fontWeight: "900", cursor: 'pointer', fontSize: '12px' },
-  
+  greenCardBtn: { color: "#fff", border: "none", padding: "0 20px", borderRadius: "12px", fontWeight: "900", fontSize: '12px', transition: '0.3s' },
   categoryRow: { display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "5px" },
   catBtn: { padding: "10px 18px", borderRadius: "10px", border: `1px solid ${BORDER}`, background: "#fff", whiteSpace: "nowrap", fontWeight: '800', color: BLACK, cursor: 'pointer', fontSize: '12px' },
   catBtnActive: { background: PRIMARY, color: "#fff", borderColor: PRIMARY },
-  
   grid: { display: "grid", gap: "12px", padding: "0 20px 20px 20px" },
   itemCard: { padding: "20px", border: `2px solid ${BORDER}`, borderRadius: "18px", background: "#fff", cursor: "pointer", transition: '0.2s all' },
   itemName: { display: "block", fontSize: "15px", fontWeight: "900", color: BLACK, marginBottom: '5px' },
   itemPrice: { color: PRIMARY, fontWeight: "900", fontSize: '18px' },
-
   cartContainer: { flex: 0.35, background: "#fff", borderLeft: `1px solid ${BORDER}`, padding: "20px", display: "flex", flexDirection: "column" },
   cartHeading: { textAlign: 'center', fontWeight: '900', fontSize: '16px', marginBottom: '15px', borderBottom: '2px solid #000', paddingBottom: '10px', color: BLACK },
   cartList: { flex: 1, overflowY: "auto" },
@@ -387,12 +393,10 @@ const styles = {
   qtyBtn: { border: 'none', background: 'none', padding: '4px 8px', cursor: 'pointer', fontWeight: '900', color: BLACK },
   qtyInput: { width: '30px', textAlign: 'center', border: 'none', background: 'transparent', fontWeight: '900', fontSize: '14px', color: BLACK },
   deleteBtn: { border: 'none', background: 'none', cursor: 'pointer', padding: '5px' },
-
   billingFooter: { borderTop: "2px solid #000", paddingTop: "15px" },
   summaryLine: { display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' },
   grandTotal: { fontSize: "32px", fontWeight: "900", color: BLACK },
   payBtn: { width: "100%", padding: "18px", background: PRIMARY, color: "#fff", borderRadius: "15px", fontWeight: "900", border: "none", marginTop: "10px", fontSize: '15px', cursor: 'pointer' },
-
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
   modalContent: { background: '#fff', width: '90%', maxWidth: '800px', borderRadius: '24px', position: 'relative', overflow: 'hidden' },
   closeModalBtn: { position: 'absolute', top: '15px', right: '15px', background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '35px', height: '35px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
@@ -405,17 +409,14 @@ const styles = {
   receiptTh: { textAlign: 'left', paddingBottom: '10px', fontSize: '11px', fontWeight: '900', color: BLACK },
   receiptTd: { padding: '8px 0', fontSize: '13px', fontWeight: '700', color: BLACK },
   modalSubtotalRow: { display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #000', paddingTop: '15px', fontWeight: '900', fontSize: '18px', color: BLACK },
-  
   discountBox: { background: '#f3f4f6', padding: '15px', borderRadius: '15px', marginBottom: '20px' },
   discountLabel: { display: 'block', fontWeight: '900', marginBottom: '8px', fontSize: '12px', color: BLACK },
   discountToggleRow: { display: 'flex', gap: '6px', marginBottom: '10px' },
   toggleSmall: { flex: 1, padding: '8px', border: `1px solid ${BORDER}`, borderRadius: '10px', cursor: 'pointer', fontWeight: '800', fontSize: '11px' },
   modalDiscountInput: { width: '100%', padding: '12px', borderRadius: '10px', border: `1px solid ${BORDER}`, fontSize: '15px', fontWeight: '800', color: BLACK },
-  
   finalAmountDisplay: { textAlign: 'center', marginBottom: '25px', padding: '15px', background: '#ecfdf5', borderRadius: '16px', border: `1px solid ${PRIMARY}` },
   paymentButtonRow: { display: 'flex', gap: '10px' },
   payMethodBtn: { flex: 1, padding: '16px', border: 'none', color: '#fff', background: PRIMARY, borderRadius: '14px', fontWeight: '900', fontSize: '14px', cursor: 'pointer' },
-
   loader: { height: "100vh", display: "flex", flexDirection: 'column', gap: '15px', alignItems: "center", justifyContent: "center", background: '#fff' }
 };
 
