@@ -39,6 +39,7 @@ function Store() {
   const [discountValue, setDiscountValue] = useState(0);
   const [discountType, setDiscountType] = useState("fixed");
 
+  // Get Franchise ID safely
   const franchiseId = user?.franchise_id ? String(user.franchise_id) : null;
 
   useEffect(() => {
@@ -48,27 +49,36 @@ function Store() {
   }, []);
 
   /* ==========================================================
-     1. FETCH STORE PROFILE (Company Name & Address)
+     1. FETCH STORE PROFILE (FIXED LOGIC)
+     Fetch based on FRANCHISE_ID, not User ID.
   ========================================================== */
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!user?.id) return;
+      if (!franchiseId) return; // Need franchise ID to find the store details
+
       try {
+        // We search the 'profiles' table where franchise_id matches.
+        // This finds the Owner's profile (which contains the address/company)
+        // even if the logged-in user is a Staff member.
         const { data, error } = await supabase
           .from('profiles')
           .select('company, address, city, state, pincode, phone')
-          .eq('id', user.id)
-          .single();
+          .eq('franchise_id', franchiseId)
+          .limit(1) // Ensure we just get one row
+          .maybeSingle(); // Use maybeSingle to prevent 406 error if not found
           
         if (error) throw error;
-        setStoreProfile(data);
+        
+        if (data) {
+          setStoreProfile(data);
+        }
       } catch (err) {
         console.error("❌ Profile Load Error:", err.message);
       }
     };
 
-    if (user) fetchProfile();
-  }, [user]);
+    fetchProfile();
+  }, [franchiseId]);
 
   /* ==========================================================
      2. FETCH MENU ITEMS
@@ -140,9 +150,7 @@ function Store() {
     try {
       if (!franchiseId) throw new Error("Franchise identification failed.");
       
-      // 1. Save to Database (Bills)
-      // FIX: Changed .single() to .maybeSingle() if fetching logic ever changes, 
-      // but for insert, .single() returns the inserted row correctly.
+      // 1. Save to Database
       const { data: bill, error: billError } = await supabase.from("bills_generated").insert([{
         franchise_id: franchiseId, 
         subtotal: totals.subtotal, 
@@ -170,14 +178,27 @@ function Store() {
       // 2. Print Receipt
       if (isConnected) {
         try {
-          // CONSTRUCT ADDRESS STRING DYNAMICALLY
-          const addressLine = storeProfile 
-            ? `${storeProfile.address || ''}, ${storeProfile.city || ''}\n${storeProfile.state || ''} - ${storeProfile.pincode || ''}`
-            : "Address Not Found";
+          // CONSTRUCT DYNAMIC ADDRESS FROM DB
+          // This uses the data fetched in Step 1
+          let addressLine = "Store Address Unavailable";
+          
+          if (storeProfile) {
+            // Build address string: Address, City - Pincode
+            const parts = [
+              storeProfile.address,
+              storeProfile.city,
+            ].filter(Boolean).join(", ");
+            
+            if (parts) addressLine = parts;
+            if (storeProfile.pincode) addressLine += ` - ${storeProfile.pincode}`;
+            if (storeProfile.phone) addressLine += `\nPh: ${storeProfile.phone}`;
+          }
 
+          // SEND TO PRINTER
           await printReceipt({ 
-            company: storeProfile?.company || "T VANAMM", // Dynamic Company Name
-            address: addressLine,                          // Dynamic Address
+            // Use DB Company name, fallback to "T VANAMM" only if DB is empty
+            company: storeProfile?.company || "T VANAMM", 
+            address: addressLine,                          
             total: totals.total.toFixed(2), 
             items: cart.map(i => ({ 
                 name: i.item_name, 
