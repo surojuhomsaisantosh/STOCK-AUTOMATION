@@ -12,7 +12,7 @@ function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState(""); // Used for Admin (actual email)
+  const [email, setEmail] = useState(""); // Used for Admin
   const [staffId, setStaffId] = useState(""); // Used for Store
   const [password, setPassword] = useState("");
   const [franchiseId, setFranchiseId] = useState("");
@@ -27,66 +27,96 @@ function Login() {
 
     try {
       const cleanPassword = password.trim();
-      const cleanFranchiseId = franchiseId.trim();
+      const cleanFranchiseId = franchiseId.trim().toUpperCase(); // Normalize ID
       let targetEmail = "";
 
       if (!cleanPassword) throw new Error("Password is required");
 
-      /* --- LOGIC FOR STAFF (STORE) LOGIN --- */
+      /* --- 1. EMAIL CONSTRUCTION --- */
       if (loginType === "store") {
         if (!staffId.trim() || !cleanFranchiseId) {
           throw new Error("Staff ID and Franchise ID are required");
         }
-        // Construct the hidden email we created during staff registration
+        // Staff Login: staffID@franchiseID.com
         targetEmail = `${staffId.trim()}@${cleanFranchiseId.toLowerCase()}.com`;
-      } 
-      /* --- LOGIC FOR ADMIN LOGIN --- */
-      else {
+      } else {
+        // Admin/Owner Login: Direct Email
         if (!email.trim() || !cleanFranchiseId) {
           throw new Error("Email and Franchise ID are required");
         }
         targetEmail = email.trim().toLowerCase();
       }
 
-      // 1. Sign in with the constructed/provided email
+      /* --- 2. AUTHENTICATION (Supabase Auth) --- */
       const { data: authData, error: authError } =
         await supabase.auth.signInWithPassword({
           email: targetEmail,
           password: cleanPassword,
         });
 
-      if (authError) throw authError;
+      if (authError) throw new Error("Invalid Credentials");
 
-      // 2. Fetch Profile from EITHER 'profiles' or 'staff_profiles'
-      // First try 'profiles' (Admin/Central/Stock)
-      let { data: profile, error: profileError } = await supabase
+      /* --- 3. IDENTITY VERIFICATION (Who is this?) --- */
+      let userRole = "";
+      let userFranchiseId = "";
+      let finalProfileData = null;
+
+      // STEP A: Check 'profiles' table (For Franchise Owners / Admins)
+      let { data: ownerProfile } = await supabase
         .from("profiles")
-        .select("role, franchise_id")
+        .select("*") // Fetch everything (Address, Company, etc.)
         .eq("id", authData.user.id)
         .maybeSingle();
 
-      // If not found, try 'staff_profiles' (Store Staff)
-      if (!profile) {
+      if (ownerProfile) {
+        // CASE: IT IS AN OWNER/ADMIN
+        userRole = ownerProfile.role;
+        userFranchiseId = ownerProfile.franchise_id;
+        finalProfileData = ownerProfile;
+      } else {
+        // STEP B: Check 'staff_profiles' table (For Store Staff)
         const { data: staffProfile } = await supabase
           .from("staff_profiles")
-          .select("franchise_id")
+          .select("*")
           .eq("id", authData.user.id)
           .maybeSingle();
 
         if (staffProfile) {
-          profile = { role: "staff", franchise_id: staffProfile.franchise_id };
+          // CASE: IT IS A STAFF MEMBER
+          userRole = "staff";
+          userFranchiseId = staffProfile.franchise_id;
+
+          // STEP C: CRITICAL - Fetch the ADDRESS from the Owner's Profile
+          // The staff_profile has the user info, but 'profiles' has the Store Address
+          const { data: franchiseInfo } = await supabase
+            .from("profiles")
+            .select("company, address, city, state, pincode, phone")
+            .eq("franchise_id", userFranchiseId)
+            .limit(1)
+            .maybeSingle();
+            
+          // Merge the Staff's personal info with the Franchise's Location info
+          finalProfileData = {
+            ...staffProfile,      // Name, Staff_ID
+            role: "staff",
+            ...franchiseInfo      // Adds Company, Address, City from 'profiles' table
+          };
+
+        } else {
+          throw new Error("User profile not found in database.");
         }
       }
 
-      if (!profile) throw new Error("Profile not found");
-
-      // 3. Validate Franchise ID
-      if (String(profile.franchise_id) !== cleanFranchiseId) {
-        throw new Error("Invalid Franchise ID for this user");
+      /* --- 4. SECURITY CHECK --- */
+      // Ensure the Franchise ID typed matches the Database ID
+      if (String(userFranchiseId).trim().toUpperCase() !== cleanFranchiseId) {
+        await supabase.auth.signOut(); // Security logout
+        throw new Error(`You do not belong to Franchise ${cleanFranchiseId}`);
       }
 
-      // 4. Final Routing
-      await login(authData.user, profile);
+      /* --- 5. FINISH LOGIN --- */
+      // We pass 'finalProfileData' which now contains the Address (even for staff)
+      await login(authData.user, finalProfileData);
 
       if (loginType === "store") {
         navigate("/store");
@@ -96,11 +126,11 @@ function Login() {
           franchise: "franchiseowner",
           stock: "stockmanager",
         };
-        navigate(`/dashboard/${routes[profile.role] || "franchiseowner"}`);
+        navigate(`/dashboard/${routes[userRole] || "franchiseowner"}`);
       }
     } catch (err) {
-      setErrorMsg(err.message || "Login failed");
       console.error(err);
+      setErrorMsg(err.message || "Login failed");
     } finally {
       setIsLoading(false);
     }
