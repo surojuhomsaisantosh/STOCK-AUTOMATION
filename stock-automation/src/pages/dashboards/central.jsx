@@ -4,7 +4,8 @@ import { useAuth } from "../../context/AuthContext";
 import { useEffect, useState } from "react";
 import {
   FileText, Users, Settings, LayoutDashboard,
-  BarChart3, ChevronRight, Package, ShoppingBag, Headphones, Calendar
+  BarChart3, ChevronRight, Package, ShoppingBag, 
+  Headphones, Calendar, Truck, UserCheck
 } from "lucide-react";
 import MobileNav from "../../components/MobileNav";
 
@@ -40,14 +41,26 @@ function CentralDashboard() {
     getProfile();
   }, [user]);
 
+  // --- REARRANGED MENU ITEMS (Industry Standard Flow) ---
   const navItems = [
-    { title: "Stock Master", path: "/central/stock", icon: <Package size={24} />, desc: "Inventory & variants" },
-    { title: "Internal Order", path: "/central/internal-order", icon: <ShoppingBag size={24} />, desc: "Franchise requests" },
+    // 1. Core Operations (Daily Use)
     { title: "POS Management", path: "/central/posmanagement", icon: <LayoutDashboard size={24} />, desc: "Terminals & layout" },
+    { title: "Stock Master", path: "/central/stock", icon: <Package size={24} />, desc: "Inventory & variants" },
+    
+    // 2. Supply Chain & Procurement
+    { title: "Internal Order", path: "/central/internal-order", icon: <ShoppingBag size={24} />, desc: "Franchise requests" },
+    { title: "Vendors", path: "/central/vendors", icon: <Truck size={24} />, desc: "Suppliers & procurement" }, // NEW
+
+    // 3. Financials & Analytics
     { title: "Invoices", path: "/central/invoices", icon: <FileText size={24} />, desc: "Billing & records" },
     { title: "Reports", path: "/central/reports", icon: <BarChart3 size={24} />, desc: "Performance analytics" },
+
+    // 4. Workforce & Administration
+    { title: "Staff Profiles", path: "/central/staff-profiles", icon: <UserCheck size={24} />, desc: "Employee management" }, // NEW
+    { title: "Franchise Profiles", path: "/central/profiles", icon: <Users size={24} />, desc: "User permissions" },
+
+    // 5. Support & System
     { title: "Support Requests", path: "/central/support", icon: <Headphones size={24} />, desc: "Help desk tickets" }, 
-    { title: "Profiles", path: "/central/profiles", icon: <Users size={24} />, desc: "User permissions" },
     { title: "Settings", path: "/central/settings", icon: <Settings size={24} />, desc: "System configuration" },
   ];
 
@@ -61,6 +74,11 @@ function CentralDashboard() {
           box-shadow: 0 12px 20px -5px rgba(0,0,0,0.05) !important;
         }
         .dashboard-card:active { transform: translateY(0px); }
+        
+        /* Custom Scrollbar for Grid Container */
+        .grid-container::-webkit-scrollbar { width: 6px; }
+        .grid-container::-webkit-scrollbar-track { background: transparent; }
+        .grid-container::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.1); border-radius: 10px; }
       `}</style>
 
       <div style={styles.container}>
@@ -91,9 +109,9 @@ function CentralDashboard() {
           </div>
         </header>
 
-        <div style={{
+        <div className="grid-container" style={{
           ...styles.grid,
-          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
+          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", // Keeps 3 columns for desktop
         }}>
           {navItems.map((item, idx) => (
             <div

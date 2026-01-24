@@ -171,16 +171,20 @@ function PosManagement() {
       )}
 
       <header style={styles.header}>
-        <button onClick={() => window.history.back()} style={styles.backBtn}>← Back</button>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
+            <button onClick={() => window.history.back()} style={styles.backBtn}>← Back</button>
+        </div>
+        
         <div style={styles.titleWrapper}>
           <h1 style={styles.heading}>POS Management</h1>
           <p style={styles.subheading}>Centralized Menu Control System</p>
         </div>
         
-        {/* UPDATED SINGLE ROW FRANCHISE ID DISPLAY */}
-        <div style={styles.idDisplay}>
-          <span style={styles.idLabel}>Franchise ID :</span>
-          <span style={styles.idValue}>{myFranchiseId || "--"}</span>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={styles.idDisplay}>
+            <span style={styles.idLabel}>Franchise ID :</span>
+            <span style={styles.idValue}>{myFranchiseId || "--"}</span>
+            </div>
         </div>
       </header>
 
@@ -271,7 +275,7 @@ function PosManagement() {
         </section>
       </main>
 
-      {/* MODALS REMAIN THE SAME */}
+      {/* MODALS */}
       {isAddModalOpen && (
         <div style={styles.modalOverlay}>
           <div style={styles.modal}>
@@ -312,36 +316,23 @@ function PosManagement() {
 }
 
 const styles = {
-  page: { background: "#f8f9fa", minHeight: "100vh", fontFamily: '"Inter", sans-serif', padding: "40px 20px" },
+  page: { background: "#f8f9fa", minHeight: "100vh", fontFamily: '"Inter", sans-serif', padding: "20px 20px 40px" },
   toast: { position: 'fixed', top: '40px', left: '50%', transform: 'translateX(-50%)', padding: '14px 40px', borderRadius: '12px', color: '#fff', fontWeight: '800', zIndex: 9999, boxShadow: '0 10px 30px rgba(0,0,0,0.2)', textAlign: 'center', minWidth: '300px' },
-  header: { display: "flex", alignItems: "center", position: "relative", maxWidth: "1100px", margin: "0 auto 40px auto", borderBottom: '1px solid #eee', paddingBottom: '20px' },
+  header: { display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", maxWidth: "1100px", margin: "0 auto 20px auto", borderBottom: '1px solid #eee', paddingBottom: '20px' },
   backBtn: { background: "none", border: "none", color: GREEN, fontSize: "16px", fontWeight: "700", cursor: "pointer" },
-  titleWrapper: { flex: 1, textAlign: "center" },
+  titleWrapper: { textAlign: "center" },
   heading: { fontSize: "32px", fontWeight: "800", color: "#1a1a1a", letterSpacing: "-1px", margin: 0 },
   subheading: { color: "#6c757d", fontSize: "14px", marginTop: "5px", fontWeight: "500" },
   
-  /* UPDATED ID DISPLAY STYLES FOR SINGLE ROW */
-  idDisplay: { 
-    display: 'flex', 
-    alignItems: 'center', 
-    gap: '8px', 
-    whiteSpace: 'nowrap' 
-  },
-  idLabel: { 
-    fontSize: '14px', 
-    fontWeight: '800', 
-    color: '#888', 
-    textTransform: 'uppercase' 
-  },
-  idValue: { 
-    fontSize: '22px', 
-    fontWeight: '900', 
-    color: GREEN, 
-    lineHeight: '1' 
-  },
+  idDisplay: { display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' },
+  idLabel: { fontSize: '14px', fontWeight: '800', color: '#888', textTransform: 'uppercase' },
+  
+  // CHANGED: Reduced font size from 22px to 16px and weight from 900 to 700
+  idValue: { fontSize: '16px', fontWeight: '700', color: GREEN, lineHeight: '1.2' },
 
   mainContent: { maxWidth: "1100px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "24px" },
-  adminCard: { background: "#fff", padding: "20px", borderRadius: "16px", display: "flex", justifyContent: "space-between", border: "1px solid #edf2f7", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" },
+  adminCard: { background: "#fff", padding: "20px", borderRadius: "16px", display: "flex", justifyContent: "flex-start", alignItems: "center", gap: "32px", border: "1px solid #edf2f7", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" },
+  
   controlCard: { background: "#fff", padding: "24px", borderRadius: "16px", border: "1px solid #edf2f7", boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05)" },
   inputGroup: { display: "flex", gap: "12px", alignItems: "center" },
   premiumInput: { padding: "0 16px", height: "48px", borderRadius: "10px", border: "2px solid #edf2f7", outline: "none", width: "160px" },

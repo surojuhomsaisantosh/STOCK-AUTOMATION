@@ -48,20 +48,13 @@ function Store() {
   }, []);
 
   /* ==========================================================
-     1. FETCH STORE PROFILE (WITH DEBUG LOGS)
+     1. FETCH STORE PROFILE
   ========================================================== */
   useEffect(() => {
     const fetchProfile = async () => {
-      console.log("🔍 FRANCHISE ID DETECTED:", franchiseId); // DEBUG 1
-      
-      if (!franchiseId) {
-        console.warn("⚠️ NO FRANCHISE ID, SKIPPING PROFILE FETCH");
-        return;
-      }
+      if (!franchiseId) return;
 
       try {
-        console.log("⏳ Fetching profile from DB...");
-        
         // Fetching company, address, city
         const { data, error } = await supabase
           .from('profiles')
@@ -70,20 +63,13 @@ function Store() {
           .limit(1)
           .maybeSingle();
           
-        if (error) {
-            console.error("❌ DB ERROR FETCHING PROFILE:", error);
-            throw error;
-        }
-        
-        console.log("✅ PROFILE DATA FROM DB:", data); // DEBUG 2: IS THIS NULL?
+        if (error) throw error;
         
         if (data) {
           setStoreProfile(data);
-        } else {
-            console.warn("⚠️ QUERY SUCCEEDED BUT RETURNED NO DATA");
         }
       } catch (err) {
-        console.error("❌ Profile Load Exception:", err.message);
+        console.error("Profile Load Exception:", err.message);
       }
     };
 
@@ -108,7 +94,7 @@ function Store() {
           setCategories(["All", ...new Set(data.map(item => item.category).filter(Boolean))]);
         }
       } catch (err) {
-        console.error("❌ Menu Load Error:", err.message);
+        console.error("Menu Load Error:", err.message);
       }
     };
 
@@ -154,7 +140,7 @@ function Store() {
   });
 
   /* ==========================================================
-     TRANSACTION LOGIC (WITH PRINTER DEBUGGING)
+     TRANSACTION LOGIC
   ========================================================== */
   const handleCompleteTransaction = async (method) => {
     try {
@@ -184,34 +170,21 @@ function Store() {
       const { error: itemsError } = await supabase.from("bills_items_generated").insert(billItems);
       if (itemsError) throw new Error(`Items Error: ${itemsError.message}`);
 
-      // --- PRINT LOGIC WITH DEBUGGING ---
+      // --- PRINT LOGIC ---
       if (isConnected) {
         try {
-          console.log("🔌 Printer Connected. Preparing Data...");
-          
-          // Debug the raw profile state before building string
-          console.log("📊 Current Store Profile State:", storeProfile);
-
           // 1. Construct Address
           let finalAddress = "";
           if (storeProfile) {
             const parts = [storeProfile.address, storeProfile.city].filter(Boolean);
             finalAddress = parts.join(", ");
-          } else {
-             console.warn("⚠️ storeProfile is NULL. Address will be empty.");
           }
 
           const printPayload = { 
-            // Fetch company directly from DB profile state. 
             company: storeProfile?.company || "COMPANY UNKNOWN", 
-            
-            // Clean address string
             address: finalAddress || "ADDRESS UNKNOWN",                          
-            
             total: totals.total.toFixed(2), 
-            
             thankYouMsg: "THANK YOU! VISIT AGAIN",
-
             items: cart.map(i => ({ 
                 name: i.item_name, 
                 qty: i.qty, 
@@ -219,17 +192,13 @@ function Store() {
             }))
           };
 
-          // DEBUG 3: THIS IS WHAT IS ACTUALLY SENT
-          console.log("🖨️ SENDING TO PRINTER:", printPayload);
-
           await printReceipt(printPayload);
 
         } catch (printErr) {
-          console.error("❌ Printing failed:", printErr);
+          console.error("Printing failed:", printErr);
           alert("Bill saved, but printing failed. Check console for details.");
         }
       } else {
-        console.log("Printer not connected. Skipping print.");
         alert("Bill saved! (Printer was not connected)");
       }
 
@@ -472,8 +441,21 @@ const styles = {
     background: "#fee2e2", color: DANGER, border: "none", width: '42px', borderRadius: "12px",
     display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: '0.2s'
   },
-  categoryRow: { display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "5px" },
-  catBtn: { padding: "10px 18px", borderRadius: "10px", border: `1px solid ${BORDER}`, background: "#fff", whiteSpace: "nowrap", fontWeight: '800', color: BLACK, cursor: 'pointer', fontSize: '12px' },
+  categoryRow: { display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "10px" },
+  
+  // --- UPDATED CAT BUTTON STYLE (BIGGER) ---
+  catBtn: { 
+    padding: "12px 24px",  // Increased padding
+    borderRadius: "12px",  // Slightly larger radius
+    border: `1px solid ${BORDER}`, 
+    background: "#fff", 
+    whiteSpace: "nowrap", 
+    fontWeight: '800', 
+    color: BLACK, 
+    cursor: 'pointer', 
+    fontSize: '14px'       // Increased font size
+  },
+
   catBtnActive: { background: PRIMARY, color: "#fff", borderColor: PRIMARY },
   grid: { display: "grid", gap: "12px", padding: "0 20px 20px 20px" },
   itemCard: { padding: "20px", border: `2px solid ${BORDER}`, borderRadius: "18px", background: "#fff", cursor: "pointer", transition: '0.2s all' },

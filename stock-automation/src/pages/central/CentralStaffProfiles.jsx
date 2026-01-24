@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-  ArrowLeft, Search, Plus, Calendar, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock 
+  ArrowLeft, Search, Plus, Calendar, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight 
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js"; 
 import { supabase } from "../../supabase/supabaseClient";
@@ -10,27 +10,27 @@ const PRIMARY = "#065f46";
 const BORDER = "#e5e7eb";
 const BLACK = "#000000"; 
 
-const FranchiseProfiles = () => {
+const CentralStaffProfiles = () => {
   const navigate = useNavigate();
   const [profiles, setProfiles] = useState([]);
+  
+  // STATE 1: The Logged-in User's ID (For the Header)
+  const [loggedInFranchiseId, setLoggedInFranchiseId] = useState("");
+
+  // STATE 2: The ID used for Searching/Filtering the table
+  const [searchFranchiseId, setSearchFranchiseId] = useState(""); 
+  
   const [searchTerm, setSearchTerm] = useState("");
-  const [franchiseId, setFranchiseId] = useState("");
-  const [companyName, setCompanyName] = useState("");
+  const [companyName, setCompanyName] = useState(""); // This is the company name of the SEARCHED franchise
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
   const [editingId, setEditingId] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
-    name: "",
-    staff_id: "",
-    password: "",
-    phone: "",
-    email: "",
-    address: "",
-    aadhar_card: ""
+    name: "", staff_id: "", password: "", phone: "", email: "", address: "", aadhar_card: ""
   });
 
   useEffect(() => {
@@ -39,7 +39,6 @@ const FranchiseProfiles = () => {
 
   const fetchInitialData = async () => {
     try {
-      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -52,18 +51,40 @@ const FranchiseProfiles = () => {
       if (ownerError) throw ownerError;
 
       if (ownerProfile) {
-        setFranchiseId(ownerProfile.franchise_id);
-        setCompanyName(ownerProfile.company || "Your Company");
-        await fetchStaffProfiles(ownerProfile.franchise_id);
+        // 1. Set the Header ID (Your ID)
+        setLoggedInFranchiseId(ownerProfile.franchise_id || "CENTRAL");
+
+        // 2. Pre-fill the search box with your ID initially (optional, but convenient)
+        setSearchFranchiseId(ownerProfile.franchise_id || "");
+        
+        // 3. Load initial data
+        if (ownerProfile.franchise_id) {
+            await fetchStaffProfiles(ownerProfile.franchise_id);
+        }
       }
     } catch (err) {
       console.error("Load Error:", err.message);
-    } finally {
-      setLoading(false);
     }
   };
 
+  const handleFranchiseFetch = async (e) => {
+    e.preventDefault();
+    if (!searchFranchiseId) return alert("Please enter a Franchise ID");
+    await fetchStaffProfiles(searchFranchiseId);
+  };
+
   const fetchStaffProfiles = async (fid) => {
+    setLoading(true);
+    // Fetch Company Name for the TARGET franchise being viewed
+    const { data: franchiseData } = await supabase
+        .from('profiles')
+        .select('company')
+        .eq('franchise_id', fid)
+        .maybeSingle();
+    
+    if (franchiseData) setCompanyName(franchiseData.company);
+    else setCompanyName("Unknown Franchise");
+
     const { data, error } = await supabase
       .from('staff_profiles')
       .select('id, name, staff_id, phone, email, address, aadhar_card, created_at')
@@ -71,6 +92,11 @@ const FranchiseProfiles = () => {
       .order('created_at', { ascending: false });
 
     if (!error) setProfiles(data || []);
+    else {
+        console.error(error);
+        setProfiles([]);
+    }
+    setLoading(false);
   };
 
   const handleOpenEdit = (profile) => {
@@ -95,6 +121,8 @@ const FranchiseProfiles = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!searchFranchiseId) return alert("No Franchise ID selected. Please fetch a franchise first.");
+    
     setSubmitting(true);
 
     try {
@@ -114,11 +142,10 @@ const FranchiseProfiles = () => {
 
         if (error) throw error;
         alert("Profile updated successfully!");
-        fetchStaffProfiles(franchiseId);
+        fetchStaffProfiles(searchFranchiseId);
       } else {
         // --- CREATE ---
-        // Using a temporary client to create a user without logging out the admin
-        const loginEmail = formData.email || `${formData.staff_id}@${franchiseId.toLowerCase()}.com`;
+        const loginEmail = formData.email || `${formData.staff_id}@${searchFranchiseId.toLowerCase()}.com`;
         
         const tempSupabase = createClient(supabase.supabaseUrl, supabase.supabaseKey, {
           auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
@@ -137,13 +164,13 @@ const FranchiseProfiles = () => {
           .insert([{
             ...dbPayload,
             id: authData.user.id,
-            franchise_id: franchiseId,
+            franchise_id: searchFranchiseId, 
             email: loginEmail 
           }]);
 
         if (dbError) throw dbError;
         alert("Staff created successfully!");
-        fetchStaffProfiles(franchiseId);
+        fetchStaffProfiles(searchFranchiseId);
       }
       closeModal();
       
@@ -154,32 +181,21 @@ const FranchiseProfiles = () => {
     }
   };
 
-  // --- DELETE LOGIC ---
   const handleDelete = async (id) => {
-    // 1. Confirmation Dialog
-    if (window.confirm("⚠️ Are you sure you want to delete this staff member? This will wipe their profile, login history, and created bills.")) {
+    if (window.confirm("⚠️ Are you sure? This will wipe the user AND all their data.")) {
       try {
-        console.log("Attempting to delete ID:", id);
-        
-        // 2. Call the Database RPC Function
         const { error } = await supabase.rpc('delete_staff_user', { target_id: id });
-        
-        // 3. Error Handling
         if (error) {
             console.error("Delete Error:", error);
-            // Specific check for missing SQL function
-            if (error.message && (error.message.includes("function delete_staff_user") || error.message.includes("does not exist"))) {
-                alert("❌ ERROR: Missing SQL Function. Please run the provided SQL code in your Supabase SQL Editor.");
+            if (error.message.includes("function delete_staff_user")) {
+                alert("❌ ERROR: Missing SQL Function in Database.");
             } else {
                 alert("❌ Delete Failed: " + error.message);
             }
             return;
         }
-        
-        // 4. Success UI Update
-        alert("✅ User and all associated data deleted successfully.");
+        alert("✅ Deleted successfully.");
         setProfiles(prev => prev.filter(p => p.id !== id));
-        
       } catch (err) {
         alert("System Error: " + err.message);
       }
@@ -198,10 +214,34 @@ const FranchiseProfiles = () => {
         <button onClick={() => navigate(-1)} style={styles.backBtn}>
           <ArrowLeft size={18} /> Back
         </button>
-        <h1 style={styles.mainHeading}>Manage Profiles</h1>
+        <h1 style={styles.mainHeading}>Central Staff Profiles</h1>
+        
+        {/* THIS IS NOW STATIC - YOUR LOGGED IN ID */}
         <div style={styles.franchiseIdLabel}>
-          FRANCHISE ID : <span style={{ color: PRIMARY }}>{franchiseId || "..."}</span>
+          Franchise ID : <span style={{ color: PRIMARY }}>{loggedInFranchiseId}</span>
         </div>
+      </div>
+
+      {/* FRANCHISE SELECTION (Input box is independent now) */}
+      <div style={styles.filterCard}>
+        <form onSubmit={handleFranchiseFetch} style={styles.filterForm}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                <Building2 size={20} color={PRIMARY} />
+                <span style={styles.filterLabel}>Target Franchise ID:</span>
+            </div>
+            <div style={{display: 'flex', gap: '10px', flex: 1}}>
+                <input 
+                    type="text" 
+                    placeholder="Enter Franchise ID (e.g., HYD001)" 
+                    value={searchFranchiseId}
+                    onChange={(e) => setSearchFranchiseId(e.target.value.toUpperCase())}
+                    style={styles.filterInput}
+                />
+                <button type="submit" style={styles.fetchBtn}>
+                    Load Profiles <ChevronRight size={16} />
+                </button>
+            </div>
+        </form>
       </div>
 
       {/* ACTIONS */}
@@ -210,7 +250,7 @@ const FranchiseProfiles = () => {
           <Search size={18} style={styles.searchIcon} />
           <input 
             type="text" 
-            placeholder="Search staff..." 
+            placeholder="Search loaded staff..." 
             style={styles.searchInput}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -222,7 +262,10 @@ const FranchiseProfiles = () => {
           {new Date().toLocaleDateString('en-GB')}
         </div>
 
-        <button style={styles.addBtn} onClick={() => setIsModalOpen(true)}>
+        <button style={styles.addBtn} onClick={() => {
+            if(!searchFranchiseId) alert("Please enter and load a Franchise ID first.");
+            else setIsModalOpen(true);
+        }}>
           <Plus size={18} /> Add New User
         </button>
       </div>
@@ -263,21 +306,22 @@ const FranchiseProfiles = () => {
                   <td style={styles.td}>{profile.staff_id}</td>
                   <td style={styles.td}>{profile.phone}</td>
                   <td style={styles.actionTd}>
-                    {/* NAVIGATE TO TIMINGS */}
                     <button 
-                      onClick={() => navigate('/franchise/timings', { 
-                        state: { targetUserId: profile.id, targetName: profile.name } 
+                      onClick={() => navigate('/central/staff-logins', { 
+                        state: { 
+                            targetUserId: profile.id, 
+                            targetName: profile.name,
+                            franchiseId: searchFranchiseId // Pass the search ID, not your ID
+                        } 
                       })} 
                       style={styles.timeBtn} 
-                      title="Login Timings"
+                      title="View Logins"
                     >
                       <Clock size={16} />
                     </button>
-                    {/* EDIT */}
                     <button onClick={() => handleOpenEdit(profile)} style={styles.editBtn} title="Edit">
                       <Edit2 size={16} />
                     </button>
-                    {/* DELETE */}
                     <button onClick={() => handleDelete(profile.id)} style={styles.deleteBtn} title="Delete">
                       <Trash2 size={16} />
                     </button>
@@ -285,7 +329,11 @@ const FranchiseProfiles = () => {
                 </tr>
               ))
             ) : (
-              <tr><td colSpan="6" style={{...styles.td, textAlign: 'center'}}>No staff profiles found.</td></tr>
+              <tr>
+                  <td colSpan="6" style={{...styles.td, textAlign: 'center', color: '#6b7280'}}>
+                    {searchFranchiseId ? "No staff found for this franchise." : "Enter a Franchise ID above to view staff."}
+                  </td>
+              </tr>
             )}
           </tbody>
         </table>
@@ -305,6 +353,10 @@ const FranchiseProfiles = () => {
               <button onClick={closeModal} style={styles.closeBtn}><X size={24} /></button>
             </div>
             
+            <div style={styles.franchiseContextBox}>
+                Adding user to Franchise: <strong>{searchFranchiseId}</strong>
+            </div>
+
             <form onSubmit={handleSubmit} style={styles.formGrid}>
               <div style={styles.inputGroup}>
                 <label style={styles.label}>Full Name *</label>
@@ -371,16 +423,24 @@ const FranchiseProfiles = () => {
 
 const styles = {
   page: { padding: "40px", background: "#f9fafb", minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: BLACK },
-  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' },
+  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' },
   backBtn: { display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: BLACK, fontWeight: '700', cursor: 'pointer' },
   mainHeading: { fontWeight: "900", margin: 0, fontSize: '28px', letterSpacing: '-0.5px', color: BLACK },
   franchiseIdLabel: { fontWeight: '800', fontSize: '14px', letterSpacing: '0.5px', color: BLACK },
+  
+  filterCard: { background: 'white', padding: '20px', borderRadius: '16px', border: `1px solid ${BORDER}`, marginBottom: '30px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' },
+  filterForm: { display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' },
+  filterLabel: { fontWeight: '700', fontSize: '14px', color: '#374151' },
+  filterInput: { padding: '12px 16px', borderRadius: '10px', border: `2px solid ${BORDER}`, fontSize: '14px', outline: 'none', fontWeight: '600', width: '250px', transition: 'all 0.2s', color: BLACK },
+  fetchBtn: { display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', background: BLACK, color: 'white', borderRadius: '10px', fontWeight: '700', border: 'none', cursor: 'pointer', transition: 'all 0.2s' },
+
   actionRow: { display: 'flex', gap: '15px', marginBottom: '30px', alignItems: 'center' },
   searchContainer: { flex: 1, position: 'relative', display: 'flex', alignItems: 'center' },
   searchIcon: { position: 'absolute', left: '15px', color: BLACK },
   searchInput: { width: '100%', padding: '12px 12px 12px 45px', borderRadius: '12px', border: `1px solid ${BORDER}`, outline: 'none', fontSize: '14px', color: BLACK },
   dateBtn: { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 20px', borderRadius: '12px', background: 'white', border: `1px solid ${BORDER}`, fontWeight: '700', color: BLACK },
   addBtn: { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 25px', borderRadius: '12px', background: PRIMARY, border: 'none', color: 'white', fontWeight: '700', cursor: 'pointer' },
+  
   tableContainer: { background: 'white', borderRadius: '20px', border: `1px solid ${BORDER}`, overflow: 'hidden' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
   th: { padding: '20px', fontSize: '12px', fontWeight: '900', color: BLACK, borderBottom: `1px solid ${BORDER}`, letterSpacing: '1px' },
@@ -388,15 +448,16 @@ const styles = {
   td: { padding: '20px', fontSize: '14px', fontWeight: '600', color: BLACK },
   actionTd: { display: 'flex', justifyContent: 'center', gap: '10px', padding: '20px' },
   
-  // BUTTON STYLES
   timeBtn: { padding: '8px', borderRadius: '8px', border: `1px solid ${BORDER}`, background: '#f3f4f6', color: '#2563eb', cursor: 'pointer' },
   editBtn: { padding: '8px', borderRadius: '8px', border: `1px solid ${BORDER}`, background: '#f3f4f6', color: PRIMARY, cursor: 'pointer' },
   deleteBtn: { padding: '8px', borderRadius: '8px', border: `1px solid ${BORDER}`, background: '#f3f4f6', color: '#ef4444', cursor: 'pointer' },
   
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
   modalContent: { background: 'white', width: '600px', borderRadius: '24px', padding: '30px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' },
-  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' },
+  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
   closeBtn: { background: 'none', border: 'none', cursor: 'pointer', color: BLACK },
+  franchiseContextBox: { background: '#f0fdf4', color: '#166534', padding: '10px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px', textAlign: 'center', border: '1px solid #bbf7d0' },
+  
   formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' },
   inputGroup: { display: 'flex', flexDirection: 'column', gap: '8px' },
   label: { fontSize: '13px', fontWeight: '800', color: BLACK },
@@ -407,4 +468,4 @@ const styles = {
   submitBtn: { padding: '12px 25px', borderRadius: '10px', border: 'none', background: PRIMARY, color: 'white', fontWeight: '700', cursor: 'pointer' }
 };
 
-export default FranchiseProfiles;
+export default CentralStaffProfiles;
