@@ -14,14 +14,12 @@ const CentralStaffProfiles = () => {
   const navigate = useNavigate();
   const [profiles, setProfiles] = useState([]);
   
-  // STATE 1: The Logged-in User's ID (For the Header)
+  // STATE: Header & Search
   const [loggedInFranchiseId, setLoggedInFranchiseId] = useState("");
-
-  // STATE 2: The ID used for Searching/Filtering the table
   const [searchFranchiseId, setSearchFranchiseId] = useState(""); 
   
   const [searchTerm, setSearchTerm] = useState("");
-  const [companyName, setCompanyName] = useState(""); // This is the company name of the SEARCHED franchise
+  const [companyName, setCompanyName] = useState(""); 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -51,13 +49,8 @@ const CentralStaffProfiles = () => {
       if (ownerError) throw ownerError;
 
       if (ownerProfile) {
-        // 1. Set the Header ID (Your ID)
         setLoggedInFranchiseId(ownerProfile.franchise_id || "CENTRAL");
-
-        // 2. Pre-fill the search box with your ID initially (optional, but convenient)
         setSearchFranchiseId(ownerProfile.franchise_id || "");
-        
-        // 3. Load initial data
         if (ownerProfile.franchise_id) {
             await fetchStaffProfiles(ownerProfile.franchise_id);
         }
@@ -75,15 +68,13 @@ const CentralStaffProfiles = () => {
 
   const fetchStaffProfiles = async (fid) => {
     setLoading(true);
-    // Fetch Company Name for the TARGET franchise being viewed
     const { data: franchiseData } = await supabase
         .from('profiles')
         .select('company')
         .eq('franchise_id', fid)
         .maybeSingle();
     
-    if (franchiseData) setCompanyName(franchiseData.company);
-    else setCompanyName("Unknown Franchise");
+    setCompanyName(franchiseData ? franchiseData.company : "Unknown Franchise");
 
     const { data, error } = await supabase
       .from('staff_profiles')
@@ -92,10 +83,7 @@ const CentralStaffProfiles = () => {
       .order('created_at', { ascending: false });
 
     if (!error) setProfiles(data || []);
-    else {
-        console.error(error);
-        setProfiles([]);
-    }
+    else setProfiles([]);
     setLoading(false);
   };
 
@@ -104,7 +92,7 @@ const CentralStaffProfiles = () => {
     setFormData({
       name: profile.name,
       staff_id: profile.staff_id,
-      password: "UNCHANGED",
+      password: "", // Always start empty
       phone: profile.phone,
       email: profile.email || "",
       address: profile.address || "",
@@ -121,14 +109,34 @@ const CentralStaffProfiles = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!searchFranchiseId) return alert("No Franchise ID selected. Please fetch a franchise first.");
+    if (!searchFranchiseId) return alert("No Franchise ID selected.");
     
     setSubmitting(true);
 
+    // --- VALIDATION LOGIC START ---
+    if (editingId) {
+        // EDIT MODE: If they typed something, it MUST be >= 8 chars
+        if (formData.password && formData.password.length > 0 && formData.password.length < 8) {
+            alert("⚠️ Password too short! It must be at least 8 characters.");
+            setSubmitting(false);
+            return;
+        }
+    } else {
+        // CREATE MODE: Password is REQUIRED and MUST be >= 8 chars
+        if (!formData.password || formData.password.length < 8) {
+            alert("⚠️ Password is required and must be at least 8 characters.");
+            setSubmitting(false);
+            return;
+        }
+    }
+    // --- VALIDATION LOGIC END ---
+
     try {
       if (editingId) {
-        // --- UPDATE ---
-        const { error } = await supabase
+        // --- UPDATE MODE ---
+
+        // 1. Update Details
+        const { error: profileError } = await supabase
           .from('staff_profiles')
           .update({
             name: formData.name,
@@ -140,11 +148,29 @@ const CentralStaffProfiles = () => {
           })
           .eq('id', editingId);
 
-        if (error) throw error;
-        alert("Profile updated successfully!");
+        if (profileError) throw profileError;
+
+        // 2. Update Password (ONLY if typed)
+        if (formData.password && formData.password.trim() !== "") {
+            const { error: passwordError } = await supabase.rpc('update_staff_password', {
+                target_user_id: editingId,
+                new_password: formData.password
+            });
+
+            if (passwordError) {
+                console.error("Password Update Failed:", passwordError);
+                alert("⚠️ Profile updated, but Password failed to reset. (Check Database RPC)");
+            } else {
+                alert("✅ Profile updated and Password successfully reset!");
+            }
+        } else {
+            alert("✅ Profile updated successfully!");
+        }
+        
         fetchStaffProfiles(searchFranchiseId);
+
       } else {
-        // --- CREATE ---
+        // --- CREATE MODE ---
         const loginEmail = formData.email || `${formData.staff_id}@${searchFranchiseId.toLowerCase()}.com`;
         
         const tempSupabase = createClient(supabase.supabaseUrl, supabase.supabaseKey, {
@@ -175,7 +201,7 @@ const CentralStaffProfiles = () => {
       closeModal();
       
     } catch (err) {
-      alert(err.message);
+      alert("Error: " + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -186,13 +212,8 @@ const CentralStaffProfiles = () => {
       try {
         const { error } = await supabase.rpc('delete_staff_user', { target_id: id });
         if (error) {
-            console.error("Delete Error:", error);
-            if (error.message.includes("function delete_staff_user")) {
-                alert("❌ ERROR: Missing SQL Function in Database.");
-            } else {
-                alert("❌ Delete Failed: " + error.message);
-            }
-            return;
+           alert("❌ Delete Failed: " + error.message);
+           return;
         }
         alert("✅ Deleted successfully.");
         setProfiles(prev => prev.filter(p => p.id !== id));
@@ -216,13 +237,12 @@ const CentralStaffProfiles = () => {
         </button>
         <h1 style={styles.mainHeading}>Central Staff Profiles</h1>
         
-        {/* THIS IS NOW STATIC - YOUR LOGGED IN ID */}
         <div style={styles.franchiseIdLabel}>
           Franchise ID : <span style={{ color: PRIMARY }}>{loggedInFranchiseId}</span>
         </div>
       </div>
 
-      {/* FRANCHISE SELECTION (Input box is independent now) */}
+      {/* FILTER */}
       <div style={styles.filterCard}>
         <form onSubmit={handleFranchiseFetch} style={styles.filterForm}>
             <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
@@ -311,7 +331,7 @@ const CentralStaffProfiles = () => {
                         state: { 
                             targetUserId: profile.id, 
                             targetName: profile.name,
-                            franchiseId: searchFranchiseId // Pass the search ID, not your ID
+                            franchiseId: searchFranchiseId
                         } 
                       })} 
                       style={styles.timeBtn} 
@@ -347,7 +367,7 @@ const CentralStaffProfiles = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <UserPlus color={PRIMARY} />
                 <h2 style={{ margin: 0, fontWeight: '800', color: BLACK }}>
-                  {editingId ? "Edit Staff Profile" : "Create Staff Account"}
+                  {editingId ? "Edit Staff Details" : "Create Staff Account"}
                 </h2>
               </div>
               <button onClick={closeModal} style={styles.closeBtn}><X size={24} /></button>
@@ -367,26 +387,25 @@ const CentralStaffProfiles = () => {
                 <input required style={styles.input} type="text" value={formData.staff_id} onChange={e => setFormData({...formData, staff_id: e.target.value})} />
               </div>
               
+              {/* --- PASSWORD FIELD: Cleaned up & Validated --- */}
               <div style={styles.inputGroup}>
-                <label style={styles.label}>Password *</label>
+                <label style={styles.label}>Password {editingId && "*"}</label>
                 <div style={{ position: 'relative' }}>
                   <input 
-                    required={!editingId}
-                    disabled={!!editingId}
+                    // No 'required' attribute here, handled in handleSubmit validation
                     style={{ ...styles.input, width: '100%' }} 
                     type={showPassword ? "text" : "password"} 
                     value={formData.password} 
-                    onChange={e => setFormData({...formData, password: e.target.value})} 
+                    onChange={e => setFormData({...formData, password: e.target.value})}
+                    placeholder={editingId ? "Enter new password" : "Enter password"}
                   />
-                  {!editingId && (
-                    <button 
-                      type="button" 
-                      onClick={() => setShowPassword(!showPassword)} 
-                      style={styles.eyeBtn}
-                    >
-                      {showPassword ? <EyeOff size={18} color={BLACK} /> : <Eye size={18} color={BLACK} />}
-                    </button>
-                  )}
+                  <button 
+                    type="button" 
+                    onClick={() => setShowPassword(!showPassword)} 
+                    style={styles.eyeBtn}
+                  >
+                    {showPassword ? <EyeOff size={18} color={BLACK} /> : <Eye size={18} color={BLACK} />}
+                  </button>
                 </div>
               </div>
 
@@ -410,7 +429,7 @@ const CentralStaffProfiles = () => {
               <div style={styles.modalFooter}>
                 <button type="button" onClick={closeModal} style={styles.cancelBtn}>Cancel</button>
                 <button type="submit" disabled={submitting} style={styles.submitBtn}>
-                  {submitting ? "Processing..." : editingId ? "Save Changes" : "Create Account"}
+                  {submitting ? "Processing..." : editingId ? "Update User" : "Create Account"}
                 </button>
               </div>
             </form>
