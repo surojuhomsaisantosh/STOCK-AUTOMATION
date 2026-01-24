@@ -2,6 +2,11 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
+import { 
+  Printer, 
+  Unplug, 
+  Loader2 
+} from "lucide-react";
 
 // --- IMPORT THE PRINTER HOOK ---
 import { useBluetoothPrinter } from "../printer/BluetoothPrinter";
@@ -15,15 +20,18 @@ function BillingHistory() {
   const { user, logout, loading } = useAuth();
   
   // Initialize Printer Logic
-  const { connectPrinter, printReceipt, isConnected } = useBluetoothPrinter();
+  const { connectPrinter, disconnectPrinter, printReceipt, isConnected, isConnecting } = useBluetoothPrinter();
 
+  // DATA STATES
   const [history, setHistory] = useState([]);
+  const [storeProfile, setStoreProfile] = useState(null); // Store profile here
   const [expandedBill, setExpandedBill] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: "created_at", direction: "descending" });
 
   const [lastCheckoutTime, setLastCheckoutTime] = useState(null);
   const [timeLeft, setTimeLeft] = useState("");
   const [canCheckout, setCanCheckout] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
 
   const franchiseId = user?.franchise_id ? String(user.franchise_id) : null;
   const todayDisplay = new Date().toLocaleDateString("en-GB", {
@@ -32,38 +40,83 @@ function BillingHistory() {
     year: "numeric",
   });
 
+  /* ----------------------------------------------------
+     1. FETCH STORE PROFILE (Fixes Print Address Issue)
+  ---------------------------------------------------- */
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!franchiseId) return;
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('company, address, city') 
+          .eq('franchise_id', franchiseId)
+          .limit(1)
+          .maybeSingle();
+          
+        if (error) throw error;
+        if (data) setStoreProfile(data);
+        
+      } catch (err) {
+        console.error("❌ Profile Load Error:", err.message);
+      }
+    };
+    fetchProfile();
+  }, [franchiseId]);
+
+  /* ----------------------------------------------------
+     2. LOAD BILLING HISTORY
+  ---------------------------------------------------- */
   useEffect(() => {
     const initializeData = async () => {
       if (!franchiseId) return;
+      setDataLoading(true);
 
-      const { data: lastClose } = await supabase
-        .from("bills_generated")
-        .select("created_at")
-        .eq("franchise_id", franchiseId)
-        .eq("is_day_closed", true)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+      try {
+        // Get Last Checkout Time
+        const { data: lastClose, error: lastCloseError } = await supabase
+          .from("bills_generated")
+          .select("created_at")
+          .eq("franchise_id", franchiseId)
+          .eq("is_day_closed", true)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(); 
 
-      const lastTime = lastClose?.created_at
-        ? new Date(lastClose.created_at)
-        : new Date(new Date().setHours(0, 0, 0, 0));
+        if (lastCloseError) throw lastCloseError;
 
-      setLastCheckoutTime(lastTime);
+        const lastTime = lastClose?.created_at
+          ? new Date(lastClose.created_at)
+          : new Date(new Date().setHours(0, 0, 0, 0));
 
-      const { data: bills } = await supabase
-        .from("bills_generated")
-        .select("*, bills_items_generated(*)")
-        .eq("franchise_id", franchiseId)
-        .eq("is_day_closed", false)
-        .gte("created_at", lastTime.toISOString());
+        setLastCheckoutTime(lastTime);
 
-      if (bills) setHistory(bills);
+        // Get Bills since that time
+        const { data: bills, error: billsError } = await supabase
+          .from("bills_generated")
+          .select("*, bills_items_generated(*)")
+          .eq("franchise_id", franchiseId)
+          .eq("is_day_closed", false)
+          .gte("created_at", lastTime.toISOString())
+          .order("created_at", { ascending: false });
+
+        if (billsError) throw billsError;
+
+        if (bills) setHistory(bills);
+
+      } catch (err) {
+        console.error("History Load Error:", err.message);
+      } finally {
+        setDataLoading(false);
+      }
     };
 
     initializeData();
   }, [franchiseId]);
 
+  /* ----------------------------------------------------
+     3. CHECKOUT TIMER LOGIC
+  ---------------------------------------------------- */
   useEffect(() => {
     if (!lastCheckoutTime) return;
 
@@ -88,21 +141,41 @@ function BillingHistory() {
     return () => clearInterval(timer);
   }, [lastCheckoutTime]);
 
+  /* ----------------------------------------------------
+     4. REPRINT HANDLER (UPDATED)
+  ---------------------------------------------------- */
   const handleReprint = async (e, bill) => {
     e.stopPropagation(); 
     if (!isConnected) {
       alert("Please connect the printer first using the button at the top.");
       return;
     }
-    
-    await printReceipt({
-      total: bill.total.toFixed(2),
-      items: bill.bills_items_generated.map(i => ({
-        name: i.item_name,
-        qty: i.qty,
-        total: i.total.toFixed(2)
-      }))
-    });
+
+    try {
+        // Construct Address (Address + City only)
+        let finalAddress = "";
+        if (storeProfile) {
+          const parts = [storeProfile.address, storeProfile.city].filter(Boolean);
+          finalAddress = parts.join(", ");
+        }
+
+        console.log("🖨️ Reprinting Bill:", bill.id);
+
+        await printReceipt({
+          company: storeProfile?.company || "STORE",
+          address: finalAddress,
+          total: bill.total.toFixed(2),
+          thankYouMsg: "*** DUPLICATE RECEIPT ***", // Added this so you know it's a copy
+          items: bill.bills_items_generated.map(i => ({
+            name: i.item_name,
+            qty: i.qty,
+            subtotal: i.total.toFixed(2) // Uses the stored total for that item
+          }))
+        });
+    } catch(err) { 
+        console.error("Reprint Failed:", err);
+        alert("Reprint failed. Check console.");
+    }
   };
 
   const handleCheckout = async () => {
@@ -128,6 +201,7 @@ function BillingHistory() {
     window.location.reload();
   };
 
+  // Sorting & Stats Logic
   const sortedHistory = useMemo(() => {
     let sortableItems = [...history];
     sortableItems.sort((a, b) => {
@@ -158,7 +232,12 @@ function BillingHistory() {
     return isAsc ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={PRIMARY} strokeWidth="3" style={{ marginLeft: "8px" }}><path d="M18 15l-6-6-6 6" /></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={PRIMARY} strokeWidth="3" style={{ marginLeft: "8px" }}><path d="M6 9l6 6 6-6" /></svg>;
   };
 
-  if (loading) return <div style={styles.loader}>Loading History...</div>;
+  if (loading || dataLoading) return (
+    <div style={styles.loader}>
+        <Loader2 className="animate-spin" size={40} />
+        <span style={{marginTop: 10}}>Loading History...</span>
+    </div>
+  );
 
   return (
     <div style={styles.page}>
@@ -182,11 +261,31 @@ function BillingHistory() {
               <h2 style={styles.historyHeading}>Today's Summary</h2>
               <p style={styles.dateText}>{todayDisplay}</p>
             </div>
+            
+            {/* PRINTER & ACTION BUTTONS */}
             <div style={styles.actionButtonGroup}>
-              <button onClick={connectPrinter} style={{ ...styles.connectBtn, background: isConnected ? PRIMARY : '#fff', color: isConnected ? '#fff' : PRIMARY }}>
-                {isConnected ? "✅ PRINTER CONNECTED" : "🔌 CONNECT PRINTER"}
-              </button>
+                {isConnected ? (
+                  <div style={{display: 'flex', gap: '5px'}}>
+                    <button style={styles.connectedBadge}>
+                        <Printer size={16} /> CONNECTED
+                    </button>
+                    <button onClick={disconnectPrinter} style={styles.disconnectBtn} title="Disconnect">
+                        <Unplug size={18} />
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={connectPrinter} 
+                    disabled={isConnecting}
+                    style={{ ...styles.connectBtn, opacity: isConnecting ? 0.7 : 1 }}
+                  >
+                     {isConnecting ? <Loader2 className="animate-spin" size={16}/> : <Printer size={16}/>} 
+                     {isConnecting ? " CONNECTING..." : " CONNECT PRINTER"}
+                  </button>
+                )}
+
               <button onClick={logout} style={styles.logoutBtn}>LOGOUT</button>
+              
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                 <button onClick={handleCheckout} disabled={!canCheckout} style={{ ...styles.checkoutTodayBtn, opacity: canCheckout ? 1 : 0.6, cursor: canCheckout ? "pointer" : "not-allowed" }}>
                   CHECKOUT FOR TODAY
@@ -236,7 +335,6 @@ function BillingHistory() {
                           <div style={styles.detailContainer}>
                             <div style={styles.detailHeaderRow}>
                                 <h4 style={styles.detailTitle}>Items in this bill:</h4>
-                                <button style={styles.changeOrderBtn}>CHANGE ORDER</button>
                             </div>
                             <div style={styles.itemsList}>
                                 {bill.bills_items_generated?.map((item, idx) => (
@@ -247,7 +345,6 @@ function BillingHistory() {
                                 ))}
                             </div>
                             
-                            {/* NEW TOTAL BREAKDOWN SECTION */}
                             <div style={styles.detailSummaryBox}>
                                 <div style={styles.summaryLine}>
                                     <span>Subtotal</span>
@@ -269,7 +366,7 @@ function BillingHistory() {
                   </React.Fragment>
                 );
               }) : (
-                <tr><td colSpan="7" style={{ padding: "40px", textAlign: "center", color: "#64748b", fontWeight: "700" }}>No transactions recorded.</td></tr>
+                <tr><td colSpan="7" style={{ padding: "40px", textAlign: "center", color: "#64748b", fontWeight: "700" }}>No transactions recorded today.</td></tr>
               )}
             </tbody>
           </table>
@@ -295,7 +392,21 @@ const styles = {
   historyHeading: { fontSize: "32px", fontWeight: "900", color: "#000", margin: 0 },
   dateText: { margin: '5px 0 0 0', color: '#64748b', fontWeight: '700' },
   actionButtonGroup: { display: 'flex', gap: '12px', alignItems: 'flex-start' },
-  connectBtn: { border: `1.5px solid ${PRIMARY}`, padding: "10px 20px", borderRadius: "12px", fontWeight: "800", fontSize: "13px", cursor: "pointer" },
+  
+  connectBtn: { 
+    background: PRIMARY, color: "#fff", border: "none", padding: "10px 20px", borderRadius: "12px", 
+    fontWeight: "900", fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' 
+  },
+  connectedBadge: { 
+    background: "#10b981", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "12px", 
+    fontWeight: "900", fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'default'
+  },
+  disconnectBtn: {
+    background: "#fee2e2", color: DANGER, border: "none", 
+    width: '42px', height: '38px', 
+    borderRadius: "12px",
+    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+  },
   reprintBtn: { background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', padding: '6px 12px', borderRadius: '8px', fontWeight: '800', fontSize: '11px', cursor: 'pointer' },
   logoutBtn: { color: DANGER, border: `1.5px solid ${DANGER}`, background: 'none', padding: "10px 20px", borderRadius: "12px", fontWeight: "800", fontSize: "13px", cursor: "pointer" },
   checkoutTodayBtn: { background: PRIMARY, color: "#fff", border: "none", padding: "10px 20px", borderRadius: "12px", fontWeight: "800", fontSize: "13px" },
@@ -325,7 +436,7 @@ const styles = {
   detailPrice: { color: '#000' },
   detailSummaryBox: { maxWidth: '300px', marginLeft: 'auto', background: '#fff', padding: '15px', borderRadius: '12px', border: `1px solid ${BORDER}` },
   summaryLine: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: '14px', fontWeight: '700' },
-  loader: { height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", color: PRIMARY, fontWeight: '800' }
+  loader: { height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: "20px", color: PRIMARY, fontWeight: '800' }
 };
 
 export default BillingHistory;
