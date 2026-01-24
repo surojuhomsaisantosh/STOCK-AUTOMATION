@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 
 // --- BLUETOOTH PRINTER HOOK ---
-// Ensure the path matches where you saved BluetoothPrinter.jsx
 import { useBluetoothPrinter } from "../printer/BluetoothPrinter";
 
 const PRIMARY = "#065f46";
@@ -23,18 +22,23 @@ function Store() {
   const { user, role, loading: authLoading } = useAuth();
   
   const { connectPrinter, printReceipt, isConnected } = useBluetoothPrinter();
+  
+  // DATA STATES
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [storeProfile, setStoreProfile] = useState(null); // Stores Company/Address info
+
+  // UI STATES
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   
+  // CHECKOUT STATES
   const [discountValue, setDiscountValue] = useState(0);
   const [discountType, setDiscountType] = useState("fixed");
 
-  // REFINED FRANCHISE ID LOGIC
   const franchiseId = user?.franchise_id ? String(user.franchise_id) : null;
 
   useEffect(() => {
@@ -44,37 +48,50 @@ function Store() {
   }, []);
 
   /* ==========================================================
-     DEBUGGING & DATA FETCHING
+     1. FETCH STORE PROFILE (Company Name & Address)
   ========================================================== */
   useEffect(() => {
-    if (!authLoading) {
-      console.log("🔵 Store Session Check:", { 
-        uid: user?.id, 
-        role: role, 
-        fid: franchiseId 
-      });
-    }
-  }, [user, role, franchiseId, authLoading]);
-
-  const fetchMenu = async () => {
-    if (!franchiseId) return;
-    try {
-      const { data, error } = await supabase
-        .from("menus")
-        .select("*")
-        .eq("franchise_id", franchiseId.trim())
-        .eq("is_active", true);
-      if (error) throw error;
-      if (data) {
-        setMenuItems(data);
-        setCategories(["All", ...new Set(data.map(item => item.category).filter(Boolean))]);
+    const fetchProfile = async () => {
+      if (!user?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('company, address, city, state, pincode, phone')
+          .eq('id', user.id)
+          .single();
+          
+        if (error) throw error;
+        setStoreProfile(data);
+      } catch (err) {
+        console.error("❌ Profile Load Error:", err.message);
       }
-    } catch (err) {
-      console.error("❌ Menu Load Error:", err.message);
-    }
-  };
+    };
 
+    if (user) fetchProfile();
+  }, [user]);
+
+  /* ==========================================================
+     2. FETCH MENU ITEMS
+  ========================================================== */
   useEffect(() => { 
+    const fetchMenu = async () => {
+      if (!franchiseId) return;
+      try {
+        const { data, error } = await supabase
+          .from("menus")
+          .select("*")
+          .eq("franchise_id", franchiseId.trim())
+          .eq("is_active", true);
+        if (error) throw error;
+        if (data) {
+          setMenuItems(data);
+          setCategories(["All", ...new Set(data.map(item => item.category).filter(Boolean))]);
+        }
+      } catch (err) {
+        console.error("❌ Menu Load Error:", err.message);
+      }
+    };
+
     if (franchiseId) fetchMenu(); 
   }, [franchiseId]);
 
@@ -123,7 +140,9 @@ function Store() {
     try {
       if (!franchiseId) throw new Error("Franchise identification failed.");
       
-      // 1. Save to Database
+      // 1. Save to Database (Bills)
+      // FIX: Changed .single() to .maybeSingle() if fetching logic ever changes, 
+      // but for insert, .single() returns the inserted row correctly.
       const { data: bill, error: billError } = await supabase.from("bills_generated").insert([{
         franchise_id: franchiseId, 
         subtotal: totals.subtotal, 
@@ -148,13 +167,17 @@ function Store() {
       const { error: itemsError } = await supabase.from("bills_items_generated").insert(billItems);
       if (itemsError) throw new Error(`Items Error: ${itemsError.message}`);
 
-      // 2. Print Receipt (If Connected)
+      // 2. Print Receipt
       if (isConnected) {
         try {
-          // IMPORTANT: Keys here must match what printReceipt expects
+          // CONSTRUCT ADDRESS STRING DYNAMICALLY
+          const addressLine = storeProfile 
+            ? `${storeProfile.address || ''}, ${storeProfile.city || ''}\n${storeProfile.state || ''} - ${storeProfile.pincode || ''}`
+            : "Address Not Found";
+
           await printReceipt({ 
-            company: "T VANAMM", 
-            address: "Line 1: Street Address Here",
+            company: storeProfile?.company || "T VANAMM", // Dynamic Company Name
+            address: addressLine,                          // Dynamic Address
             total: totals.total.toFixed(2), 
             items: cart.map(i => ({ 
                 name: i.item_name, 
@@ -164,7 +187,7 @@ function Store() {
           });
         } catch (printErr) {
           console.error("Printing failed:", printErr);
-          alert("Bill saved to cloud, but printing failed. Check printer connection.");
+          alert("Bill saved, but printing failed. Check printer connection.");
         }
       } else {
         alert("Bill saved! (Printer was not connected)");
