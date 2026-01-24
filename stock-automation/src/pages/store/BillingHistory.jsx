@@ -11,7 +11,8 @@ import {
   ChevronUp,
   XCircle,
   AlertTriangle,
-  X
+  X,
+  LogOut // Added icon for checkout
 } from "lucide-react";
 
 // --- IMPORT THE PRINTER HOOK ---
@@ -91,13 +92,15 @@ function BillingHistory() {
   const [expandedBill, setExpandedBill] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: "created_at", direction: "descending" });
 
+  // CHECKOUT STATES
   const [lastCheckoutTime, setLastCheckoutTime] = useState(null);
   const [timeLeft, setTimeLeft] = useState("");
   const [canCheckout, setCanCheckout] = useState(true);
   const [dataLoading, setDataLoading] = useState(true);
   
-  // --- NEW: DELETE MODAL STATE ---
+  // MODAL STATES
   const [billToDelete, setBillToDelete] = useState(null);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false); // New State for Checkout Modal
 
   const franchiseId = user?.franchise_id ? String(user.franchise_id) : null;
   const todayDisplay = new Date().toLocaleDateString("en-GB", {
@@ -143,19 +146,27 @@ function BillingHistory() {
 
         if (lastCloseError) throw lastCloseError;
 
+        // UPDATED LOGIC: If no previous checkout, set to null (allows immediate checkout)
+        // This fixes the issue where timer showed up before clicking anything
         const lastTime = lastClose?.created_at
           ? new Date(lastClose.created_at)
-          : new Date(new Date().setHours(0, 0, 0, 0));
+          : null; 
 
         setLastCheckoutTime(lastTime);
 
-        const { data: bills, error: billsError } = await supabase
+        // Fetch bills for today (since last checkout OR since beginning of time if no checkout)
+        let query = supabase
           .from("bills_generated")
           .select("*, bills_items_generated(*)")
           .eq("franchise_id", franchiseId)
           .eq("is_day_closed", false)
-          .gte("created_at", lastTime.toISOString())
           .order("created_at", { ascending: false });
+
+        if (lastTime) {
+            query = query.gte("created_at", lastTime.toISOString());
+        }
+
+        const { data: bills, error: billsError } = await query;
 
         if (billsError) throw billsError;
         if (bills) setHistory(bills);
@@ -169,13 +180,20 @@ function BillingHistory() {
     initializeData();
   }, [franchiseId]);
 
-  // 3. TIMER
+  // 3. TIMER LOGIC (UPDATED)
   useEffect(() => {
-    if (!lastCheckoutTime) return;
+    // If there is no last checkout time, we don't need a timer.
+    if (!lastCheckoutTime) {
+        setCanCheckout(true);
+        setTimeLeft("");
+        return;
+    }
+
     const timer = setInterval(() => {
       const now = new Date();
       const diff = now - lastCheckoutTime;
-      const remaining = 12 * 60 * 60 * 1000 - diff;
+      const remaining = 12 * 60 * 60 * 1000 - diff; // 12 Hours Gap
+
       if (remaining > 0) {
         setCanCheckout(false);
         const h = Math.floor(remaining / (1000 * 60 * 60));
@@ -221,18 +239,16 @@ function BillingHistory() {
     }
   };
 
-  // --- 5. INITIATE DELETE (OPENS MODAL) ---
+  // 5. DELETE LOGIC
   const initiateDelete = (billId) => {
     setBillToDelete(billId);
   };
 
-  // --- 6. CONFIRM DELETE (DB ACTION) ---
   const confirmDelete = async () => {
     if (!billToDelete) return;
     const billId = billToDelete;
 
     try {
-      // DB Delete
       const { data, error } = await supabase
         .from("bills_generated")
         .delete()
@@ -240,36 +256,38 @@ function BillingHistory() {
         .select(); 
 
       if (error) {
-        console.error("Supabase Error:", error);
         alert(`Database Error: ${error.message}`);
-        setBillToDelete(null); // Close modal
+        setBillToDelete(null); 
         return;
       }
 
       if (!data || data.length === 0) {
-        console.error("Delete failed: No rows deleted (Check permissions/RLS).");
         alert("Permission Denied: You cannot delete this bill.");
       } else {
-        // Update UI
         setHistory(prev => prev.filter(b => b.id !== billId));
         setExpandedBill(null); 
         alert("Order cancelled successfully.");
       }
-
     } catch (err) {
-      console.error("Unexpected Exception:", err);
       alert(`Unexpected Error: ${err.message}`);
     } finally {
-      setBillToDelete(null); // Close modal
+      setBillToDelete(null); 
     }
   };
 
-  const handleCheckout = async () => {
+  // 6. CHECKOUT LOGIC (Two Steps)
+  
+  // Step 1: Open the modal (don't execute logic yet)
+  const handleCheckoutClick = () => {
     if (!canCheckout) return;
-    const confirm = window.confirm("Are you sure you want to close today's shift?");
-    if (!confirm) return;
+    setShowCheckoutModal(true);
+  };
+
+  // Step 2: Actually perform the DB insert (Called from Modal)
+  const confirmCheckoutAction = async () => {
     const nextDate = new Date();
     nextDate.setDate(nextDate.getDate() + 1);
+    
     const { error } = await supabase.from("bills_generated").insert({
       franchise_id: franchiseId,
       subtotal: 0,
@@ -277,10 +295,17 @@ function BillingHistory() {
       total: 0,
       discount: 0,
       payment_mode: "SYSTEM",
-      is_day_closed: true,
+      is_day_closed: true, // This flag triggers the 12hr timer for next time
       business_date: nextDate.toISOString().split("T")[0],
     });
-    if (error) { alert("Checkout failed."); return; }
+
+    if (error) { 
+        alert("Checkout failed. Please check connection."); 
+        setShowCheckoutModal(false);
+        return; 
+    }
+    
+    // Reload to refresh state and start the timer
     window.location.reload();
   };
 
@@ -372,10 +397,19 @@ function BillingHistory() {
             
             <div style={styles.actionButtonGroup}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                <button onClick={handleCheckout} disabled={!canCheckout} style={{ ...styles.checkoutTodayBtn, opacity: canCheckout ? 1 : 0.6, cursor: canCheckout ? "pointer" : "not-allowed" }}>
-                  CHECKOUT FOR TODAY
+                <button 
+                  onClick={handleCheckoutClick} 
+                  disabled={!canCheckout} 
+                  style={{ 
+                    ...styles.checkoutTodayBtn, 
+                    opacity: canCheckout ? 1 : 0.6, 
+                    cursor: canCheckout ? "pointer" : "not-allowed",
+                    background: canCheckout ? PRIMARY : '#94a3b8' 
+                  }}
+                >
+                  {canCheckout ? "CHECKOUT FOR TODAY" : "SHIFT CLOSED"}
                 </button>
-                {!canCheckout && <span style={styles.timerText}>Available in: {timeLeft}</span>}
+                {!canCheckout && <span style={styles.timerText}>Next checkout in: {timeLeft}</span>}
               </div>
               <button onClick={logout} style={styles.logoutBtn}>LOGOUT</button>
             </div>
@@ -512,7 +546,7 @@ function BillingHistory() {
         </div>
       </div>
 
-      {/* --- CUSTOM DELETE CONFIRMATION MODAL --- */}
+      {/* --- DELETE CONFIRMATION MODAL --- */}
       {billToDelete && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -531,6 +565,37 @@ function BillingHistory() {
               <div style={styles.modalActions}>
                 <button style={styles.btnCancel} onClick={() => setBillToDelete(null)}>NO, KEEP IT</button>
                 <button style={styles.btnConfirmDelete} onClick={confirmDelete}>YES, DELETE ORDER</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- NEW: CHECKOUT CONFIRMATION MODAL --- */}
+      {showCheckoutModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <button style={styles.closeModalBtn} onClick={() => setShowCheckoutModal(false)}>
+              <X size={20} color="#000" />
+            </button>
+            <div style={styles.modalBody}>
+              <div style={{...styles.warningIconWrapper, background: '#f0fdf4'}}>
+                <LogOut size={48} color={PRIMARY} />
+              </div>
+              <h3 style={styles.modalTitle}>Close Shift & Checkout?</h3>
+              <p style={styles.modalDesc}>
+                This will generate a day-end report and close billing for the day.
+                <br />
+                <b>You won't be able to bill again for 12 hours.</b>
+              </p>
+              <div style={styles.modalActions}>
+                <button style={styles.btnCancel} onClick={() => setShowCheckoutModal(false)}>CANCEL</button>
+                <button 
+                    style={{...styles.btnConfirmDelete, background: PRIMARY}} 
+                    onClick={confirmCheckoutAction}
+                >
+                    YES, CLOSE SHIFT
+                </button>
               </div>
             </div>
           </div>
@@ -562,7 +627,7 @@ const styles = {
   connectedBadge: { background: "#10b981", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "12px", fontWeight: "900", fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'default' },
   disconnectBtn: { background: "#fee2e2", color: DANGER, border: "none", width: '42px', height: '38px', borderRadius: "12px", display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
   logoutBtn: { color: DANGER, border: `1.5px solid ${DANGER}`, background: 'none', padding: "10px 20px", borderRadius: "12px", fontWeight: "800", fontSize: "13px", cursor: "pointer" },
-  checkoutTodayBtn: { background: PRIMARY, color: "#fff", border: "none", padding: "10px 20px", borderRadius: "12px", fontWeight: "800", fontSize: "13px" },
+  checkoutTodayBtn: { color: "#fff", border: "none", padding: "10px 20px", borderRadius: "12px", fontWeight: "800", fontSize: "13px" },
   timerText: { fontSize: '11px', color: DANGER, fontWeight: '700', marginTop: '4px' },
   statsRow: { display: "flex", gap: "15px", flexWrap: "wrap" }, 
   statBox: { background: "#fff", border: `1px solid ${BORDER}`, padding: "15px 25px", borderRadius: "16px", minWidth: "180px" },
