@@ -1,17 +1,15 @@
-import React, { createContext, useContext, useRef, useState } from "react";
+import React, { createContext, useContext, useRef, useState, useEffect } from "react";
 
-// Create Context
 const PrinterContext = createContext();
 
-// Common UUIDs for 58mm Thermal Printers
 const PROFILES = {
-  STANDARD: {
-    service: '000018f0-0000-1000-8000-00805f9b34fb',
-    char: '00002af1-0000-1000-8000-00805f9b34fb'
-  },
   GENERIC: { 
     service: '0000ffe0-0000-1000-8000-00805f9b34fb',
     char: '0000ffe1-0000-1000-8000-00805f9b34fb'
+  },
+  STANDARD: {
+    service: '000018f0-0000-1000-8000-00805f9b34fb',
+    char: '00002af1-0000-1000-8000-00805f9b34fb'
   }
 };
 
@@ -21,199 +19,129 @@ export function PrinterProvider({ children }) {
   
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [supportError, setSupportError] = useState(null);
 
-  /* ---------------- CONNECT ---------------- */
+  // Check for Web Bluetooth support on mount
+  useEffect(() => {
+    if (!navigator.bluetooth) {
+      setSupportError("Web Bluetooth is not supported on this browser. iOS users: Try the 'Bluefy' or 'WebBLE' browser apps.");
+    }
+  }, []);
+
+  const handleDisconnect = () => {
+    deviceRef.current = null;
+    characteristicRef.current = null;
+    setIsConnected(false);
+    setIsConnecting(false);
+  };
+
   const connectPrinter = async () => {
-    if (isConnected) {
-      console.log("⚠️ Printer already connected");
+    if (supportError) {
+      alert(supportError);
       return;
     }
-    if (isConnecting) return;
     
+    if (isConnected || isConnecting) return;
     setIsConnecting(true);
 
     try {
-      console.log("🔍 Requesting Device...");
+      console.log("🚀 Initializing fast-scan...");
       
       const device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: [PROFILES.STANDARD.service, PROFILES.GENERIC.service]
+        filters: [
+          { services: [PROFILES.GENERIC.service] },
+          { services: [PROFILES.STANDARD.service] },
+          { namePrefix: 'MPT' },
+          { namePrefix: 'RT' },
+          { namePrefix: 'POS' },
+          { namePrefix: 'Printer' }
+        ],
+        optionalServices: [PROFILES.GENERIC.service, PROFILES.STANDARD.service]
       });
 
-      console.log("📱 Device Selected:", device.name);
+      console.log("🔗 Device found. Connecting to GATT...");
+      const server = await device.gatt.connect();
       
       device.addEventListener('gattserverdisconnected', handleDisconnect);
 
-      const server = await device.gatt.connect();
-      console.log("✅ GATT Connected");
-
-      // SERVICE DISCOVERY
-      const savedServiceUUID = localStorage.getItem("printer_service_uuid");
-      const savedCharUUID = localStorage.getItem("printer_char_uuid");
-
-      let service, characteristic;
-
-      if (savedServiceUUID && savedCharUUID) {
-        try {
-          console.log("⚡ Trying Cached UUIDs...");
-          service = await server.getPrimaryService(savedServiceUUID);
-          characteristic = await service.getCharacteristic(savedCharUUID);
-          console.log("⚡ Cached UUIDs worked!");
-        } catch (e) {
-          console.warn("⚠️ Cached UUIDs failed. Scanning fresh...");
-          const result = await scanForService(server);
-          service = result.service;
-          characteristic = result.characteristic;
-        }
-      } else {
-        const result = await scanForService(server);
-        service = result.service;
-        characteristic = result.characteristic;
+      console.log("🔍 Locating Print Characteristic...");
+      
+      let characteristic;
+      try {
+        const service = await server.getPrimaryService(PROFILES.GENERIC.service);
+        characteristic = await service.getCharacteristic(PROFILES.GENERIC.char);
+      } catch (e) {
+        console.log("Falling back to Standard profile...");
+        const service = await server.getPrimaryService(PROFILES.STANDARD.service);
+        characteristic = await service.getCharacteristic(PROFILES.STANDARD.char);
       }
 
       deviceRef.current = device;
       characteristicRef.current = characteristic;
-
-      localStorage.setItem("printer_service_uuid", service.uuid);
-      localStorage.setItem("printer_char_uuid", characteristic.uuid);
-      
       setIsConnected(true);
+      console.log("✅ Connected!");
 
     } catch (err) {
-      console.error("Connection Error:", err);
-      if (err.name !== 'NotFoundError') {
-        alert("Connection failed: " + err.message);
-      }
+      console.error("Connection failed:", err);
       handleDisconnect();
     } finally {
       setIsConnecting(false);
     }
   };
 
-  const scanForService = async (server) => {
-    try {
-      console.log("Trying Standard UUID (18f0)...");
-      const s = await server.getPrimaryService(PROFILES.STANDARD.service);
-      const c = await s.getCharacteristic(PROFILES.STANDARD.char);
-      return { service: s, characteristic: c };
-    } catch (e) {
-      console.log("Standard failed. Trying Generic UUID (ffe0)...");
-      try {
-        const s = await server.getPrimaryService(PROFILES.GENERIC.service);
-        const c = await s.getCharacteristic(PROFILES.GENERIC.char);
-        return { service: s, characteristic: c };
-      } catch (e2) {
-        throw new Error("Could not find a printing service. Is this a thermal printer?");
-      }
-    }
-  };
-
-  /* ---------------- DISCONNECT ---------------- */
   const disconnectPrinter = () => {
-    console.log("🔌 Disconnecting...");
-    if (deviceRef.current) {
-      deviceRef.current.removeEventListener('gattserverdisconnected', handleDisconnect); // Prevent loop
-      if (deviceRef.current.gatt.connected) {
-        deviceRef.current.gatt.disconnect();
-      }
+    if (deviceRef.current && deviceRef.current.gatt.connected) {
+      deviceRef.current.gatt.disconnect();
     }
-    
-    deviceRef.current = null;
-    characteristicRef.current = null;
-    setIsConnected(false);
-    setIsConnecting(false);
-  };
-  
-  // Internal handler for event listener
-  const handleDisconnect = () => {
-      console.log("⚠️ Printer Disconnected (Event)");
-      deviceRef.current = null;
-      characteristicRef.current = null;
-      setIsConnected(false);
-      setIsConnecting(false);
+    handleDisconnect();
   };
 
-  /* ---------------- PRINT ---------------- */
   const printReceipt = async (billData) => {
-    if (!isConnected || !characteristicRef.current) {
-      alert("⚠️ Printer disconnected. Please reconnect.");
-      disconnectPrinter();
-      return;
-    }
+    if (!isConnected || !characteristicRef.current) return;
 
     try {
       const encoder = new TextEncoder();
-      const CMD = {
-        RESET: '\x1B\x40',
-        CENTER: '\x1B\x61\x01',
-        LEFT: '\x1B\x61\x00',
-        RIGHT: '\x1B\x61\x02',
-        BOLD_ON: '\x1B\x45\x01',
-        BOLD_OFF: '\x1B\x45\x00',
-        CUT: '\x1D\x56\x00'
-      };
-
-      let text = '';
-      text += CMD.RESET + CMD.CENTER + CMD.BOLD_ON + (billData.company || "STORE") + CMD.BOLD_OFF + '\n\n';
-
-      if (billData.address) {
-        text += CMD.CENTER + billData.address + '\n';
-      }
+      const reset = '\x1B\x40';
+      const center = '\x1B\x61\x01';
+      const left = '\x1B\x61\x00';
       
-      text += '\n'; 
-      text += "--------------------------------\n";
-      text += CMD.LEFT + CMD.BOLD_ON + "ITEM             QTY     TOTAL" + CMD.BOLD_OFF + '\n';
-      text += "--------------------------------\n";
-
+      let text = reset + center + (billData.company || "RECEIPT") + "\n\n" + left;
+      
       billData.items.forEach(i => {
-        let name = (i.name || "Item").substring(0, 16).padEnd(16, " ");
-        let qty = String(i.qty).padStart(3, " ");
-        let price = String(i.subtotal).padStart(10, " ");
-        text += `${name} ${qty} ${price}\n`;
+        text += `${(i.name || "Item").slice(0, 16).padEnd(16)} x${i.qty} ${i.subtotal}\n`;
       });
-
-      text += "--------------------------------\n";
-      text += '\n';
-      text += CMD.CENTER + CMD.BOLD_ON + "TOTAL: " + billData.total + CMD.BOLD_OFF + '\n\n';
-
-      if (billData.thankYouMsg) {
-        text += CMD.CENTER + billData.thankYouMsg + '\n';
-      } else {
-         text += CMD.CENTER + "Thank You!\n";
-      }
-
-      text += "\n\n\n"; 
+      
+      text += "\n--------------------------------\n";
+      text += `TOTAL: ${billData.total}\n\n\n\n`;
 
       const data = encoder.encode(text);
-      const CHUNK_SIZE = 50; 
       
+      const CHUNK_SIZE = 20; 
       for (let i = 0; i < data.length; i += CHUNK_SIZE) {
         const chunk = data.slice(i, i + CHUNK_SIZE);
         await characteristicRef.current.writeValue(chunk);
-        await new Promise(resolve => setTimeout(resolve, 20)); 
+        await new Promise(r => setTimeout(r, 25)); // Slightly increased delay for iPad stability
       }
-
     } catch (err) {
       console.error("Print Error:", err);
-      alert("❌ Print failed. Connection lost.");
       disconnectPrinter();
     }
   };
 
   return (
-    <PrinterContext.Provider value={{
-      connectPrinter,
-      disconnectPrinter,
-      printReceipt,
-      isConnected,
-      isConnecting
+    <PrinterContext.Provider value={{ 
+      connectPrinter, 
+      disconnectPrinter, 
+      printReceipt, 
+      isConnected, 
+      isConnecting,
+      supportError // Export this so you can show a UI warning
     }}>
       {children}
     </PrinterContext.Provider>
   );
 }
 
-// Hook to consume the context
 export function useBluetoothPrinter() {
   return useContext(PrinterContext);
 }

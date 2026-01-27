@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../../supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
-import { FiArrowLeft, FiSearch, FiTrash2, FiPlus, FiMinus, FiShoppingCart, FiCalendar, FiCreditCard, FiAlertTriangle, FiX } from "react-icons/fi";
+import { FiArrowLeft, FiSearch, FiTrash2, FiPlus, FiMinus, FiShoppingCart, FiCalendar, FiCreditCard, FiAlertTriangle, FiX, FiCheck } from "react-icons/fi";
 
 const BRAND_COLOR = "rgb(0, 100, 55)";
 
@@ -10,7 +10,7 @@ const getConversionFactor = (unit) => {
   const u = unit.toLowerCase().trim();
   const gramVariants = ["g", "grams", "gram", "gm", "gms"];
   const mlVariants = ["ml", "millilitre", "millilitres", "ml."];
-  
+
   if (gramVariants.includes(u)) return 0.001;
   if (mlVariants.includes(u)) return 0.001;
   return 1;
@@ -20,13 +20,14 @@ function StockOrder() {
   const navigate = useNavigate();
   const [stocks, setStocks] = useState([]);
   const [profile, setProfile] = useState(null);
+  const [isCentral, setIsCentral] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  // REMOVED: showAvailableOnly state
+
   const [qtyInput, setQtyInput] = useState({});
   const [selectedUnit, setSelectedUnit] = useState({});
   const [cart, setCart] = useState([]);
-  const [loading, setLoading] = useState(false); 
+  const [loading, setLoading] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [stockAlert, setStockAlert] = useState({ show: false, itemName: "", maxAvailable: 0, unit: "" });
 
@@ -41,45 +42,45 @@ function StockOrder() {
 
   const fetchProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-    setProfile(data);
+    if (!user) return;
+
+    // Check if Central Role
+    const { data: profileData } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+    if (profileData) {
+      setProfile(profileData);
+      if (profileData.role === 'central' || profileData.franchise_id === 'CENTRAL') {
+        setIsCentral(true);
+      }
+    }
   };
 
   const fetchStocks = async () => {
-    console.log("--- 🚀 STARTING STOCK FETCH ---");
-    
     try {
-        console.log("📡 Sending Query: .eq('online_store', true)");
-        
-        const { data, error } = await supabase
-            .from("stocks")
-            .select("*")
-            .eq('online_store', true)
-            .order("item_name");
+      const { data, error } = await supabase
+        .from("stocks")
+        .select("*")
+        .eq('online_store', true)
+        .order("item_name");
 
-        if (error) {
-            console.error("❌ SUPABASE ERROR:", error);
-            return;
-        }
+      if (error) {
+        console.error("❌ SUPABASE ERROR:", error);
+        return;
+      }
 
-        console.log(`✅ Received ${data?.length || 0} items from DB`);
-        
-        const stockData = data || [];
-        setStocks(stockData);
-        
-        const units = {};
-        const initialQtys = {};
-        stockData.forEach(item => {
-            units[item.id] = item.unit || 'pcs';
-            initialQtys[item.id] = 0; 
-        });
-        setSelectedUnit(units);
-        setQtyInput(initialQtys);
+      const stockData = data || [];
+      setStocks(stockData);
+
+      const units = {};
+      const initialQtys = {};
+      stockData.forEach(item => {
+        units[item.id] = item.unit || 'pcs';
+        initialQtys[item.id] = 0;
+      });
+      setSelectedUnit(units);
+      setQtyInput(initialQtys);
 
     } catch (err) {
-        console.error("❌ UNEXPECTED ERROR:", err);
-    } finally {
-        console.log("--- 🏁 END STOCK FETCH ---");
+      console.error("❌ UNEXPECTED ERROR:", err);
     }
   };
 
@@ -113,19 +114,20 @@ function StockOrder() {
     };
   }, [cart]);
 
-  const handleQtyChange = (itemId, val, maxAvailable, isStepButton = false, direction = 0) => {
+  // Handle Input Change (Only updates local input state, NOT cart)
+  const handleQtyInputChange = (itemId, val, maxAvailable, isStepButton = false, direction = 0) => {
     const item = stocks.find(s => s.id === itemId);
     if (!item) return;
 
     const unit = selectedUnit[itemId] || item.unit;
     const isGrams = ["g", "grams", "gram", "gm", "gms"].includes(unit.toLowerCase().trim());
     const currentVal = qtyInput[itemId] || 0;
-    
+
     let numVal;
     if (isStepButton) {
       if (isGrams) {
-        if (direction === 1) numVal = currentVal < 100 ? 100 : currentVal + 50;
-        else numVal = currentVal <= 100 ? 0 : currentVal - 50;
+        if (direction === 1) numVal = currentVal < 0 ? 0 : currentVal + 50; // allow going up indefinitely unless capped later
+        else numVal = currentVal <= 0 ? 0 : currentVal - 50;
       } else {
         numVal = direction === 1 ? currentVal + 1 : Math.max(0, currentVal - 1);
       }
@@ -133,34 +135,54 @@ function StockOrder() {
       numVal = val === "" ? 0 : Number(val);
     }
 
+    // Check Max Availability Only?
+    // User requested central can see availability, others maybe not?
+    // But actual validation should probably always happen?
+    // Let's keep the validation logic but apply alert if needed.
+
     const factor = getConversionFactor(unit);
-    const requestedBaseQty = parseFloat((numVal * factor).toFixed(3)); 
-    const availableBaseQty = parseFloat(Number(maxAvailable).toFixed(3));
+    const requestedBaseQty = parseFloat((numVal * factor).toFixed(3));
+    const availableBaseQty = parseFloat(Number(item.quantity).toFixed(3));
 
     if (requestedBaseQty > availableBaseQty) {
       setStockAlert({ show: true, itemName: item.item_name, maxAvailable: availableBaseQty, unit: item.unit });
-      numVal = Math.floor((availableBaseQty / factor) * 1000) / 1000; 
+      numVal = Math.floor((availableBaseQty / factor) * 1000) / 1000;
     }
 
     setQtyInput(prev => ({ ...prev, [itemId]: numVal }));
-    
+  };
+
+  const handleAddToCart = (itemId) => {
+    const item = stocks.find(s => s.id === itemId);
+    if (!item) return;
+
+    const numVal = qtyInput[itemId];
+    if (!numVal || numVal <= 0) return;
+
+    const unit = selectedUnit[itemId] || item.unit;
+    const factor = getConversionFactor(unit);
     const finalBaseQty = numVal * factor;
-    if (numVal <= 0) {
-      setCart(prev => prev.filter(c => c.id !== itemId));
-    } else {
-      setCart(prev => {
-        const exists = prev.find(c => c.id === itemId);
-        if (exists) {
-          return prev.map(c => c.id === itemId ? { ...c, qty: finalBaseQty, displayQty: numVal, cartUnit: unit } : c);
-        }
-        return [...prev, { ...item, qty: finalBaseQty, displayQty: numVal, cartUnit: unit }];
-      });
-    }
+
+    setCart(prev => {
+      const exists = prev.find(c => c.id === itemId);
+      // If exists, replace or update? User usually expects "Add" to mean "Set to this" or "Add more"?
+      // Based on UI with +/- inputs, "Add to Cart" usually commits the current input value.
+      // Let's assume it OVERWRITES or UPDATES the cart entry to match the input. 
+      if (exists) {
+        return prev.map(c => c.id === itemId ? { ...c, qty: finalBaseQty, displayQty: numVal, cartUnit: unit } : c);
+      }
+      return [...prev, { ...item, qty: finalBaseQty, displayQty: numVal, cartUnit: unit }];
+    });
   };
 
   const handleUnitChange = (itemId, newUnit) => {
     setSelectedUnit(prev => ({ ...prev, [itemId]: newUnit }));
+    // Reset input on unit change to avoid confusion? Or convert?
+    // Resetting is safer for now.
     setQtyInput(prev => ({ ...prev, [itemId]: 0 }));
+    // Also remove from cart? Or keep cart separate? 
+    // If unit changes, the previous cart entry might be invalid if we only support one unit per item line.
+    // Let's remove from cart to enforce re-adding.
     setCart(prev => prev.filter(c => c.id !== itemId));
   };
 
@@ -169,17 +191,55 @@ function StockOrder() {
     setQtyInput(prev => ({ ...prev, [itemId]: 0 }));
   };
 
+  const updateCartItemQty = (itemId, newDisplayQty) => {
+    // Direct update from Cart Modal
+    const cartItem = cart.find(c => c.id === itemId);
+    const stockItem = stocks.find(s => s.id === itemId);
+
+    if (!cartItem || !stockItem) return;
+
+    let numVal = Math.max(0, Number(newDisplayQty));
+    const factor = getConversionFactor(cartItem.cartUnit);
+
+    // Check Availability
+    const requestedBaseQty = parseFloat((numVal * factor).toFixed(3));
+    const availableBaseQty = parseFloat(Number(stockItem.quantity).toFixed(3));
+
+    if (requestedBaseQty > availableBaseQty) {
+      setStockAlert({
+        show: true,
+        itemName: stockItem.item_name,
+        maxAvailable: availableBaseQty,
+        unit: stockItem.unit
+      });
+      // Cap at max available
+      // If factor is 1, numVal = availableBaseQty
+      // If factor is 0.001 (grams), and available is 0.5kg (500g), numVal = 500
+      numVal = Math.floor((availableBaseQty / factor) * 1000) / 1000;
+    }
+
+    const finalBaseQty = numVal * factor;
+
+    if (numVal <= 0) {
+      setCart(prev => prev.filter(c => c.id !== itemId));
+      setQtyInput(prev => ({ ...prev, [itemId]: 0 }));
+    } else {
+      setCart(prev => prev.map(c => c.id === itemId ? { ...c, qty: finalBaseQty, displayQty: numVal } : c));
+      setQtyInput(prev => ({ ...prev, [itemId]: numVal }));
+    }
+  };
+
   const handlePlaceOrder = async () => {
     if (cart.length === 0) return;
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       const orderItems = cart.map(item => ({
         stock_id: item.id,
         item_name: item.item_name,
-        quantity: item.qty, 
-        unit: item.cartUnit,        
+        quantity: item.qty,
+        unit: item.cartUnit,
         price: item.price
       }));
 
@@ -192,7 +252,7 @@ function StockOrder() {
         p_customer_address: profile?.address || null,
         p_branch_location: profile?.branch_location || "",
         p_franchise_id: profile?.franchise_id || null,
-        p_items: orderItems 
+        p_items: orderItems
       });
 
       if (error) throw error;
@@ -213,12 +273,12 @@ function StockOrder() {
 
   const filteredStocks = useMemo(() => {
     return stocks.filter(item => {
-      const matchesSearch = item.item_name.toLowerCase().includes(search.toLowerCase()) || 
-                            (item.item_code && item.item_code.toLowerCase().includes(search.toLowerCase()));
+      const matchesSearch = item.item_name.toLowerCase().includes(search.toLowerCase()) ||
+        (item.item_code && item.item_code.toLowerCase().includes(search.toLowerCase()));
       const matchesCategory = selectedCategory === "All" || item.category === selectedCategory;
-      
+
       const isAvailable = item.quantity > 0;
-      
+
       return matchesSearch && matchesCategory && isAvailable;
     });
   }, [stocks, search, selectedCategory]);
@@ -233,7 +293,7 @@ function StockOrder() {
             <h3 className="text-xl font-black uppercase mb-2 text-black">Stock Limit</h3>
             <p className="text-slate-500 text-sm font-bold leading-relaxed mb-6 uppercase">
               Available in Godown: <span className="text-black">{stockAlert.maxAvailable} {stockAlert.unit}</span>.
-              <br/><br/>Contact Admin for bulk orders.
+              <br /><br />Contact Admin for bulk orders.
             </p>
             <button onClick={() => setStockAlert({ ...stockAlert, show: false })} className="w-full py-4 bg-black text-white rounded-xl font-black uppercase text-xs active:scale-95 transition-all">OK</button>
           </div>
@@ -245,8 +305,8 @@ function StockOrder() {
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-xs tracking-widest hover:opacity-50 transition-all"><FiArrowLeft size={18} /> BACK</button>
         <h1 className="text-xl font-black uppercase tracking-[0.2em] text-black">Order Inventory</h1>
         <div className="flex items-center gap-2">
-           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Franchise ID:</span>
-           <span className="text-xs font-black text-black uppercase bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">{profile?.franchise_id || "..."}</span>
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Franchise ID:</span>
+          <span className="text-xs font-black text-black uppercase bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">{profile?.franchise_id || "..."}</span>
         </div>
       </nav>
 
@@ -280,40 +340,70 @@ function StockOrder() {
           {filteredStocks.map((item) => {
             const isOutOfStock = item.quantity <= 0;
             const unit = selectedUnit[item.id] ?? item.unit ?? "pcs";
-            
+            const isInCart = cart.some(c => c.id === item.id);
+            const currentQty = qtyInput[item.id] || 0;
+
             return (
-              <div key={item.id} className={`relative bg-white p-5 rounded-2xl transition-all flex flex-col border-2 ${isOutOfStock ? 'border-slate-100 opacity-40' : 'border-slate-200 hover:border-black'}`}>
+              <div
+                key={item.id}
+                className={`relative bg-white p-5 rounded-2xl transition-all flex flex-col border-2 
+                    ${isOutOfStock ? 'border-slate-100 opacity-40' :
+                    isInCart ? `border-emerald-500 shadow-md ring-1 ring-emerald-500` :
+                      'border-slate-200 hover:border-black'}`}
+              >
+                {/* Visual "Added" Badge */}
+                {isInCart && (
+                  <div className="absolute top-4 right-4 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1">
+                    <FiCheck size={12} /> Added
+                  </div>
+                )}
+
                 <span className="text-[10px] font-black uppercase text-black mb-1">ITEM CODE : {item.item_code || '---'}</span>
                 <h3 className="font-black text-base uppercase text-black min-h-[48px] leading-tight mb-2">{item.item_name}</h3>
-                <div className="mb-6">
+
+                <div className="mb-4">
                   <p className="text-xl font-black text-black">₹{item.price}<span className="ml-1 text-[10px] font-black text-black opacity-40 uppercase">/ {item.unit}</span></p>
+
+                  {/* Central Availability Display */}
+                  {isCentral && (
+                    <p className="text-[10px] font-black text-emerald-700 mt-1 uppercase tracking-wider">
+                      Available: {item.quantity} {item.unit}
+                    </p>
+                  )}
                 </div>
+
                 <div className="mt-auto space-y-3">
                   <div className="flex items-center gap-2">
-                    <div className={`flex flex-1 items-center border-2 rounded-lg h-10 overflow-hidden bg-white border-slate-200`}>
-                      <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, -1)} className="w-8 h-full flex items-center justify-center border-r border-slate-100 hover:bg-slate-50 transition-colors text-black"><FiMinus size={12}/></button>
-                      <input type="number" value={qtyInput[item.id] || ""} placeholder="0" onChange={(e) => handleQtyChange(item.id, e.target.value, item.quantity)} className="w-full text-center font-black text-sm outline-none bg-transparent text-black" />
-                      <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, 1)} className="w-8 h-full flex items-center justify-center border-l border-slate-100 hover:bg-slate-50 transition-colors text-black"><FiPlus size={12}/></button>
+                    <div className={`flex flex-1 items-center border-2 rounded-lg h-10 overflow-hidden bg-white ${isInCart ? 'border-emerald-200' : 'border-slate-200'}`}>
+                      <button onClick={() => handleQtyInputChange(item.id, null, item.quantity, true, -1)} className="w-8 h-full flex items-center justify-center border-r border-slate-100 hover:bg-slate-50 transition-colors text-black"><FiMinus size={12} /></button>
+                      <input type="number" value={qtyInput[item.id] || ""} placeholder="0" onChange={(e) => handleQtyInputChange(item.id, e.target.value, item.quantity)} className="w-full text-center font-black text-sm outline-none bg-transparent text-black" />
+                      <button onClick={() => handleQtyInputChange(item.id, null, item.quantity, true, 1)} className="w-8 h-full flex items-center justify-center border-l border-slate-100 hover:bg-slate-50 transition-colors text-black"><FiPlus size={12} /></button>
                     </div>
                     <select disabled={isOutOfStock} value={unit} onChange={(e) => handleUnitChange(item.id, e.target.value)} className="w-20 bg-slate-50 border-2 border-slate-200 rounded-lg h-10 px-1 text-[9px] font-black uppercase outline-none focus:border-black appearance-none text-center cursor-pointer text-black">
                       <option value={item.unit}>{item.unit?.toUpperCase()}</option>
-                      {item.alt_unit && item.alt_unit !== item.unit && ( <option value={item.alt_unit}>{item.alt_unit.toUpperCase()}</option> )}
+                      {item.alt_unit && item.alt_unit !== item.unit && (<option value={item.alt_unit}>{item.alt_unit.toUpperCase()}</option>)}
                     </select>
                   </div>
-                  
-                  <button 
-                    onClick={() => {
-                      const currentVal = qtyInput[item.id] || 0;
-                      const isGrams = ["g", "grams", "gram", "gm", "gms"].includes(unit.toLowerCase().trim());
-                      const increment = isGrams ? 100 : 1;
-                      handleQtyChange(item.id, currentVal + increment, item.quantity);
-                    }} 
-                    disabled={isOutOfStock} 
-                    className="w-full py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-white" 
-                    style={{ backgroundColor: isOutOfStock ? '#e2e8f0' : BRAND_COLOR }}
-                  >
-                    {isOutOfStock ? "NOT AVAILABLE" : "ADD TO CART"}
-                  </button>
+
+                  {isInCart ? (
+                    <button
+                      onClick={() => handleAddToCart(item.id)} // Allow update
+                      disabled={isOutOfStock}
+                      className="w-full py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-white hover:opacity-90 active:scale-95 bg-emerald-600"
+                      title="Update Quantity in Cart"
+                    >
+                      UPDATE CART
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleAddToCart(item.id)}
+                      disabled={isOutOfStock || currentQty <= 0}
+                      className="w-full py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-white disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                      style={{ backgroundColor: isOutOfStock ? '#e2e8f0' : BRAND_COLOR }}
+                    >
+                      {isOutOfStock ? "NOT AVAILABLE" : "ADD TO CART"}
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -330,14 +420,14 @@ function StockOrder() {
               <h2 className="text-3xl font-black uppercase tracking-tighter text-black">Order Summary</h2>
               <button onClick={() => setIsCartOpen(false)} className="p-3 rounded-full hover:bg-slate-50 transition-colors text-black"><FiX size={24} /></button>
             </div>
-            
+
             <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
               <div className="flex-[3] overflow-y-auto p-8 border-r-2 border-slate-100 bg-white">
-                {!cart.length ? ( 
+                {!cart.length ? (
                   <div className="text-center py-20 opacity-20 text-black">
                     <FiShoppingCart size={48} className="mx-auto mb-4" />
                     <p className="font-black uppercase text-xs">Your cart is empty</p>
-                  </div> 
+                  </div>
                 ) : (
                   <div className="w-full overflow-hidden rounded-2xl border-2 border-slate-100">
                     <table className="w-full text-left border-collapse font-black text-black">
@@ -358,17 +448,22 @@ function StockOrder() {
                             <td className="py-5 px-4 text-center text-xs opacity-60 font-black">{item.gst_rate}%</td>
                             <td className="py-5 px-4 text-center text-xs text-emerald-700 font-black">₹{item.preciseGst.toFixed(2)}</td>
                             <td className="py-5 px-4">
-                               <div className="flex items-center gap-2 justify-center">
-                                  <div className="flex items-center border-2 border-slate-200 rounded-lg h-9 bg-white overflow-hidden">
-                                    <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, -1)} className="px-2 h-full hover:bg-slate-50 border-r border-slate-200 text-black"><FiMinus size={10}/></button>
-                                    <input type="number" value={item.displayQty} onChange={(e) => handleQtyChange(item.id, e.target.value, item.quantity)} className="w-12 text-center outline-none bg-transparent text-xs font-black text-black" />
-                                    <button onClick={() => handleQtyChange(item.id, null, item.quantity, true, 1)} className="px-2 h-full hover:bg-slate-50 border-l border-slate-200 text-black"><FiPlus size={10}/></button>
-                                  </div>
-                                  <span className="text-[10px] opacity-60 uppercase">{item.cartUnit}</span>
-                               </div>
+                              <div className="flex items-center gap-2 justify-center">
+                                <div className="flex items-center border-2 border-slate-200 rounded-lg h-9 bg-white overflow-hidden">
+                                  <button onClick={() => updateCartItemQty(item.id, item.displayQty - 1)} className="px-2 h-full hover:bg-slate-50 border-r border-slate-200 text-black"><FiMinus size={10} /></button>
+                                  <input
+                                    type="number"
+                                    value={item.displayQty}
+                                    onChange={(e) => updateCartItemQty(item.id, e.target.value)}
+                                    className="w-12 text-center outline-none bg-transparent text-xs font-black text-black"
+                                  />
+                                  <button onClick={() => updateCartItemQty(item.id, item.displayQty + 1)} className="px-2 h-full hover:bg-slate-50 border-l border-slate-200 text-black"><FiPlus size={10} /></button>
+                                </div>
+                                <span className="text-[10px] opacity-60 uppercase">{item.cartUnit}</span>
+                              </div>
                             </td>
                             <td className="py-5 px-6 text-right text-sm font-black">₹{item.preciseSubtotal.toFixed(2)}</td>
-                            <td className="py-5 px-4 text-center"><button onClick={() => removeFromCart(item.id)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><FiTrash2 size={18}/></button></td>
+                            <td className="py-5 px-4 text-center"><button onClick={() => removeFromCart(item.id)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><FiTrash2 size={18} /></button></td>
                           </tr>
                         ))}
                       </tbody>
@@ -381,7 +476,7 @@ function StockOrder() {
               <div className="flex-1 bg-slate-50/50 p-8 flex flex-col justify-between">
                 <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 space-y-4 shadow-sm">
                   <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Billing Breakdown</h3>
-                  
+
                   <div className="flex justify-between items-center text-xs font-black uppercase text-black">
                     <span>Items Subtotal</span>
                     <span>₹{calculations.subtotal.toFixed(2)}</span>
@@ -393,12 +488,11 @@ function StockOrder() {
                       <span>₹{calculations.totalGst.toFixed(2)}</span>
                     </div>
 
-                    {/* CHANGED: Moved Round Off Adjustment HERE (above Exact Total Bill) */}
                     <div className="flex justify-between items-center text-[10px] font-black text-rose-600 uppercase italic">
                       <span>Round Off Adjustment</span>
                       <span>{calculations.roundOff >= 0 ? "+" : ""}{calculations.roundOff.toFixed(2)}</span>
                     </div>
-                    
+
                     <div className="flex justify-between items-center text-[10px] font-black pt-2 border-t border-slate-100 text-emerald-900 uppercase">
                       <span>Exact Total Bill</span>
                       <span>₹{calculations.exactBill.toFixed(2)}</span>
@@ -413,10 +507,10 @@ function StockOrder() {
                   </div>
                 </div>
 
-                <button 
-                  onClick={handlePlaceOrder} 
-                  disabled={loading || !cart.length} 
-                  className="w-full py-6 text-white rounded-lg font-black text-sm uppercase tracking-[0.3em] transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-4 mt-8 group relative overflow-hidden active:scale-[0.98]" 
+                <button
+                  onClick={handlePlaceOrder}
+                  disabled={loading || !cart.length}
+                  className="w-full py-6 text-white rounded-lg font-black text-sm uppercase tracking-[0.3em] transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-4 mt-8 group relative overflow-hidden active:scale-[0.98]"
                   style={{ backgroundColor: BRAND_COLOR }}
                 >
                   {loading ? (
