@@ -4,6 +4,9 @@ import { useState } from "react";
 import { supabase } from "../../supabase/supabaseClient";
 import { Eye, EyeOff } from "lucide-react";
 
+// Import the logo from your assets folder
+import logo from "../../assets/jksh_logo.jpeg";
+
 const PRIMARY = "#065f46";
 const BORDER = "#e5e7eb";
 const BLACK = "#000000";
@@ -12,8 +15,8 @@ function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState(""); // Used for Admin
-  const [staffId, setStaffId] = useState(""); // Used for Store
+  const [email, setEmail] = useState(""); 
+  const [staffId, setStaffId] = useState(""); 
   const [password, setPassword] = useState("");
   const [franchiseId, setFranchiseId] = useState("");
   const [loginType, setLoginType] = useState("store");
@@ -27,27 +30,23 @@ function Login() {
 
     try {
       const cleanPassword = password.trim();
-      const cleanFranchiseId = franchiseId.trim().toUpperCase(); // Normalize ID
+      const cleanFranchiseId = franchiseId.trim().toUpperCase();
       let targetEmail = "";
 
       if (!cleanPassword) throw new Error("Password is required");
 
-      /* --- 1. EMAIL CONSTRUCTION --- */
       if (loginType === "store") {
         if (!staffId.trim() || !cleanFranchiseId) {
           throw new Error("Staff ID and Franchise ID are required");
         }
-        // Staff Login: staffID@franchiseID.com
         targetEmail = `${staffId.trim()}@${cleanFranchiseId.toLowerCase()}.com`;
       } else {
-        // Admin/Owner Login: Direct Email
         if (!email.trim() || !cleanFranchiseId) {
           throw new Error("Email and Franchise ID are required");
         }
         targetEmail = email.trim().toLowerCase();
       }
 
-      /* --- 2. AUTHENTICATION (Supabase Auth) --- */
       const { data: authData, error: authError } =
         await supabase.auth.signInWithPassword({
           email: targetEmail,
@@ -56,25 +55,21 @@ function Login() {
 
       if (authError) throw new Error("Invalid Credentials");
 
-      /* --- 3. IDENTITY VERIFICATION (Who is this?) --- */
       let userRole = "";
       let userFranchiseId = "";
       let finalProfileData = null;
 
-      // STEP A: Check 'profiles' table (For Franchise Owners / Admins)
       let { data: ownerProfile } = await supabase
         .from("profiles")
-        .select("*") // Fetch everything (Address, Company, etc.)
+        .select("*")
         .eq("id", authData.user.id)
         .maybeSingle();
 
       if (ownerProfile) {
-        // CASE: IT IS AN OWNER/ADMIN
         userRole = ownerProfile.role;
         userFranchiseId = ownerProfile.franchise_id;
         finalProfileData = ownerProfile;
       } else {
-        // STEP B: Check 'staff_profiles' table (For Store Staff)
         const { data: staffProfile } = await supabase
           .from("staff_profiles")
           .select("*")
@@ -82,12 +77,9 @@ function Login() {
           .maybeSingle();
 
         if (staffProfile) {
-          // CASE: IT IS A STAFF MEMBER
           userRole = "staff";
           userFranchiseId = staffProfile.franchise_id;
 
-          // STEP C: CRITICAL - Fetch the ADDRESS from the Owner's Profile
-          // The staff_profile has the user info, but 'profiles' has the Store Address
           const { data: franchiseInfo } = await supabase
             .from("profiles")
             .select("company, address, city, state, pincode, phone")
@@ -95,27 +87,21 @@ function Login() {
             .limit(1)
             .maybeSingle();
             
-          // Merge the Staff's personal info with the Franchise's Location info
           finalProfileData = {
-            ...staffProfile,      // Name, Staff_ID
+            ...staffProfile,
             role: "staff",
-            ...franchiseInfo      // Adds Company, Address, City from 'profiles' table
+            ...franchiseInfo
           };
-
         } else {
           throw new Error("User profile not found in database.");
         }
       }
 
-      /* --- 4. SECURITY CHECK --- */
-      // Ensure the Franchise ID typed matches the Database ID
       if (String(userFranchiseId).trim().toUpperCase() !== cleanFranchiseId) {
-        await supabase.auth.signOut(); // Security logout
+        await supabase.auth.signOut(); 
         throw new Error(`You do not belong to Franchise ${cleanFranchiseId}`);
       }
 
-      /* --- 5. FINISH LOGIN --- */
-      // We pass 'finalProfileData' which now contains the Address (even for staff)
       await login(authData.user, finalProfileData);
 
       if (loginType === "store") {
@@ -139,9 +125,12 @@ function Login() {
   return (
     <div style={styles.page}>
       <div style={styles.card}>
+        <div style={styles.logoContainer}>
+          <img src={logo} alt="JKSH Logo" style={styles.logo} />
+        </div>
+        
         <h1 style={styles.title}>LOGIN</h1>
 
-        {/* MODE SWITCH */}
         <div style={styles.toggleBar}>
           <button
             onClick={() => { setLoginType("store"); setErrorMsg(""); }}
@@ -166,7 +155,6 @@ function Login() {
         {errorMsg && <div style={styles.errorBox}>{errorMsg}</div>}
 
         <div style={styles.form}>
-          {/* Always ask for Franchise ID */}
           <input
             style={styles.input}
             placeholder="Franchise ID (e.g., TV-3)"
@@ -221,19 +209,55 @@ function Login() {
 }
 
 const styles = {
-  page: { height: "100vh", width: "100vw", display: "flex", justifyContent: "center", alignItems: "center", background: "#f9fafb", fontFamily: '"Inter", sans-serif' },
-  card: { width: "400px", padding: "50px 40px", background: "#fff", borderRadius: "32px", border: `1.5px solid ${BORDER}`, textAlign: "center", boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)' },
-  title: { fontSize: "24px", fontWeight: "900", marginBottom: "28px", color: BLACK, letterSpacing: '-0.5px' },
-  toggleBar: { display: "flex", background: "#f3f4f6", borderRadius: "16px", padding: "6px", marginBottom: "28px" },
+  page: { 
+    height: "100vh", 
+    width: "100vw", 
+    display: "flex", 
+    justifyContent: "center", 
+    alignItems: "center", 
+    background: "#f3f4f6", 
+    fontFamily: '"Inter", sans-serif' 
+  },
+  card: { 
+    width: "420px", 
+    padding: "40px", 
+    background: "#fff", 
+    borderRadius: "32px", 
+    border: `1.5px solid ${BORDER}`, 
+    textAlign: "center", 
+    boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center"
+  },
+  logoContainer: {
+    marginBottom: "24px",
+    display: "flex",
+    justifyContent: "center",
+    width: "100%"
+  },
+  logo: { 
+    width: "140px", 
+    height: "auto", 
+    borderRadius: "16px", 
+    objectFit: "contain",
+    display: "block",
+    padding: "8px",
+    background: "#fff",
+    border: `1px solid ${BORDER}`,
+    filter: "drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.05))"
+  },
+  title: { fontSize: "22px", fontWeight: "900", marginBottom: "28px", color: BLACK, letterSpacing: '-0.5px', width: "100%" },
+  toggleBar: { display: "flex", background: "#f3f4f6", borderRadius: "16px", padding: "6px", marginBottom: "28px", width: "100%" },
   toggleButton: { flex: 1, padding: "12px", border: "none", background: "transparent", borderRadius: "12px", fontSize: "12px", fontWeight: "800", color: "#6b7280", cursor: "pointer", transition: '0.2s' },
   toggleActive: { background: PRIMARY, color: "#fff" },
-  form: { display: "flex", flexDirection: "column", gap: "14px" },
-  input: { width: "100%", padding: "16px 20px", borderRadius: "16px", border: `1.5px solid ${BORDER}`, fontSize: "14px", outline: "none", color: BLACK, fontWeight: '600' },
+  form: { display: "flex", flexDirection: "column", gap: "14px", width: "100%" },
+  input: { width: "100%", padding: "16px 20px", borderRadius: "16px", border: `1.5px solid ${BORDER}`, fontSize: "14px", outline: "none", color: BLACK, fontWeight: '600', boxSizing: "border-box" },
   passwordWrapper: { position: "relative", width: "100%" },
-  inputPassword: { width: "100%", padding: "16px 50px 16px 20px", borderRadius: "16px", border: `1.5px solid ${BORDER}`, fontSize: "14px", outline: "none", color: BLACK, fontWeight: '600' },
+  inputPassword: { width: "100%", padding: "16px 50px 16px 20px", borderRadius: "16px", border: `1.5px solid ${BORDER}`, fontSize: "14px", outline: "none", color: BLACK, fontWeight: '600', boxSizing: "border-box" },
   eyeBtn: { position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer" },
   button: { width: "100%", padding: "18px", borderRadius: "16px", background: PRIMARY, color: "#fff", border: "none", fontSize: "13px", fontWeight: "800", marginTop: "16px", cursor: "pointer" },
-  errorBox: { background: "#fee2e2", color: "#ef4444", padding: "12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", marginBottom: "18px" },
+  errorBox: { width: "100%", background: "#fee2e2", color: "#ef4444", padding: "12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", marginBottom: "18px", boxSizing: "border-box" },
 };
 
 export default Login;
