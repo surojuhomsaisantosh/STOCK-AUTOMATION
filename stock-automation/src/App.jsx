@@ -1,4 +1,8 @@
+import { useEffect } from "react"; 
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+/* LOGO IMPORT FROM SRC */
+import myLogo from "./assets/jksh_logo.jpeg"; 
 
 /* AUTH */
 import Login from "./pages/login/Login";
@@ -35,7 +39,7 @@ import CentralSettings from "./pages/central/centralsettings";
 import CentralProfiles from "./pages/central/centralprofiles";
 import CentralStaffProfiles from "./pages/central/CentralStaffProfiles"; 
 import CentralStaffLogins from "./pages/central/CentralStaffLogins";
-import CentralVendors from "./pages/central/CentralVendors"; // <--- 1. IMPORT ADDED HERE
+import CentralVendors from "./pages/central/CentralVendors"; 
 import Accounts from "./pages/central/accounts";
 import PosManagement from "./pages/central/posmanagement";
 import Reports from "./pages/central/reports";
@@ -49,6 +53,15 @@ import { PrinterProvider } from "./pages/printer/BluetoothPrinter";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
 function App() {
+  // UseEffect to update ONLY the favicon from src/assets
+  useEffect(() => {
+    const link = document.querySelector("link[rel~='icon']");
+    if (link) {
+      link.href = myLogo;
+      link.type = "image/jpeg";
+    }
+  }, []);
+
   return (
     <AuthProvider>
       <PrinterProvider> 
@@ -105,7 +118,6 @@ function App() {
               }
             />
             
-            {/* --- 2. NEW ROUTE FOR VENDORS --- */}
             <Route
               path="/central/vendors"
               element={
@@ -169,7 +181,6 @@ function App() {
               }
             />
 
-            {/* Timings Fallback */}
             <Route
               path="/central/timings"
               element={
