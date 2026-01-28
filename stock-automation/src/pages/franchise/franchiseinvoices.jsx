@@ -13,6 +13,9 @@ function FranchiseInvoices() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   
+  // New state for the top right ID
+  const [currentFranchiseId, setCurrentFranchiseId] = useState("LOADING...");
+
   const [filterMode, setFilterMode] = useState("single"); 
   const [singleDate, setSingleDate] = useState("");
   const [customStart, setCustomStart] = useState("");
@@ -26,8 +29,29 @@ function FranchiseInvoices() {
   const brandGreen = "rgb(0, 100, 55)";
 
   useEffect(() => {
+    fetchProfile();
     fetchData();
   }, []);
+
+  // 1. Fetch the logged-in user's profile to get their ID specifically
+  const fetchProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("franchise_id")
+          .eq("id", user.id)
+          .single();
+        
+        if (data) {
+          setCurrentFranchiseId(data.franchise_id);
+        }
+      }
+    } catch (error) {
+      console.error("Profile Fetch Error", error);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -84,7 +108,6 @@ function FranchiseInvoices() {
   }, [filteredInvoices]);
 
   const openInvoiceDetails = async (invoice) => {
-    // Check console to see if the fields actually exist in the DB response
     console.log("Opening Invoice:", invoice);
     
     setSelectedInvoice(invoice);
@@ -117,9 +140,9 @@ function FranchiseInvoices() {
 
         <div className="flex-1 flex justify-end">
           <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
-              <Store size={16} className="text-black"/>
+              {/* UPDATED: Uses state variable fetched from profile */}
               <span className="text-sm font-black text-black uppercase tracking-tight whitespace-nowrap">
-                  Franchise ID: <span className="text-black">{invoices[0]?.franchise_id || "TV-HQ"}</span>
+                  Franchise ID: <span className="text-black">{currentFranchiseId}</span>
               </span>
           </div>
         </div>

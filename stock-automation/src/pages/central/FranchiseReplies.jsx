@@ -1,34 +1,42 @@
-import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../../supabase/supabaseClient";
+import { useNavigate } from "react-router-dom";
 import { 
-  ArrowLeft, CheckCircle, RefreshCcw, User, Hash,
-  MapPin, SendHorizontal, MessageSquare, Clock, Store, Calendar
-} from "lucide-react";
+  FiArrowLeft, FiSearch, FiCalendar, FiRefreshCw, 
+  FiCheckCircle, FiClock, FiList, FiX, FiRotateCcw 
+} from "react-icons/fi";
 
-const PRIMARY = "rgb(0, 100, 55)";
-const BORDER = "#e5e7eb";
+const BRAND_COLOR = "rgb(0, 100, 55)";
 
-function FranchiseReplies() {
+const FranchiseReplies = () => {
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedRequest, setSelectedRequest] = useState(null);
-  const [reply, setReply] = useState("");
-  const [actionLoading, setActionLoading] = useState(false);
-  const [currentFilter, setCurrentFilter] = useState("all"); 
-  const [myProfile, setMyProfile] = useState({ franchise_id: "CENTRAL" });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [profile, setProfile] = useState(null);
+  
+  // Modal & Selection States
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [selectedItemIds, setSelectedItemIds] = useState([]); 
+  
+  const [isRange, setIsRange] = useState(false);
+  const [singleDate, setSingleDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+
+  const todayDisplay = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric'
+  }).format(new Date());
 
   useEffect(() => {
+    fetchProfile();
     fetchRequests();
-    fetchMyProfile();
   }, []);
 
-  const fetchMyProfile = async () => {
+  const fetchProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-        const { data } = await supabase.from("profiles").select("franchise_id").eq("id", user.id).single();
-        if (data) setMyProfile(data);
+      const { data } = await supabase.from("profiles").select("franchise_id").eq("id", user.id).single();
+      setProfile(data);
     }
   };
 
@@ -36,279 +44,262 @@ function FranchiseReplies() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from("requests")
-        .select(`
-          *,
-          profiles!user_id (
-            name,
-            address,
-            branch_location,
-            phone,
-            franchise_id
-          )
-        `)
+        .from("stock_requests")
+        .select("*")
         .order("created_at", { ascending: false });
-      
       if (error) throw error;
-
-      const sanitizedData = (data || []).map(req => {
-        const profileInfo = Array.isArray(req.profiles) ? req.profiles[0] : req.profiles;
-        return {
-          ...req,
-          profiles: profileInfo,
-          franchise_id: req.franchise_id || profileInfo?.franchise_id || "N/A"
-        };
-      });
-
-      setRequests(sanitizedData);
-    } catch (err) {
-      console.error("Fetch error:", err.message);
-      const { data: fallbackData } = await supabase.from("requests").select("*").order("created_at", { ascending: false });
-      setRequests(fallbackData || []);
+      setRequests(data || []);
+    } catch (error) {
+      console.error("Error:", error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredRequests = useMemo(() => {
-    if (currentFilter === "all") return requests;
-    return requests.filter(req => req.status === currentFilter);
-  }, [requests, currentFilter]);
+  const groupedRequests = useMemo(() => {
+    const groups = {};
+    requests.forEach((req) => {
+      const dateObj = new Date(req.created_at);
+      const minuteKey = `${req.franchise_id}-${dateObj.getFullYear()}-${dateObj.getMonth()}-${dateObj.getDate()}-${dateObj.getHours()}-${dateObj.getMinutes()}`;
 
-  const handleResolve = async () => {
-    if (!selectedRequest || !reply.trim()) {
-        alert("Please enter a reply message.");
-        return;
-    }
-    setActionLoading(true);
+      if (!groups[minuteKey]) {
+        groups[minuteKey] = {
+          ...req,
+          displayItems: [{ id: req.id, name: req.item_name, status: req.status }],
+        };
+      } else {
+        groups[minuteKey].displayItems.push({ id: req.id, name: req.item_name, status: req.status });
+      }
+    });
+    return Object.values(groups);
+  }, [requests]);
 
-    const { error } = await supabase
-      .from("requests")
-      .update({ 
-        status: "Closed",
-        reply_message: reply 
-      })
-      .eq("id", selectedRequest.id);
-
-    if (!error) {
-      setReply("");
-      setSelectedRequest(null);
-      fetchRequests();
-    } else {
-      alert("Update failed: " + error.message);
-    }
-    setActionLoading(false);
+  const toggleItemSelection = (id) => {
+    setSelectedItemIds(prev => 
+      prev.includes(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
+    );
   };
 
+  const updateItemStatus = async (ids, newStatus) => {
+    if (ids.length === 0) return;
+    try {
+      const { error } = await supabase
+        .from("stock_requests")
+        .update({ status: newStatus })
+        .in("id", ids);
+
+      if (error) throw error;
+      
+      setRequests(prev => prev.map(req => 
+        ids.includes(req.id) ? { ...req, status: newStatus } : req
+      ));
+      
+      setSelectedItemIds([]);
+      if (selectedGroup) setSelectedGroup(null);
+    } catch (err) {
+      alert("Error updating status");
+    }
+  };
+
+  // --- THIS WAS MISSING ---
+  const resetFilters = () => {
+    setSearchTerm("");
+    setIsRange(false);
+    setSingleDate(new Date().toISOString().split('T')[0]);
+    setDateRange({ start: "", end: "" });
+    fetchRequests();
+  };
+  // ------------------------
+
+  const filteredRequests = useMemo(() => {
+    return groupedRequests.filter(req => {
+      const matchesSearch = req.displayItems.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                            req.franchise_id?.toLowerCase().includes(searchTerm.toLowerCase());
+      const reqDate = new Date(req.created_at).toISOString().split('T')[0];
+      let matchesDate = true;
+      if (isRange) {
+        if (dateRange.start && dateRange.end) matchesDate = reqDate >= dateRange.start && reqDate <= dateRange.end;
+      } else {
+        if (singleDate) matchesDate = reqDate === singleDate;
+      }
+      return matchesSearch && matchesDate;
+    });
+  }, [groupedRequests, searchTerm, isRange, singleDate, dateRange]);
+
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
-        
-        <header style={styles.header}>
-          <div style={styles.headerLeft}>
-            <button onClick={() => navigate(-1)} style={styles.backBtn}>
-              <ArrowLeft size={18} />
-              <span>Back</span>
-            </button>
-          </div>
-
-          <h1 style={styles.title}>GRIEVANCE TERMINAL</h1>
-
-          <div style={styles.headerRight}>
-             {/* TODAY'S DATE CARD */}
-             <div style={styles.dateCard}>
-                <Calendar size={14} color="#64748b" />
-                <div style={styles.dateTextGroup}>
-                    <span style={styles.dateLabel}>TODAY</span>
-                    <span style={styles.dateVal}>{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</span>
+    <div className="min-h-screen bg-white font-sans text-black relative">
+      {/* MODAL */}
+      {selectedGroup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] border-2 border-slate-100 shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-6 border-b-2 border-slate-50 flex justify-between items-center">
+              <div>
+                <h3 className="font-black uppercase text-sm tracking-widest">Manage Items</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Franchise: {selectedGroup.franchise_id}</p>
+              </div>
+              <button onClick={() => {setSelectedGroup(null); setSelectedItemIds([]);}} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><FiX size={20}/></button>
+            </div>
+            
+            <div className="p-6 max-h-80 overflow-y-auto custom-scrollbar space-y-2">
+              {selectedGroup.displayItems.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border-2 border-transparent">
+                  <label className="flex items-center gap-4 cursor-pointer flex-1">
+                    <input 
+                      type="checkbox" 
+                      disabled={item.status === 'fulfilled'}
+                      checked={selectedItemIds.includes(item.id)}
+                      onChange={() => toggleItemSelection(item.id)}
+                      className="w-5 h-5 rounded border-2 border-slate-300 checked:bg-black accent-black cursor-pointer disabled:opacity-20" 
+                    />
+                    <span className={`text-xs font-black uppercase ${item.status === 'fulfilled' ? 'text-slate-300 line-through' : 'text-black'}`}>
+                      {item.name}
+                    </span>
+                  </label>
+                  {item.status === 'fulfilled' && (
+                    <button 
+                      onClick={() => updateItemStatus([item.id], 'pending')}
+                      className="text-rose-600 hover:bg-rose-50 p-2 rounded-lg transition-all"
+                      title="Undo Fulfillment"
+                    >
+                      <FiRotateCcw size={16} />
+                    </button>
+                  )}
                 </div>
-             </div>
+              ))}
+            </div>
 
-             {/* FRANCHISE ID CARD */}
-             <div style={styles.idBadge}>
-                <Store size={14} />
-                <span>Franchise ID : <span style={{fontWeight: 900}}>{myProfile.franchise_id}</span></span>
-             </div>
-
-             <button onClick={fetchRequests} style={styles.refreshBtn} title="Refresh Data">
-                <RefreshCcw size={16} className={loading ? "animate-spin" : ""} />
-             </button>
+            <div className="p-6 bg-slate-50 border-t-2 border-slate-100">
+              <button 
+                onClick={() => updateItemStatus(selectedItemIds, 'fulfilled')}
+                disabled={selectedItemIds.length === 0}
+                className="w-full py-4 bg-black text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-lg shadow-black/20 active:scale-95 transition-all disabled:opacity-30"
+              >
+                Mark Selected as Fulfilled
+              </button>
+            </div>
           </div>
-        </header>
+        </div>
+      )}
 
-        <div style={styles.layoutGrid}>
-            <div style={styles.listSection}>
-                <div style={styles.filterBar}>
-                    {['all', 'pending', 'Closed'].map(status => (
+      {/* HEADER */}
+      <nav className="border-b-2 border-slate-100 px-8 py-5 flex items-center justify-between">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 font-black uppercase text-[10px] tracking-widest hover:opacity-60 transition-all">
+          <FiArrowLeft size={16} /> Back
+        </button>
+        <h1 className="text-xl font-black uppercase tracking-[0.3em] text-black text-center flex-1">Stock Requests</h1>
+        <div className="flex items-center gap-2 font-black">
+          <span className="text-[10px] text-slate-400 uppercase tracking-widest">Franchise ID:</span>
+          <span className="text-xs text-black uppercase bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">{profile?.franchise_id || "CENTRAL"}</span>
+        </div>
+      </nav>
+
+      <div className="max-w-[1400px] mx-auto px-8 mt-10">
+        {/* TOOLBAR */}
+        <div className="flex items-center gap-4 mb-8 w-full h-14">
+          <div className="relative flex-1 h-full">
+            <FiSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-black opacity-40" size={18} />
+            <input placeholder="SEARCH BY ITEM OR FRANCHISE..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full h-full pl-14 pr-6 bg-slate-50 border-2 border-transparent focus:border-black focus:bg-white rounded-2xl text-xs font-black outline-none transition-all uppercase" />
+          </div>
+          <div className="flex items-center gap-3 bg-slate-50 px-6 h-full rounded-2xl border-2 border-slate-100 font-black text-xs uppercase whitespace-nowrap">
+            <FiCalendar size={16} className="text-slate-400" /> {todayDisplay}
+          </div>
+          <div className="flex items-center gap-2 bg-slate-50 p-1 h-full rounded-2xl border-2 border-slate-100 whitespace-nowrap">
+            <div className="flex items-center h-full border-r-2 border-slate-200 pr-1 mr-1">
+              <button onClick={() => setIsRange(false)} className={`h-full px-4 rounded-xl text-[10px] font-black uppercase transition-all ${!isRange ? "bg-white shadow-sm text-black" : "text-slate-400"}`}>Single</button>
+              <button onClick={() => setIsRange(true)} className={`h-full px-4 rounded-xl text-[10px] font-black uppercase transition-all ${isRange ? "bg-white shadow-sm text-black" : "text-slate-400"}`}>Range</button>
+            </div>
+            <div className="flex items-center px-3 gap-2 h-full">
+              {!isRange ? (
+                <input type="date" value={singleDate} onChange={(e) => setSingleDate(e.target.value)} className="bg-transparent text-[10px] font-black outline-none cursor-pointer" />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input type="date" value={dateRange.start} onChange={(e) => setDateRange({...dateRange, start: e.target.value})} className="bg-transparent text-[10px] font-black outline-none w-28" />
+                  <span className="text-[10px] font-black opacity-30">TO</span>
+                  <input type="date" value={dateRange.end} onChange={(e) => setDateRange({...dateRange, end: e.target.value})} className="bg-transparent text-[10px] font-black outline-none w-28" />
+                </div>
+              )}
+            </div>
+          </div>
+          <button onClick={resetFilters} className="h-full aspect-square flex items-center justify-center bg-black text-white rounded-2xl hover:opacity-80 transition-all active:scale-95 flex-shrink-0 shadow-lg shadow-black/10">
+            <FiRefreshCw size={20} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
+
+        {/* TABLE */}
+        <div className="border-2 border-slate-100 rounded-[2.5rem] overflow-hidden bg-white shadow-sm mb-10">
+          <table className="w-full text-left border-separate border-spacing-0">
+            <thead>
+              <tr style={{ backgroundColor: BRAND_COLOR }} className="text-white">
+                <th className="p-6 text-[10px] font-black uppercase tracking-widest w-20">S.No</th>
+                <th className="p-6 text-[10px] font-black uppercase tracking-widest">Company / Franchise</th>
+                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-center">Items Requested</th>
+                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-center">Date & Time</th>
+                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-center">Status</th>
+                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-black">
+              {filteredRequests.map((req, index) => {
+                const isAllFulfilled = req.displayItems.every(i => i.status === 'fulfilled');
+                return (
+                  <tr key={index} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="p-6 text-[10px] font-black text-slate-400">{(index + 1).toString().padStart(2, '0')}</td>
+                    <td className="p-6">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-black uppercase">{req.franchise_id || "GENERAL"}</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">{req.user_name || "N/A"}</span>
+                      </div>
+                    </td>
+                    <td className="p-6 text-center">
+                      <button onClick={() => setSelectedGroup(req)} className="bg-slate-100 hover:bg-black hover:text-white px-4 py-2 rounded-xl transition-all inline-flex items-center gap-2 group">
+                        <FiList className="group-hover:scale-110 transition-transform"/>
+                        <span className="text-[11px] font-black uppercase">{req.displayItems.length} Items</span>
+                      </button>
+                    </td>
+                    <td className="p-6 text-center">
+                      <div className="flex flex-col items-center">
+                        <span className="text-[11px] font-black uppercase">{new Date(req.created_at).toLocaleDateString('en-GB')}</span>
+                        <span className="text-[10px] font-bold text-slate-400 mt-0.5">{new Date(req.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                      </div>
+                    </td>
+                    <td className="p-6 text-center">
+                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase inline-flex items-center gap-2 ${
+                        isAllFulfilled ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                      }`}>
+                        {isAllFulfilled ? <FiCheckCircle /> : <FiClock />}
+                        {isAllFulfilled ? "Fulfilled" : "Pending"}
+                      </span>
+                    </td>
+                    <td className="p-6 text-right">
+                      {!isAllFulfilled ? (
                         <button 
-                            key={status}
-                            onClick={() => setCurrentFilter(status)}
-                            style={{
-                                ...styles.filterTab,
-                                color: currentFilter === status ? PRIMARY : "#9ca3af",
-                                borderBottom: currentFilter === status ? `2px solid ${PRIMARY}` : '2px solid transparent'
-                            }}
+                          onClick={() => updateItemStatus(req.displayItems.map(i => i.id), 'fulfilled')}
+                          className="bg-black text-white px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:opacity-80 transition-all shadow-lg shadow-black/10"
                         >
-                            {status.toUpperCase()}
+                          Fulfill All
                         </button>
-                    ))}
-                </div>
-
-                <div style={styles.scrollArea}>
-                    {loading ? (
-                        <div style={styles.emptyPrompt}>Syncing Terminal Data...</div>
-                    ) : filteredRequests.length === 0 ? (
-                        <div style={styles.emptyPrompt}>No {currentFilter} requests found.</div>
-                    ) : filteredRequests.map((req) => (
-                        <div 
-                            key={req.id} 
-                            onClick={() => setSelectedRequest(req)}
-                            style={{
-                                ...styles.ticketItem, 
-                                borderColor: selectedRequest?.id === req.id ? PRIMARY : BORDER,
-                                background: selectedRequest?.id === req.id ? "#f0fdf4" : "#fff"
-                            }}
+                      ) : (
+                        <button 
+                          onClick={() => updateItemStatus(req.displayItems.map(i => i.id), 'pending')}
+                          className="text-rose-600 bg-rose-50 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all flex items-center gap-2 ml-auto"
                         >
-                            <div style={styles.itemHeader}>
-                                <span style={styles.ticketBadge}>{req.ticket_id || "NO-ID"}</span>
-                                <span style={{
-                                    ...styles.statusLabel,
-                                    color: req.status === "Closed" ? "#10b981" : "#f59e0b",
-                                    background: req.status === "Closed" ? "#ecfdf5" : "#fffbeb",
-                                }}>
-                                    {req.status}
-                                </span>
-                            </div>
-                            <p style={styles.itemMsg}>{req.message}</p>
-                            <div style={styles.itemMeta}>
-                                <User size={10} /> {req.profiles?.name || "Unknown Franchise"}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            <div style={styles.detailSection}>
-                {selectedRequest ? (
-                    <div style={styles.detailCard}>
-                        <div style={styles.detailHeader}>
-                            <div>
-                                <h2 style={styles.detailTitle}>Ticket Details</h2>
-                                <p style={styles.dateText}>Ticket ID: {selectedRequest.ticket_id}</p>
-                            </div>
-                            <span style={{
-                                ...styles.statusLabelLarge,
-                                background: selectedRequest.status === "Closed" ? "#ecfdf5" : "#fffbeb",
-                                color: selectedRequest.status === "Closed" ? "#10b981" : "#f59e0b",
-                            }}>
-                                {selectedRequest.status.toUpperCase()}
-                            </span>
-                        </div>
-
-                        <div style={styles.profileBox}>
-                            <div style={styles.profileRow}>
-                                <User size={16} color={PRIMARY} />
-                                <span><strong>{selectedRequest.profiles?.name || "N/A"}</strong> (Franchise ID: {selectedRequest.franchise_id})</span>
-                            </div>
-                            <div style={styles.profileRow}>
-                                <MapPin size={16} color={PRIMARY} />
-                                <span>{selectedRequest.profiles?.address || "Location not provided"}</span>
-                            </div>
-                        </div>
-
-                        <div style={styles.chatBubble}>
-                            <label style={styles.bubbleLabel}>ISSUE DESCRIPTION</label>
-                            <p style={styles.bubbleContent}>{selectedRequest.message}</p>
-                        </div>
-
-                        {selectedRequest.status === "Closed" ? (
-                            <div style={styles.closedNote}>
-                                <CheckCircle size={20} />
-                                <div>
-                                    <strong style={{fontSize: '14px'}}>Official Resolution Sent</strong>
-                                    <p style={{margin: '5px 0 0 0', fontSize: '13px', lineHeight: '1.5'}}>{selectedRequest.reply_message}</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div style={styles.replyArea}>
-                                <label style={styles.inputLabel}>YOUR OFFICIAL RESPONSE</label>
-                                <textarea 
-                                    style={styles.textarea} 
-                                    placeholder="Type your response to the franchise owner..."
-                                    value={reply}
-                                    onChange={(e) => setReply(e.target.value)}
-                                />
-                                <button 
-                                    onClick={handleResolve} 
-                                    disabled={actionLoading || !reply.trim()}
-                                    style={styles.resolveBtn}
-                                >
-                                    {actionLoading ? "SAVING..." : "SEND REPLY & RESOLVE"}
-                                    <SendHorizontal size={18} />
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <div style={styles.emptyPrompt}>
-                        <MessageSquare size={48} color="#e5e7eb" />
-                        <p style={{marginTop: '15px'}}>Select a grievance from the list to respond</p>
-                    </div>
-                )}
-            </div>
+                          <FiRotateCcw /> Undo All
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #000; border-radius: 10px; }
+      `}</style>
     </div>
   );
-}
-
-const styles = {
-  page: { background: "#fff", minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: "#111827" },
-  container: { maxWidth: "1400px", margin: "0 auto", padding: "40px" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "40px" },
-  title: { fontSize: "22px", fontWeight: "900", letterSpacing: "-1px" },
-  headerLeft: { width: '200px' },
-  headerRight: { display: 'flex', alignItems: 'center', gap: '15px' },
-  backBtn: { display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#6b7280", fontWeight: "700", cursor: "pointer" },
-  refreshBtn: { background: "#fff", border: `1.5px solid ${BORDER}`, padding: "10px", borderRadius: "12px", cursor: "pointer" },
-  
-  // DATE CARD STYLE
-  dateCard: { display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#f8fafc', padding: '8px 14px', borderRadius: '12px', border: '1px solid #e2e8f0' },
-  dateTextGroup: { display: 'flex', flexDirection: 'column', lineHeight: 1 },
-  dateLabel: { fontSize: '8px', fontWeight: '800', color: '#94a3b8' },
-  dateVal: { fontSize: '12px', fontWeight: '900', color: '#1e293b' },
-
-  // FRANCHISE ID BADGE
-  idBadge: { display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f0fdf4', padding: '10px 16px', borderRadius: '12px', fontSize: '12px', fontWeight: '700', color: '#166534', border: '1px solid #dcfce7' },
-
-  layoutGrid: { display: "grid", gridTemplateColumns: "400px 1fr", gap: "30px", height: "78vh" },
-  listSection: { display: "flex", flexDirection: "column", gap: "12px", height: '100%' },
-  filterBar: { display: 'flex', gap: '20px', marginBottom: '10px', borderBottom: `1px solid ${BORDER}`, paddingBottom: '5px' },
-  filterTab: { background: 'none', border: 'none', fontSize: '11px', fontWeight: '900', cursor: 'pointer', padding: '8px 4px' },
-  scrollArea: { overflowY: "auto", display: "flex", flexDirection: "column", gap: "12px", paddingRight: "10px" },
-  ticketItem: { padding: "20px", borderRadius: "16px", border: "1.5px solid", cursor: "pointer", transition: "0.2s ease" },
-  itemHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" },
-  ticketBadge: { fontSize: '12px', fontWeight: '800', color: '#000' },
-  statusLabel: { fontSize: '9px', fontWeight: '900', padding: '4px 8px', borderRadius: '6px', textTransform: 'uppercase' },
-  itemMsg: { margin: 0, fontSize: "13px", fontWeight: "500", color: "#64748b", lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden' },
-  itemMeta: { fontSize: "10px", color: "#9ca3af", marginTop: "12px", fontWeight: "700", display: 'flex', alignItems: 'center', gap: '5px' },
-  detailSection: { background: "#f9fafb", borderRadius: "32px", border: `1.5px solid ${BORDER}`, overflow: "hidden" },
-  detailCard: { padding: "40px", display: "flex", flexDirection: "column", gap: "25px", height: "100%", boxSizing: "border-box" },
-  detailHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" },
-  detailTitle: { margin: 0, fontSize: "20px", fontWeight: "900" },
-  dateText: { fontSize: "12px", color: "#9ca3af", margin: '5px 0 0 0', fontWeight: '500' },
-  statusLabelLarge: { padding: '6px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: '900' },
-  profileBox: { background: "#fff", padding: "20px", borderRadius: "16px", border: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", gap: "12px" },
-  profileRow: { display: "flex", alignItems: "center", gap: "12px", fontSize: "13px", color: "#4b5563" },
-  chatBubble: { background: "#fff", padding: "24px", borderRadius: "20px", border: `1.5px solid ${BORDER}`, borderLeft: `6px solid ${PRIMARY}` },
-  bubbleLabel: { fontSize: "10px", fontWeight: "900", color: PRIMARY, letterSpacing: "1px" },
-  bubbleContent: { margin: "10px 0 0 0", fontSize: "15px", lineHeight: "1.6", fontWeight: "500", color: '#1f2937' },
-  replyArea: { display: "flex", flexDirection: "column", gap: "12px", marginTop: "auto" },
-  inputLabel: { fontSize: "10px", fontWeight: "900", color: "#64748b" },
-  textarea: { width: "100%", height: "140px", padding: "18px", borderRadius: "16px", border: `1.5px solid ${BORDER}`, outline: "none", fontFamily: "inherit", fontSize: "14px", resize: "none" },
-  resolveBtn: { background: PRIMARY, color: "#fff", border: "none", padding: "18px", borderRadius: "16px", fontWeight: "800", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" },
-  closedNote: { padding: "25px", background: "#ecfdf5", border: "1px solid #10b981", borderRadius: "20px", color: "#065f46", display: "flex", gap: "15px" },
-  emptyPrompt: { height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontWeight: "600" }
 };
 
 export default FranchiseReplies;

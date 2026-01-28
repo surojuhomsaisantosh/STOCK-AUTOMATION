@@ -153,25 +153,13 @@ function CentralStockMaster() {
         return total.toFixed(2);
     };
 
-    const calculateFinalAmount = () => {
-        const price = parseFloat(formData.price) || 0;
-        const gst = parseFloat(formData.gst_rate) || 0;
-        if (formData.sales_tax_inc === "Inclusive") {
-            return price === 0 ? "" : price.toFixed(2);
-        }
-        const final = price + (price * gst) / 100;
-        return final === 0 ? "" : final.toFixed(2);
-    };
-
     // --- ACTIONS ---
     const handleInput = (e) => {
         const { name, value, type, checked } = e.target;
         setFormData(prev => {
             const val = type === 'checkbox' ? checked : value;
-            const newData = { ...prev, [name]: val };
-            if (name === "price") newData.mrp = value;
-            if (name === "mrp") newData.price = value;
-            return newData;
+            // SYNC REMOVED: price and mrp are now independent
+            return { ...prev, [name]: val };
         });
     };
 
@@ -511,7 +499,7 @@ function CentralStockMaster() {
                                     </div>
                                 </div>
 
-                                {/* --- REARRANGED PRICING & TAXATION --- */}
+                                {/* --- PRICING & TAXATION --- */}
                                 <div className="md:col-span-3 border-b border-slate-100 pb-2 mt-4"><h3 className="text-[11px] font-black uppercase text-black tracking-[0.2em]">Pricing & Taxation</h3></div>
                                 
                                 <div className="md:col-span-1">
@@ -545,8 +533,8 @@ function CentralStockMaster() {
                                     <TaxToggle value={formData.sales_tax_inc} onSelect={(val) => setTaxMode("sales_tax_inc", val)} />
                                 </div>
                                 <div className="md:col-span-1">
-                                    <label className="text-[10px] font-bold uppercase text-black block mb-1">MRP (Auto-synced)</label>
-                                    <input type="number" name="mrp" value={formData.mrp} onChange={handleInput} className="w-full border-b border-slate-200 py-2 outline-none font-black text-black bg-slate-50" placeholder="0.00" />
+                                    <label className="text-[10px] font-bold uppercase text-black block mb-1">MRP</label>
+                                    <input type="number" name="mrp" value={formData.mrp} onChange={handleInput} className="w-full border-b border-slate-200 py-2 outline-none font-black text-black" placeholder="0.00" />
                                 </div>
                             </div>
                         </div>

@@ -10,6 +10,9 @@ import {
   Bell,
   X,
   Users,
+  CheckCircle2,
+  PackageCheck,
+  Check
 } from "lucide-react";
 
 import MobileNav from "../../components/MobileNav";
@@ -21,7 +24,7 @@ function FranchiseOwnerDashboard() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [franchiseName, setFranchiseName] = useState("");
   const [franchiseId, setFranchiseId] = useState("");
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState([]); 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const navigate = useNavigate();
 
@@ -36,6 +39,7 @@ function FranchiseOwnerDashboard() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // 1. Fetch Profile
     const { data: profile } = await supabase
       .from('profiles')
       .select('name, franchise_id')
@@ -47,36 +51,49 @@ function FranchiseOwnerDashboard() {
       setFranchiseId(profile.franchise_id);
     }
 
-    const { data: tickets } = await supabase
-      .from('requests')
-      .select('id, ticket_id, reply_message, created_at, status, is_read')
+    // 2. Fetch Unread Fulfilled Stock Requests
+    const { data: restockedItems } = await supabase
+      .from('stock_requests')
+      .select('id, item_name, created_at, status')
       .eq('user_id', user.id)
-      .eq('is_read', false)
-      .not('reply_message', 'is', null)
+      .eq('status', 'fulfilled') 
+      .eq('is_read', false) // Only fetch unread
       .order('created_at', { ascending: false });
 
-    if (tickets) setNotifications(tickets);
+    if (restockedItems) setNotifications(restockedItems);
   };
 
-  const handleOpenNotifications = async () => {
+  // Just open the panel, do NOT mark as read yet
+  const handleOpenNotifications = () => {
     setShowNotifications(true);
-    if (notifications.length > 0) {
-      const { data: { user } } = await supabase.auth.getUser();
-      await supabase
-        .from('requests')
-        .update({ is_read: true })
-        .eq('user_id', user.id)
-        .eq('is_read', false);
+  };
 
-      setNotifications([]);
+  // Handle clicking a single notification item
+  const handleItemClick = async (itemId) => {
+    // 1. Optimistic Update: Remove from UI immediately for speed
+    setNotifications((prev) => prev.filter((n) => n.id !== itemId));
+
+    // 2. Update DB: Mark this specific item as read
+    const { error } = await supabase
+      .from('stock_requests')
+      .update({ is_read: true })
+      .eq('id', itemId);
+
+    if (error) {
+      console.error("❌ Error marking read:", error.message);
+      // Optional: If you want to show an alert on failure
+      // alert("Failed to update notification status");
     }
   };
 
-  // Settings now uses 'path' instead of 'action'
+  const closeNotifications = () => {
+    setShowNotifications(false);
+  };
+
   const navItems = [
     { title: "Order Stock", path: "/stock-orders", icon: <ShoppingBag size={24} />, desc: "Procure inventory" },
     { title: "Invoices", path: "/franchise/invoices", icon: <FileText size={24} />, desc: "Billing history" },
-    { title: "Request Portal", path: "/franchise/requestportal", icon: <SendHorizontal size={24} />, desc: "Support & maintenance" },
+    { title: "Stock Request", path: "/franchise/requestportal", icon: <SendHorizontal size={24} />, desc: "Support & maintenance" },
     { title: "Analytics", path: "/franchise/analytics", icon: <BarChart3 size={24} />, desc: "Sales performance" },
     { title: "Staff Profiles", path: "/franchise/staff", icon: <Users size={24} />, desc: "Manage employees" },
     { title: "Settings", path: "/franchise/settings", icon: <Settings size={24} />, desc: "Configure store" },
@@ -162,23 +179,62 @@ function FranchiseOwnerDashboard() {
       </div>
 
       {showNotifications && (
-        <div style={styles.notifOverlay} onClick={() => setShowNotifications(false)}>
+        <div style={styles.notifOverlay} onClick={closeNotifications}>
           <div style={styles.notifPanel} onClick={(e) => e.stopPropagation()}>
             <div style={styles.notifHeader}>
-              <h3 style={{ margin: 0, fontWeight: '800' }}>Recent Replies</h3>
-              <button style={styles.closeBtn} onClick={() => setShowNotifications(false)}>
+              <h3 style={{ margin: 0, fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <PackageCheck size={20} color={PRIMARY}/> 
+                Items Restocked
+              </h3>
+              <button style={styles.closeBtn} onClick={closeNotifications}>
                 <X size={20} />
               </button>
             </div>
+            
             <div style={styles.notifBody}>
-              <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280', fontSize: '14px' }}>
-                All notifications marked as read.
-              </div>
+              {notifications.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#9ca3af' }}>
+                  <CheckCircle2 size={40} style={{ marginBottom: '10px', opacity: 0.5 }} />
+                  <p style={{ fontSize: '14px', fontWeight: '600' }}>All Caught Up!</p>
+                  <p style={{ fontSize: '12px' }}>No new restock alerts.</p>
+                </div>
+              ) : (
+                <div style={{ width: '100%' }}>
+                  <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '15px', paddingLeft: '10px' }}>
+                    Click an item to mark as seen:
+                  </p>
+                  {notifications.map((n) => (
+                    <div 
+                      key={n.id} 
+                      style={styles.notifItem}
+                      onClick={() => handleItemClick(n.id)} // Click updates DB & removes from UI
+                      className="notif-item-hover" // Class for hover effect
+                    >
+                      <div style={styles.notifIcon}>
+                        <PackageCheck size={18} color="white" />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={styles.notifTitle}>{n.item_name}</p>
+                        <p style={styles.notifDate}>
+                          Available since: {new Date(n.created_at).toLocaleDateString('en-GB')}
+                        </p>
+                      </div>
+                      {/* Visual indicator to click */}
+                      <div style={styles.checkIcon}>
+                        <Check size={16} color="#9ca3af" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={styles.notifFooter}>
               <button
                 style={styles.viewAllBtn}
-                onClick={() => navigate('/franchise/requestportal')}
+                onClick={() => navigate('/stock-orders')}
               >
-                Go to Request Portal
+                Go to Order Stock
               </button>
             </div>
           </div>
@@ -190,6 +246,13 @@ function FranchiseOwnerDashboard() {
           0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
           70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
           100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        /* Hover effect for notification items */
+        .notif-item-hover:hover {
+          background-color: #f3f4f6 !important;
+          border-color: ${PRIMARY} !important;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
       `}</style>
     </div>
@@ -215,12 +278,22 @@ const styles = {
   cardContent: { flex: 1 },
   cardTitle: { fontWeight: "800", margin: 0 },
   cardDesc: { marginTop: "4px", fontSize: "13px", color: "#6b7280" },
+  
+  // Notification Styles
   notifOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.2)', zIndex: 100, display: 'flex', justifyContent: 'flex-end', backdropFilter: 'blur(2px)' },
   notifPanel: { width: 'min(400px, 90vw)', background: 'white', height: '100%', boxShadow: '-10px 0 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' },
-  notifHeader: { padding: '30px 24px', borderBottom: `1px solid ${BORDER}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  notifHeader: { padding: '25px 24px', borderBottom: `1px solid ${BORDER}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fafafa' },
   closeBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af' },
-  notifBody: { flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  viewAllBtn: { marginTop: '10px', background: PRIMARY, color: 'white', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }
+  notifBody: { flex: 1, overflowY: 'auto', padding: '20px' },
+  notifFooter: { padding: '20px', borderTop: `1px solid ${BORDER}`, background: '#fff' },
+  viewAllBtn: { width: '100%', background: 'black', color: 'white', border: 'none', padding: '14px', borderRadius: '12px', fontWeight: '700', fontSize: '13px', cursor: 'pointer', letterSpacing: '0.5px' },
+  
+  // Notification Item
+  notifItem: { display: 'flex', alignItems: 'center', gap: '15px', padding: '16px', borderRadius: '12px', border: `1px solid ${BORDER}`, marginBottom: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.02)', cursor: 'pointer', transition: 'all 0.2s ease', backgroundColor: 'white' },
+  notifIcon: { width: '36px', height: '36px', borderRadius: '50%', background: PRIMARY, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  notifTitle: { margin: 0, fontSize: '14px', fontWeight: '800', color: '#111827', textTransform: 'uppercase' },
+  notifDate: { margin: '4px 0 0 0', fontSize: '11px', color: '#9ca3af', fontWeight: '600' },
+  checkIcon: { marginLeft: 'auto' } // Pushes check icon to right
 };
 
 export default FranchiseOwnerDashboard;

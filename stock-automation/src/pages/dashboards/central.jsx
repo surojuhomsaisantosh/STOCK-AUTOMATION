@@ -60,7 +60,7 @@ function CentralDashboard() {
     { title: "Franchise Profiles", path: "/central/profiles", icon: <Users size={24} />, desc: "User permissions" },
 
     // 5. Support & System
-    { title: "Support Requests", path: "/central/support", icon: <Headphones size={24} />, desc: "Help desk tickets" }, 
+    { title: "Stock Requests", path: "/central/support", icon: <Headphones size={24} />, desc: "Help desk tickets" }, 
     { title: "Settings", path: "/central/settings", icon: <Settings size={24} />, desc: "System configuration" },
   ];
 
