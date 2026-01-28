@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import FranchiseSettingsCard from "../franchise/FranchiseSettingsCard";
 import { supabase } from "../../supabase/supabaseClient";
 import {
   ShoppingBag,
@@ -10,17 +9,15 @@ import {
   BarChart3,
   Bell,
   X,
-  Users, // Added Users icon
-  Lock
+  Users,
 } from "lucide-react";
+
+import MobileNav from "../../components/MobileNav";
 
 const PRIMARY = "#065f46";
 const BORDER = "#e5e7eb";
 
-import MobileNav from "../../components/MobileNav";
-
 function FranchiseOwnerDashboard() {
-  const [showSettings, setShowSettings] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [franchiseName, setFranchiseName] = useState("");
   const [franchiseId, setFranchiseId] = useState("");
@@ -75,103 +72,95 @@ function FranchiseOwnerDashboard() {
     }
   };
 
-  // Updated navItems to include Staff Profiles
+  // Settings now uses 'path' instead of 'action'
   const navItems = [
     { title: "Order Stock", path: "/stock-orders", icon: <ShoppingBag size={24} />, desc: "Procure inventory" },
     { title: "Invoices", path: "/franchise/invoices", icon: <FileText size={24} />, desc: "Billing history" },
     { title: "Request Portal", path: "/franchise/requestportal", icon: <SendHorizontal size={24} />, desc: "Support & maintenance" },
     { title: "Analytics", path: "/franchise/analytics", icon: <BarChart3 size={24} />, desc: "Sales performance" },
     { title: "Staff Profiles", path: "/franchise/staff", icon: <Users size={24} />, desc: "Manage employees" },
-    { title: "Settings", action: () => setShowSettings(true), icon: <Settings size={24} />, desc: "Configure store" },
+    { title: "Settings", path: "/franchise/settings", icon: <Settings size={24} />, desc: "Configure store" },
   ];
 
   return (
     <div style={styles.page}>
       <div style={styles.container}>
-        {showSettings ? (
-          <FranchiseSettingsCard onBack={() => setShowSettings(false)} />
-        ) : (
-          <>
-            <header style={styles.header}>
-              <div style={styles.headerTopRow}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                  <MobileNav
-                    navItems={navItems}
-                    title="Franchise Menu"
-                    userProfile={{ name: franchiseName, role: "Franchise Owner" }}
-                  />
-                  <div style={{ width: isMobile ? 0 : 40 }} />
-                  <h1 style={{ ...styles.title, fontSize: isMobile ? '20px' : '36px', textAlign: isMobile ? 'left' : 'center' }}>
-                    FRANCHISE DASHBOARD
-                  </h1>
-                </div>
-
-                <button
-                  style={styles.notificationBtn}
-                  onClick={handleOpenNotifications}
-                >
-                  <Bell size={isMobile ? 22 : 28} color={PRIMARY} />
-                  {notifications.length > 0 && (
-                    <div style={styles.badgeWrapper}>
-                      <div style={styles.numericBadge}>
-                        {notifications.length}
-                      </div>
-                    </div>
-                  )}
-                </button>
-              </div>
-
-              <div style={styles.subHeaderAlign}>
-                <p style={{ ...styles.subtitle, fontSize: isMobile ? '13px' : '16px' }}>
-                  Hello User: {" "}
-                  <span style={{ color: PRIMARY, fontWeight: "700" }}>
-                    {franchiseName || "Store Owner"}
-                  </span>
-                </p>
-              </div>
-            </header>
-
-            {!isMobile && (
-              <div style={styles.statsStrip}>
-                <div style={styles.statItem}>
-                  FRANCHISE ID:{" "}
-                  <span style={{ color: PRIMARY }}>
-                    {franchiseId || "N/A"}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            <div style={{
-              ...styles.grid,
-              gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
-              gridTemplateRows: isMobile ? "auto" : "repeat(2, 1fr)",
-              height: isMobile ? 'auto' : '60vh'
-            }}>
-              {navItems.map((item, idx) => (
-                <div
-                  key={idx}
-                  onClick={item.action ? item.action : () => navigate(item.path)}
-                  style={styles.card}
-                >
-                  <div style={styles.iconWrapper}>
-                    {item.icon}
-                  </div>
-                  <div style={styles.cardContent}>
-                    <h2 style={{ ...styles.cardTitle, fontSize: isMobile ? '18px' : '22px' }}>
-                      {item.title}
-                    </h2>
-                    {!isMobile && <p style={styles.cardDesc}>{item.desc}</p>}
-                  </div>
-                </div>
-              ))}
-              {/* Removed placeholderCard div from here */}
+        <header style={styles.header}>
+          <div style={styles.headerTopRow}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+              <MobileNav
+                navItems={navItems}
+                title="Franchise Menu"
+                userProfile={{ name: franchiseName, role: "Franchise Owner" }}
+              />
+              <div style={{ width: isMobile ? 0 : 40 }} />
+              <h1 style={{ ...styles.title, fontSize: isMobile ? '20px' : '36px', textAlign: isMobile ? 'left' : 'center' }}>
+                FRANCHISE DASHBOARD
+              </h1>
             </div>
-          </>
+
+            <button
+              style={styles.notificationBtn}
+              onClick={handleOpenNotifications}
+            >
+              <Bell size={isMobile ? 22 : 28} color={PRIMARY} />
+              {notifications.length > 0 && (
+                <div style={styles.badgeWrapper}>
+                  <div style={styles.numericBadge}>
+                    {notifications.length}
+                  </div>
+                </div>
+              )}
+            </button>
+          </div>
+
+          <div style={styles.subHeaderAlign}>
+            <p style={{ ...styles.subtitle, fontSize: isMobile ? '13px' : '16px' }}>
+              Hello User: {" "}
+              <span style={{ color: PRIMARY, fontWeight: "700" }}>
+                {franchiseName || "Store Owner"}
+              </span>
+            </p>
+          </div>
+        </header>
+
+        {!isMobile && (
+          <div style={styles.statsStrip}>
+            <div style={styles.statItem}>
+              FRANCHISE ID:{" "}
+              <span style={{ color: PRIMARY }}>
+                {franchiseId || "N/A"}
+              </span>
+            </div>
+          </div>
         )}
+
+        <div style={{
+          ...styles.grid,
+          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
+          gridTemplateRows: isMobile ? "auto" : "repeat(2, 1fr)",
+          height: isMobile ? 'auto' : '60vh'
+        }}>
+          {navItems.map((item, idx) => (
+            <div
+              key={idx}
+              onClick={() => navigate(item.path)}
+              style={styles.card}
+            >
+              <div style={styles.iconWrapper}>
+                {item.icon}
+              </div>
+              <div style={styles.cardContent}>
+                <h2 style={{ ...styles.cardTitle, fontSize: isMobile ? '18px' : '22px' }}>
+                  {item.title}
+                </h2>
+                {!isMobile && <p style={styles.cardDesc}>{item.desc}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* NOTIFICATION PANEL remains same */}
       {showNotifications && (
         <div style={styles.notifOverlay} onClick={() => setShowNotifications(false)}>
           <div style={styles.notifPanel} onClick={(e) => e.stopPropagation()}>
@@ -207,7 +196,6 @@ function FranchiseOwnerDashboard() {
   );
 }
 
-// ... styles remain the same
 const styles = {
   page: { background: "#f9fafb", height: "100vh", width: '100vw', fontFamily: '"Inter", sans-serif', color: "#111827", overflow: "hidden", display: 'flex', justifyContent: 'center' },
   container: { maxWidth: "1400px", width: '100%', margin: "0 auto", padding: "0 40px" },

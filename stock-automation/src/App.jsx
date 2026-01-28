@@ -1,5 +1,5 @@
 import { useEffect } from "react"; 
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom"; // Added useNavigate import
 
 /* LOGO IMPORT FROM SRC */
 import myLogo from "./assets/jksh_logo.jpeg"; 
@@ -51,6 +51,17 @@ import InvoiceDesign from "./pages/invoiceDesign/InvoiceDesign";
 import { AuthProvider } from "./context/AuthContext";
 import { PrinterProvider } from "./pages/printer/BluetoothPrinter"; 
 import ProtectedRoute from "./routes/ProtectedRoute";
+
+/**
+ * Helper component to handle navigation logic for Settings.
+ * This must be used inside BrowserRouter.
+ */
+function SettingsWrapper() {
+  const navigate = useNavigate();
+  return (
+    <FranchiseSettingsCard onBack={() => navigate("/dashboard/franchiseowner")} />
+  );
+}
 
 function App() {
   // UseEffect to update ONLY the favicon from src/assets
@@ -317,11 +328,12 @@ function App() {
               }
             />
 
+            {/* UPDATED: Uses the SettingsWrapper helper for dedicated dashboard navigation */}
             <Route
               path="/franchise/settings"
               element={
                 <ProtectedRoute allowedRoles={["franchise"]}>
-                  <FranchiseSettingsCard onBack={() => window.history.back()} />
+                  <SettingsWrapper />
                 </ProtectedRoute>
               }
             />
