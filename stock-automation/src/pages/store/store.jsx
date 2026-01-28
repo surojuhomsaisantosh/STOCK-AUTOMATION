@@ -48,14 +48,13 @@ function Store() {
   }, []);
 
   /* ==========================================================
-     1. FETCH STORE PROFILE
+     1. FETCH STORE PROFILE (WITH LOGS)
   ========================================================== */
   useEffect(() => {
     const fetchProfile = async () => {
       if (!franchiseId) return;
 
       try {
-        // Fetching company, address, city
         const { data, error } = await supabase
           .from('profiles')
           .select('company, address, city') 
@@ -66,10 +65,13 @@ function Store() {
         if (error) throw error;
         
         if (data) {
+          console.group("🏢 DB: STORE PROFILE LOADED");
+          console.log("Response:", data);
+          console.groupEnd();
           setStoreProfile(data);
         }
       } catch (err) {
-        console.error("Profile Load Exception:", err.message);
+        console.error("❌ Profile Load Exception:", err.message);
       }
     };
 
@@ -77,7 +79,7 @@ function Store() {
   }, [franchiseId]);
 
   /* ==========================================================
-     2. FETCH MENU ITEMS
+     2. FETCH MENU ITEMS (WITH LOGS)
   ========================================================== */
   useEffect(() => { 
     const fetchMenu = async () => {
@@ -88,13 +90,19 @@ function Store() {
           .select("*")
           .eq("franchise_id", franchiseId.trim())
           .eq("is_active", true);
+
         if (error) throw error;
+
         if (data) {
+          console.group("📋 DB: MENU ITEMS FETCHED");
+          console.log(`Count: ${data.length} active items`);
+          console.groupEnd();
+
           setMenuItems(data);
           setCategories(["All", ...new Set(data.map(item => item.category).filter(Boolean))]);
         }
       } catch (err) {
-        console.error("Menu Load Error:", err.message);
+        console.error("❌ Menu Load Error:", err.message);
       }
     };
 
@@ -105,6 +113,7 @@ function Store() {
      CART LOGIC
   ========================================================== */
   const addToCart = (item) => {
+    console.log(`🛒 UI: Added ${item.item_name} to cart`);
     setCart((prev) => {
       const ex = prev.find((i) => i.id === item.id);
       return ex ? prev.map((i) => i.id === item.id ? { ...i, qty: i.qty + 1 } : i) : [...prev, { ...item, qty: 1 }];
@@ -140,12 +149,15 @@ function Store() {
   });
 
   /* ==========================================================
-     TRANSACTION LOGIC
+     TRANSACTION LOGIC (WITH BETTER PRINTING)
   ========================================================== */
   const handleCompleteTransaction = async (method) => {
     try {
       if (!franchiseId) throw new Error("Franchise identification failed.");
       
+      console.group("💰 TRANSACTION: PROCESSING");
+      
+      // 1. Create bill in DB
       const { data: bill, error: billError } = await supabase.from("bills_generated").insert([{
         franchise_id: franchiseId, 
         subtotal: totals.subtotal, 
@@ -158,6 +170,7 @@ function Store() {
 
       if (billError) throw new Error(`Bill Error: ${billError.message}`);
 
+      // 2. Save bill items
       const billItems = cart.map((item) => ({ 
         bill_id: bill.id, 
         item_id: item.id, 
@@ -170,10 +183,12 @@ function Store() {
       const { error: itemsError } = await supabase.from("bills_items_generated").insert(billItems);
       if (itemsError) throw new Error(`Items Error: ${itemsError.message}`);
 
-      // --- PRINT LOGIC ---
+      console.log("✅ DB: Bill saved successfully");
+
+      // --- UPDATED PRINT LOGIC ---
       if (isConnected) {
+        console.group("🖨️ PRINTER: PREPARING PAYLOAD");
         try {
-          // 1. Construct Address
           let finalAddress = "";
           if (storeProfile) {
             const parts = [storeProfile.address, storeProfile.city].filter(Boolean);
@@ -181,10 +196,11 @@ function Store() {
           }
 
           const printPayload = { 
-            company: storeProfile?.company || "COMPANY UNKNOWN", 
-            address: finalAddress || "ADDRESS UNKNOWN",                          
+            company: storeProfile?.company || "T VANAMM", 
+            address: finalAddress || "HYDERABAD",
+            // Reference last 6 chars of the bill ID for a professional look
+            thankYouMsg: `Bill Ref: #${bill.id.toString().slice(-6).toUpperCase()}`,
             total: totals.total.toFixed(2), 
-            thankYouMsg: "THANK YOU! VISIT AGAIN",
             items: cart.map(i => ({ 
                 name: i.item_name, 
                 qty: i.qty, 
@@ -192,21 +208,23 @@ function Store() {
             }))
           };
 
+          console.log("Payload sent to printer:", printPayload);
           await printReceipt(printPayload);
-
+          console.log("✅ PRINTER: Task sent");
         } catch (printErr) {
-          console.error("Printing failed:", printErr);
-          alert("Bill saved, but printing failed. Check console for details.");
+          console.error("❌ PRINTER: Failed", printErr);
+          alert("Bill saved, but printing failed.");
         }
-      } else {
-        alert("Bill saved! (Printer was not connected)");
+        console.groupEnd();
       }
 
+      console.groupEnd();
       setCart([]); 
       setDiscountValue(0); 
       setShowPaymentModal(false);
     } catch (err) { 
-      console.error(err);
+      console.error("❌ TRANSACTION: Failed", err);
+      console.groupEnd();
       alert(`Checkout failed: ${err.message}`); 
     }
   };
@@ -442,20 +460,17 @@ const styles = {
     display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: '0.2s'
   },
   categoryRow: { display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "10px" },
-  
-  // --- UPDATED CAT BUTTON STYLE (BIGGER) ---
   catBtn: { 
-    padding: "12px 24px",  // Increased padding
-    borderRadius: "12px",  // Slightly larger radius
+    padding: "12px 24px",  
+    borderRadius: "12px",  
     border: `1px solid ${BORDER}`, 
     background: "#fff", 
     whiteSpace: "nowrap", 
     fontWeight: '800', 
     color: BLACK, 
     cursor: 'pointer', 
-    fontSize: '14px'       // Increased font size
+    fontSize: '14px'       
   },
-
   catBtnActive: { background: PRIMARY, color: "#fff", borderColor: PRIMARY },
   grid: { display: "grid", gap: "12px", padding: "0 20px 20px 20px" },
   itemCard: { padding: "20px", border: `2px solid ${BORDER}`, borderRadius: "18px", background: "#fff", cursor: "pointer", transition: '0.2s all' },
