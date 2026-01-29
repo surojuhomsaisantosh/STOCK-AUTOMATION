@@ -1,6 +1,6 @@
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { useState } from "react";
 import { supabase } from "../../supabase/supabaseClient";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -15,14 +15,23 @@ function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState(""); 
-  const [staffId, setStaffId] = useState(""); 
+  const [email, setEmail] = useState("");
+  const [staffId, setStaffId] = useState("");
   const [password, setPassword] = useState("");
   const [franchiseId, setFranchiseId] = useState("");
   const [loginType, setLoginType] = useState("store");
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Mobile Detection Logic
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleLogin = async () => {
     setErrorMsg("");
@@ -86,7 +95,7 @@ function Login() {
             .eq("franchise_id", userFranchiseId)
             .limit(1)
             .maybeSingle();
-            
+
           finalProfileData = {
             ...staffProfile,
             role: "staff",
@@ -98,7 +107,7 @@ function Login() {
       }
 
       if (String(userFranchiseId).trim().toUpperCase() !== cleanFranchiseId) {
-        await supabase.auth.signOut(); 
+        await supabase.auth.signOut();
         throw new Error(`You do not belong to Franchise ${cleanFranchiseId}`);
       }
 
@@ -124,14 +133,28 @@ function Login() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.card}>
+      <div style={{
+        ...styles.card,
+        width: isMobile ? "90%" : "420px",
+        padding: isMobile ? "30px 20px" : "40px"
+      }}>
         <div style={styles.logoContainer}>
-          <img src={logo} alt="JKSH Logo" style={styles.logo} />
+          <img src={logo} alt="JKSH Logo" style={{
+            ...styles.logo,
+            width: isMobile ? "110px" : "140px"
+          }} />
         </div>
-        
-        <h1 style={styles.title}>LOGIN</h1>
 
-        <div style={styles.toggleBar}>
+        <h1 style={{
+          ...styles.title,
+          fontSize: isMobile ? "18px" : "22px",
+          marginBottom: isMobile ? "20px" : "28px"
+        }}>JKSH United Pvt.Ltd</h1>
+
+        <div style={{
+          ...styles.toggleBar,
+          marginBottom: isMobile ? "20px" : "28px"
+        }}>
           <button
             onClick={() => { setLoginType("store"); setErrorMsg(""); }}
             style={{
@@ -200,7 +223,7 @@ function Login() {
             onClick={handleLogin}
             disabled={isLoading}
           >
-            {isLoading ? "Verifying..." : "Access Dashboard"}
+            {isLoading ? "Verifying Credentials..." : "Login"}
           </button>
         </div>
       </div>
@@ -209,26 +232,25 @@ function Login() {
 }
 
 const styles = {
-  page: { 
-    height: "100vh", 
-    width: "100vw", 
-    display: "flex", 
-    justifyContent: "center", 
-    alignItems: "center", 
-    background: "#f3f4f6", 
-    fontFamily: '"Inter", sans-serif' 
+  page: {
+    height: "100vh",
+    width: "100vw",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    background: "#f3f4f6",
+    fontFamily: '"Inter", sans-serif'
   },
-  card: { 
-    width: "420px", 
-    padding: "40px", 
-    background: "#fff", 
-    borderRadius: "32px", 
-    border: `1.5px solid ${BORDER}`, 
-    textAlign: "center", 
+  card: {
+    background: "#fff",
+    borderRadius: "32px",
+    border: `1.5px solid ${BORDER}`,
+    textAlign: "center",
     boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
     display: "flex",
     flexDirection: "column",
-    alignItems: "center"
+    alignItems: "center",
+    boxSizing: "border-box"
   },
   logoContainer: {
     marginBottom: "24px",
@@ -236,10 +258,9 @@ const styles = {
     justifyContent: "center",
     width: "100%"
   },
-  logo: { 
-    width: "140px", 
-    height: "auto", 
-    borderRadius: "16px", 
+  logo: {
+    height: "auto",
+    borderRadius: "16px",
     objectFit: "contain",
     display: "block",
     padding: "8px",
@@ -247,8 +268,8 @@ const styles = {
     border: `1px solid ${BORDER}`,
     filter: "drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.05))"
   },
-  title: { fontSize: "22px", fontWeight: "900", marginBottom: "28px", color: BLACK, letterSpacing: '-0.5px', width: "100%" },
-  toggleBar: { display: "flex", background: "#f3f4f6", borderRadius: "16px", padding: "6px", marginBottom: "28px", width: "100%" },
+  title: { fontWeight: "900", color: BLACK, letterSpacing: '-0.5px', width: "100%" },
+  toggleBar: { display: "flex", background: "#f3f4f6", borderRadius: "16px", padding: "6px", width: "100%", boxSizing: "border-box" },
   toggleButton: { flex: 1, padding: "12px", border: "none", background: "transparent", borderRadius: "12px", fontSize: "12px", fontWeight: "800", color: "#6b7280", cursor: "pointer", transition: '0.2s' },
   toggleActive: { background: PRIMARY, color: "#fff" },
   form: { display: "flex", flexDirection: "column", gap: "14px", width: "100%" },
