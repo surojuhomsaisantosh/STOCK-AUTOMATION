@@ -144,12 +144,36 @@ function CentralStockMaster() {
         setFilteredItems(results);
     }, [searchTerm, selectedCategory, items, showLowStock, showAvailableOnly, showOnlineOnly, showOfflineOnly, sortConfig]);
 
-    // --- CALCULATIONS ---
+    // --- CALCULATIONS (UPDATED) ---
     const calculatePurchaseWithTax = () => {
         const pPrice = parseFloat(formData.purchase_price) || 0;
         const gst = parseFloat(formData.gst_rate) || 0;
+        
         if (!pPrice) return "0.00";
+
+        // Logic Check: If Inclusive, the input price is the final price.
+        if (formData.purchase_tax_inc === "Inclusive") {
+            return pPrice.toFixed(2);
+        }
+
+        // If Exclusive, we add the tax on top.
         const total = pPrice + (pPrice * gst) / 100;
+        return total.toFixed(2);
+    };
+
+    const calculateSalesWithTax = () => {
+        const sPrice = parseFloat(formData.price) || 0;
+        const gst = parseFloat(formData.gst_rate) || 0;
+        
+        if (!sPrice) return "0.00";
+
+        // Logic Check: If Inclusive, the input price is the final price.
+        if (formData.sales_tax_inc === "Inclusive") {
+            return sPrice.toFixed(2);
+        }
+
+        // If Exclusive, we add the tax on top.
+        const total = sPrice + (sPrice * gst) / 100;
         return total.toFixed(2);
     };
 
@@ -158,7 +182,6 @@ function CentralStockMaster() {
         const { name, value, type, checked } = e.target;
         setFormData(prev => {
             const val = type === 'checkbox' ? checked : value;
-            // SYNC REMOVED: price and mrp are now independent
             return { ...prev, [name]: val };
         });
     };
@@ -532,6 +555,14 @@ function CentralStockMaster() {
                                     <label className="text-[10px] font-bold uppercase text-black block mb-1">Sales Tax Mode</label>
                                     <TaxToggle value={formData.sales_tax_inc} onSelect={(val) => setTaxMode("sales_tax_inc", val)} />
                                 </div>
+                                
+                                <div className="md:col-span-1">
+                                    <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Sales Price + GST</label>
+                                    <div className="py-2 font-black text-slate-600 border-b border-slate-100 bg-slate-50/50 px-2 rounded">
+                                        ₹ {calculateSalesWithTax()}
+                                    </div>
+                                </div>
+
                                 <div className="md:col-span-1">
                                     <label className="text-[10px] font-bold uppercase text-black block mb-1">MRP</label>
                                     <input type="number" name="mrp" value={formData.mrp} onChange={handleInput} className="w-full border-b border-slate-200 py-2 outline-none font-black text-black" placeholder="0.00" />
