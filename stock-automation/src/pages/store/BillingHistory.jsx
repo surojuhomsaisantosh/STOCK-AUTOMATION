@@ -149,8 +149,10 @@ function BillingHistory() {
       await printReceipt({
         company: storeProfile?.company || "STORE",
         address: parts.join(", "),
+        subtotal: (bill.subtotal || 0).toFixed(2),
+        discount: (bill.discount || 0).toFixed(2),
         total: bill.total.toFixed(2),
-        thankYouMsg: "*** DUPLICATE RECEIPT ***",
+        thankYouMsg: "*** DUPLICATE RECEIPT ***\nThank You! Visit Again",
         items: bill.bills_items_generated.map(i => ({ name: i.item_name, qty: i.qty, subtotal: i.total.toFixed(2) }))
       });
     } catch (err) { alert("Reprint failed."); }

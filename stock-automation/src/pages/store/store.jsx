@@ -167,6 +167,8 @@ function Store() {
           const printPayload = {
             company: storeProfile?.company || "COMPANY UNKNOWN",
             address: finalAddress || "ADDRESS UNKNOWN",
+            subtotal: totals.subtotal.toFixed(2),
+            discount: totals.discountAmt.toFixed(2),
             total: totals.total.toFixed(2),
             thankYouMsg: "THANK YOU! VISIT AGAIN",
             items: cart.map(i => ({
