@@ -32,6 +32,8 @@ function RegisterUser() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Detect screen size for responsive layout
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   const [formData, setFormData] = useState({
@@ -152,15 +154,16 @@ function RegisterUser() {
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.topBar}>
+    <div style={isMobile ? styles.pageMobile : styles.pageDesktop}>
+      {/* Header / Nav Area */}
+      <div style={isMobile ? styles.topBarMobile : styles.topBarDesktop}>
         <button onClick={() => navigate(-1)} style={styles.backButton}>
-          <ArrowLeft size={18} />
+          <ArrowLeft size={20} />
           <span>Back</span>
         </button>
       </div>
 
-      <div style={{ ...styles.card, width: isMobile ? "90%" : "500px" }}>
+      <div style={isMobile ? styles.cardMobile : styles.cardDesktop}>
         <div style={styles.header}>
           <div style={styles.iconWrapper}><UserPlus size={28} color={PRIMARY} /></div>
           <h1 style={styles.title}>Create Account</h1>
@@ -174,7 +177,8 @@ function RegisterUser() {
             <option value="T leaf">T leaf</option>
           </select>
 
-          <div style={styles.row}>
+          {/* Row Logic: Stacks on mobile, Flex on desktop */}
+          <div style={isMobile ? styles.rowMobile : styles.rowDesktop}>
             <input 
               name="franchise_id" 
               value={formData.franchise_id} 
@@ -193,8 +197,8 @@ function RegisterUser() {
 
           <input name="name" value={formData.name} placeholder="Owner Name" onChange={handleChange} style={styles.input} />
 
-          <div style={styles.row}>
-            <input name="phone" value={formData.phone} placeholder="Phone" onChange={handleChange} style={styles.input} />
+          <div style={isMobile ? styles.rowMobile : styles.rowDesktop}>
+            <input name="phone" value={formData.phone} placeholder="Phone" type="tel" onChange={handleChange} style={styles.input} />
             <input name="email" value={formData.email} type="email" placeholder="Email" onChange={handleChange} style={styles.input} />
           </div>
 
@@ -208,18 +212,18 @@ function RegisterUser() {
               style={styles.passwordInput}
             />
             <button type="button" onClick={() => setShowPassword((p) => !p)} style={styles.eyeButton}>
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
 
           <div style={styles.divider}><span style={styles.dividerText}>Address Details</span></div>
 
-          <div style={styles.row}>
+          <div style={isMobile ? styles.rowMobile : styles.rowDesktop}>
             <div style={styles.inputDisabled}>India</div>
-            <input name="pincode" value={formData.pincode} placeholder="Pincode" onChange={handleChange} style={styles.input} maxLength={6} />
+            <input name="pincode" value={formData.pincode} placeholder="Pincode" type="tel" onChange={handleChange} style={styles.input} maxLength={6} />
           </div>
 
-          <div style={styles.row}>
+          <div style={isMobile ? styles.rowMobile : styles.rowDesktop}>
             <select name="state" value={formData.state} onChange={handleChange} style={styles.select}>
               <option value="">Select State</option>
               {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -254,6 +258,9 @@ function RegisterUser() {
           >
             {loading ? "Creating..." : "Create Account"}
           </button>
+          
+          {/* Spacer for mobile scrolling */}
+          <div style={{ height: "20px" }}></div>
         </div>
       </div>
     </div>
@@ -262,25 +269,178 @@ function RegisterUser() {
 
 export default RegisterUser;
 
+// --- STYLES ---
+
+const baseInputStyles = {
+  width: "100%", 
+  padding: "16px", // Larger touch target
+  borderRadius: "12px", 
+  border: `1.5px solid ${BORDER}`, 
+  background: "#fff", 
+  fontSize: "16px", // Prevents iOS zoom
+  outline: "none",
+  transition: "border-color 0.2s"
+};
+
 const styles = {
-  page: { minHeight: "100vh", width: "100vw", display: "flex", justifyContent: "center", alignItems: "center", backgroundColor: "#ffffff", fontFamily: '"Inter", sans-serif', position: "relative", padding: "40px 0" },
-  topBar: { position: "absolute", top: "30px", left: "30px" },
-  backButton: { display: "flex", alignItems: "center", gap: "8px", background: "transparent", border: "none", fontSize: "14px", fontWeight: "600", color: "#6b7280", cursor: "pointer" },
-  card: { padding: "40px", border: `1.5px solid ${BORDER}`, borderRadius: "32px", backgroundColor: "#fff", textAlign: "center" },
-  header: { marginBottom: "24px", display: "flex", flexDirection: "column", alignItems: "center" },
-  iconWrapper: { width: "50px", height: "50px", borderRadius: "16px", background: "rgba(6, 95, 70, 0.05)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "12px" },
-  title: { fontSize: "24px", fontWeight: "900", color: "#000", margin: "0 0 4px 0" },
-  subtitle: { fontSize: "14px", color: "#6b7280", margin: 0 },
-  form: { display: "flex", flexDirection: "column", gap: "12px" },
-  row: { display: "flex", gap: "10px" },
-  input: { width: "100%", padding: "14px", borderRadius: "12px", border: `1.5px solid ${BORDER}`, background: "#fff", fontSize: "14px", outline: "none" },
-  inputDisabled: { width: "100%", padding: "14px", borderRadius: "12px", border: `1.5px solid ${BORDER}`, background: "#f3f4f6", fontSize: "14px", color: "#6b7280", textAlign: "left" },
-  textarea: { width: "100%", padding: "14px", borderRadius: "12px", border: `1.5px solid ${BORDER}`, background: "#fff", fontSize: "14px", outline: "none", resize: "none", fontFamily: '"Inter", sans-serif' },
-  select: { width: "100%", padding: "14px", borderRadius: "12px", border: `1.5px solid ${BORDER}`, background: "#fff", fontSize: "14px", outline: "none", appearance: "none" },
+  // Page Layouts
+  pageDesktop: { 
+    minHeight: "100vh", 
+    width: "100%", 
+    display: "flex", 
+    justifyContent: "center", 
+    alignItems: "center", 
+    backgroundColor: "#ffffff", 
+    fontFamily: '"Inter", sans-serif', 
+    position: "relative", 
+    padding: "40px 0" 
+  },
+  pageMobile: { 
+    minHeight: "100vh", 
+    width: "100%", 
+    backgroundColor: "#fff", 
+    fontFamily: '"Inter", sans-serif', 
+    padding: "0" 
+  },
+
+  // Top Navigation
+  topBarDesktop: { 
+    position: "absolute", 
+    top: "30px", 
+    left: "30px" 
+  },
+  topBarMobile: { 
+    padding: "20px", 
+    background: "#fff",
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+    borderBottom: "1px solid #f3f4f6"
+  },
+  backButton: { 
+    display: "flex", 
+    alignItems: "center", 
+    gap: "8px", 
+    background: "transparent", 
+    border: "none", 
+    fontSize: "16px", 
+    fontWeight: "600", 
+    color: "#6b7280", 
+    cursor: "pointer",
+    padding: "8px 0"
+  },
+
+  // Card Container
+  cardDesktop: { 
+    width: "500px",
+    padding: "40px", 
+    border: `1.5px solid ${BORDER}`, 
+    borderRadius: "32px", 
+    backgroundColor: "#fff", 
+    textAlign: "center" 
+  },
+  cardMobile: { 
+    width: "100%",
+    padding: "24px 20px", 
+    backgroundColor: "#fff", 
+    textAlign: "center",
+    maxWidth: "500px", // Limits width on tablets
+    margin: "0 auto"
+  },
+
+  // Headers
+  header: { marginBottom: "32px", display: "flex", flexDirection: "column", alignItems: "center" },
+  iconWrapper: { 
+    width: "56px", 
+    height: "56px", 
+    borderRadius: "20px", 
+    background: "rgba(6, 95, 70, 0.05)", 
+    display: "flex", 
+    alignItems: "center", 
+    justifyContent: "center", 
+    marginBottom: "16px" 
+  },
+  title: { fontSize: "26px", fontWeight: "900", color: "#111827", margin: "0 0 6px 0" },
+  subtitle: { fontSize: "15px", color: "#6b7280", margin: 0 },
+
+  // Form Structure
+  form: { display: "flex", flexDirection: "column", gap: "16px" },
+  
+  // Rows
+  rowDesktop: { display: "flex", gap: "12px", width: "100%" },
+  rowMobile: { display: "flex", flexDirection: "column", gap: "16px", width: "100%" },
+
+  // Inputs
+  input: baseInputStyles,
+  inputDisabled: { 
+    ...baseInputStyles, 
+    background: "#f9fafb", 
+    color: "#6b7280", 
+    textAlign: "left" 
+  },
+  textarea: { 
+    ...baseInputStyles, 
+    resize: "none", 
+    fontFamily: '"Inter", sans-serif' 
+  },
+  select: { 
+    ...baseInputStyles, 
+    appearance: "none",
+    backgroundImage: `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%22//www.w3.org/2000/svg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22/%3E%3C/svg%3E")`,
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "right 16px top 50%",
+    backgroundSize: "12px auto",
+  },
+  
+  // Password Specific
   passwordWrapper: { position: "relative" },
-  passwordInput: { width: "100%", padding: "14px 40px 14px 14px", borderRadius: "12px", border: `1.5px solid ${BORDER}`, background: "#fff", fontSize: "14px", outline: "none" },
-  eyeButton: { position: "absolute", top: "50%", right: "14px", transform: "translateY(-50%)", background: "transparent", border: "none", cursor: "pointer", color: "#9ca3af" },
-  button: { width: "100%", padding: "16px", borderRadius: "12px", border: "none", backgroundColor: PRIMARY, color: "#fff", fontSize: "14px", fontWeight: "800", cursor: "pointer", marginTop: "10px", boxShadow: "0 4px 12px rgba(6, 95, 70, 0.2)" },
-  divider: { display: 'flex', alignItems: 'center', margin: '10px 0' },
-  dividerText: { fontSize: '12px', fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '1px' }
+  passwordInput: { 
+    ...baseInputStyles, 
+    paddingRight: "50px" 
+  },
+  eyeButton: { 
+    position: "absolute", 
+    top: "0", 
+    right: "0", 
+    height: "100%", 
+    width: "50px", 
+    background: "transparent", 
+    border: "none", 
+    cursor: "pointer", 
+    color: "#9ca3af",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  // Action Elements
+  button: { 
+    width: "100%", 
+    padding: "18px", 
+    borderRadius: "14px", 
+    border: "none", 
+    backgroundColor: PRIMARY, 
+    color: "#fff", 
+    fontSize: "16px", 
+    fontWeight: "700", 
+    cursor: "pointer", 
+    marginTop: "12px", 
+    boxShadow: "0 4px 12px rgba(6, 95, 70, 0.2)",
+    transition: "transform 0.1s"
+  },
+  divider: { 
+    display: 'flex', 
+    alignItems: 'center', 
+    margin: '16px 0 8px 0',
+    justifyContent: "center" 
+  },
+  dividerText: { 
+    fontSize: '12px', 
+    fontWeight: '700', 
+    color: '#9ca3af', 
+    textTransform: 'uppercase', 
+    letterSpacing: '1px',
+    background: "#fff",
+    padding: "0 10px"
+  }
 };
