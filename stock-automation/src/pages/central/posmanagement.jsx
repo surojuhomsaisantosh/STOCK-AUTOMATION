@@ -1,5 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../../supabase/supabaseClient";
+// ADDED: Import ArrowLeft for a better looking back button
+import { ArrowLeft } from "lucide-react"; 
 
 const GREEN = "rgb(0,100,55)";
 const LIGHT_GREEN = "rgba(0,100,55,0.05)";
@@ -177,9 +179,8 @@ function PosManagement() {
         * { box-sizing: border-box; } 
         body { margin: 0; padding: 0; }
         
-        /* Custom sleek scrollbar for category list */
         .category-scroll::-webkit-scrollbar {
-            height: 6px; /* Visible height */
+            height: 6px; 
         }
         .category-scroll::-webkit-scrollbar-track {
             background: transparent; 
@@ -216,7 +217,10 @@ function PosManagement() {
             order: isMobile ? 1 : 0, 
             flex: isMobile ? 'none' : 1
         }}>
-            <button onClick={() => window.history.back()} style={styles.backBtn}>← Back</button>
+            {/* FIX: Using ArrowLeft Icon and Flex Alignment */}
+            <button onClick={() => window.history.back()} style={styles.backBtn}>
+                <ArrowLeft size={20} strokeWidth={2.5} /> Back
+            </button>
             
             {isMobile && (
                 <div style={styles.idDisplay}>
@@ -233,7 +237,7 @@ function PosManagement() {
             width: isMobile ? '100%' : 'auto',
             textAlign: isMobile ? 'center' : 'center'
         }}>
-          <h1 style={{...styles.heading, fontSize: isMobile ? '24px' : '32px'}}>POS Management</h1>
+          <h1 style={{...styles.heading, fontSize: isMobile ? '24px' : '32px'}}>Menu Management</h1>
           <p style={styles.subheading}>Centralized Menu Control System</p>
         </div>
         
@@ -329,7 +333,6 @@ function PosManagement() {
           </div>
 
           {menus.length > 0 && (
-            // FIX: Removed "no-scrollbar" class so default/custom scrollbar shows on laptop
             <div style={styles.scrollWrapper} className="category-scroll">
               {categories.map(c => (
                 <button key={c} onClick={() => setSelectedCategory(c)} style={selectedCategory === c ? styles.activeTab : styles.tab}>{c}</button>
@@ -416,7 +419,10 @@ const styles = {
   page: { background: "#f8f9fa", minHeight: "100vh", fontFamily: '"Inter", sans-serif', padding: "20px 20px 80px", overflowX: 'hidden' },
   toast: { position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', padding: '12px 24px', borderRadius: '12px', color: '#fff', fontWeight: '800', zIndex: 9999, boxShadow: '0 10px 30px rgba(0,0,0,0.2)', textAlign: 'center', minWidth: '280px', maxWidth: '90%' },
   header: { display: "flex", justifyContent: "space-between", position: "relative", maxWidth: "1100px", margin: "0 auto 24px auto", borderBottom: '1px solid #eee', paddingBottom: '20px' },
-  backBtn: { background: "none", border: "none", color: GREEN, fontSize: "16px", fontWeight: "700", cursor: "pointer", padding: 0 },
+  
+  // FIX: Updated backBtn style to be flex container
+  backBtn: { background: "none", border: "none", color: GREEN, fontSize: "16px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '8px' },
+  
   titleWrapper: { textAlign: "center" },
   heading: { fontWeight: "800", color: "#1a1a1a", letterSpacing: "-1px", margin: 0 },
   subheading: { color: "#6c757d", fontSize: "14px", marginTop: "5px", fontWeight: "500" },
@@ -445,7 +451,7 @@ const styles = {
   searchField: { width: "100%", height: "50px", padding: "0 16px 0 44px", borderRadius: "12px", border: `2px solid ${LIGHT_GREEN}`, background: "#fcfcfc", outline: "none", fontSize: '14px' },
   addBtn: { border: "none", height: "50px", padding: "0 24px", borderRadius: "12px", fontWeight: "700", cursor: "pointer", fontSize: '14px', whiteSpace: 'nowrap' },
   
-  scrollWrapper: { display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "10px" },
+  scrollWrapper: { display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "4px" },
   tab: { padding: "8px 20px", borderRadius: "30px", background: "#f1f3f5", border: "none", color: "#495057", fontWeight: "600", cursor: "pointer", fontSize: '13px', whiteSpace: 'nowrap' },
   activeTab: { padding: "8px 20px", borderRadius: "30px", background: GREEN, color: "#fff", fontWeight: "700", border: "none", fontSize: '13px', whiteSpace: 'nowrap' },
   
