@@ -59,41 +59,55 @@ function CentralSettings() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-50/50 p-4 md:p-8 lg:p-12 font-sans antialiased text-black">
+    // FIX 1: Added overflow-x-hidden to prevent horizontal scroll/cutoff
+    <div className="min-h-screen w-full bg-slate-50/50 p-4 md:p-8 lg:p-12 font-sans antialiased text-black overflow-x-hidden">
       <div className="max-w-7xl mx-auto">
         
-        {/* HEADER: Flex-wrap allows reordering on mobile */}
+        {/* HEADER */}
         <div className="flex flex-wrap md:flex-nowrap items-center justify-between mb-8 md:mb-16">
           
-          {/* 1. BACK BUTTON (Top Left on Mobile, Left on Desktop) */}
+          {/* 1. BACK BUTTON */}
           <button 
             onClick={() => navigate(-1)} 
-            className="order-1 flex items-center gap-2 md:gap-3 text-[12px] md:text-[14px] font-black uppercase tracking-[0.2em] transition-all hover:opacity-50" 
+            // FIX 2: Added shrink-0 so the button never gets squished
+            className="order-1 shrink-0 flex items-center gap-2 md:gap-3 text-[12px] md:text-[14px] font-black uppercase tracking-[0.2em] transition-all hover:opacity-50" 
             style={{ color: BRAND_GREEN }}
           >
             <ArrowLeft size={18} className="md:w-5 md:h-5" /> BACK
           </button>
           
-          {/* 2. FRANCHISE ID (Top Right on Mobile, Right on Desktop) */}
-          {/* Uses order-2 on mobile to sit next to Back button, order-3 on desktop to sit far right */}
-          <div className="order-2 md:order-3 flex items-center gap-2 md:gap-3 bg-white px-3 py-1.5 md:px-5 md:py-2.5 rounded-xl border shadow-sm" style={{ borderColor: SOFT_BORDER }}>
-            <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest opacity-40 text-black">ID :</span>
-            <span className="font-mono text-xs md:text-sm font-black text-black">{franchiseId}</span>
+          {/* 2. FRANCHISE ID */}
+          <div 
+            // FIX 3: Added max-w-[50%] so it doesn't push the screen width out
+            // FIX 4: Added overflow-hidden to the container itself
+            className="order-2 md:order-3 max-w-[50%] md:max-w-none flex items-center gap-2 md:gap-3 bg-white px-3 py-1.5 md:px-5 md:py-2.5 rounded-xl border shadow-sm overflow-hidden" 
+            style={{ borderColor: SOFT_BORDER }}
+          >
+            <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest opacity-40 text-black shrink-0">ID:</span>
+            
+            {/* FIX 5: Added 'truncate' class to cut off long IDs with ellipsis (...) */}
+            <span className="font-mono text-xs md:text-sm font-black text-black truncate">
+              {franchiseId}
+            </span>
           </div>
 
-          {/* 3. TITLE (Bottom Center on Mobile, Center on Desktop) */}
-          {/* Uses w-full to force a new line on mobile, order-3 to drop below */}
+          {/* 3. TITLE */}
           <div className="order-3 md:order-2 w-full md:w-auto text-center mt-6 md:mt-0">
-            <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter leading-none text-black">CENTRAL SETTINGS</h1>
-            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.4em] mt-2 md:mt-3 opacity-30 text-center text-black">ADMINISTRATION</p>
+            {/* FIX 6: Added break-words to ensure title breaks if screen is tiny */}
+            <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter leading-none text-black break-words">
+              CENTRAL SETTINGS
+            </h1>
+            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.4em] mt-2 md:mt-3 opacity-30 text-center text-black">
+              ADMINISTRATION
+            </p>
           </div>
 
         </div>
 
-        {/* RESPONSIVE GRID: 1 Col Mobile -> 2 Col Tablet -> 3 Col Desktop */}
+        {/* CONTENT GRID (Unchanged) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           
-          {/* 1. ACCESS KEY (Change Password) */}
+          {/* 1. ACCESS KEY */}
           <div className="bg-white rounded-[24px] md:rounded-[32px] border p-6 md:p-8 shadow-sm flex flex-col min-h-[300px] md:h-[340px]" style={{ borderColor: SOFT_BORDER }}>
             <div className="flex items-center gap-4 mb-4 md:mb-6">
                 <div className="p-2.5 md:p-3 rounded-xl bg-emerald-50" style={{ color: BRAND_GREEN }}>
@@ -116,7 +130,7 @@ function CentralSettings() {
             </button>
           </div>
 
-          {/* 2. INVOICE DESIGN (Navigation) */}
+          {/* 2. INVOICE DESIGN */}
           <button onClick={() => navigate("/central/invoice-design")} className="bg-white rounded-[24px] md:rounded-[32px] border p-6 md:p-10 shadow-sm flex flex-col justify-center items-center text-center transition-all hover:shadow-lg active:scale-95 group min-h-[260px] md:h-[340px]" style={{ borderColor: SOFT_BORDER }}>
             <div className="p-5 md:p-6 rounded-2xl bg-emerald-50 transition-all mb-4 md:mb-6 group-hover:scale-110" style={{ color: BRAND_GREEN }}>
               <Palette className="w-6 h-6 md:w-8 md:h-8" strokeWidth={2.5} />
@@ -125,7 +139,7 @@ function CentralSettings() {
             <p className="text-[10px] font-bold opacity-30 uppercase tracking-widest mt-2 text-black">Customize Layout</p>
           </button>
 
-          {/* 3. LOGOUT (Action) */}
+          {/* 3. LOGOUT */}
           <div className="bg-white rounded-[24px] md:rounded-[32px] border p-6 md:p-10 shadow-sm flex flex-col justify-center items-center text-center min-h-[260px] md:h-[340px]" style={{ borderColor: "rgba(225, 29, 72, 0.15)" }}>
             <div className="p-5 md:p-6 rounded-2xl bg-rose-50 text-rose-600 mb-4 md:mb-6">
               <LogOut className="w-6 h-6 md:w-8 md:h-8" strokeWidth={2.5} />
@@ -136,7 +150,7 @@ function CentralSettings() {
             <p className="text-[9px] font-black text-rose-600/40 uppercase tracking-widest mt-4">Sign out of account</p>
           </div>
 
-          {/* 4. SYSTEM LOGS (Coming Soon) */}
+          {/* 4. SYSTEM LOGS */}
           <div className="bg-slate-100/50 rounded-[24px] md:rounded-[32px] border border-dashed p-6 md:p-10 flex flex-col justify-center items-center text-center opacity-60 min-h-[200px] md:h-[340px]" style={{ borderColor: SOFT_BORDER }}>
             <div className="p-5 md:p-6 rounded-2xl bg-slate-200/50 text-slate-400 mb-4 md:mb-6">
               <Clock className="w-6 h-6 md:w-8 md:h-8" strokeWidth={2.5} />
@@ -145,7 +159,7 @@ function CentralSettings() {
             <p className="text-[10px] font-bold opacity-50 uppercase tracking-widest mt-2 text-slate-400">Coming Soon</p>
           </div>
 
-          {/* 5. ADVANCED CONFIG (Coming Soon) */}
+          {/* 5. ADVANCED CONFIG */}
           <div className="bg-slate-100/50 rounded-[24px] md:rounded-[32px] border border-dashed p-6 md:p-10 flex flex-col justify-center items-center text-center opacity-60 min-h-[200px] md:h-[340px]" style={{ borderColor: SOFT_BORDER }}>
             <div className="p-5 md:p-6 rounded-2xl bg-slate-200/50 text-slate-400 mb-4 md:mb-6">
               <Layers className="w-6 h-6 md:w-8 md:h-8" strokeWidth={2.5} />
@@ -154,7 +168,7 @@ function CentralSettings() {
             <p className="text-[10px] font-bold opacity-50 uppercase tracking-widest mt-2 text-slate-400">Coming Soon</p>
           </div>
 
-          {/* 6. DATA BACKUP (Coming Soon) */}
+          {/* 6. DATA BACKUP */}
           <div className="bg-slate-100/50 rounded-[24px] md:rounded-[32px] border border-dashed p-6 md:p-10 flex flex-col justify-center items-center text-center opacity-60 min-h-[200px] md:h-[340px]" style={{ borderColor: SOFT_BORDER }}>
             <div className="p-5 md:p-6 rounded-2xl bg-slate-200/50 text-slate-400 mb-4 md:mb-6">
               <Database className="w-6 h-6 md:w-8 md:h-8" strokeWidth={2.5} />
