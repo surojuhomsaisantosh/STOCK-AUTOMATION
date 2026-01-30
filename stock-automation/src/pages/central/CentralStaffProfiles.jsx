@@ -36,6 +36,11 @@ const CentralStaffProfiles = () => {
     name: "", staff_id: "", password: "", phone: "", email: "", address: "", aadhar_card: ""
   });
 
+  // --- FIX 1: SCROLL TO TOP ON MOUNT ---
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     fetchInitialData();
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -120,7 +125,6 @@ const CentralStaffProfiles = () => {
     if (!searchFranchiseId) return alert("No Franchise ID selected.");
     setSubmitting(true);
     
-    // ... (Validation logic same as before)
     if (!formData.password || (formData.password.length > 0 && formData.password.length < 8)) {
         if(!editingId || (editingId && formData.password.length > 0)) {
             alert("⚠️ Password must be at least 8 characters.");
@@ -204,7 +208,8 @@ const CentralStaffProfiles = () => {
   );
 
   return (
-    <div style={{...styles.page, padding: isMobile ? '16px' : '40px'}}>
+    // FIX 2: Increased padding to '30px 16px' on mobile for top spacing
+    <div style={{...styles.page, padding: isMobile ? '30px 16px' : '40px'}}>
       
       {/* === HEADER START === */}
       <div style={{
@@ -361,7 +366,7 @@ const CentralStaffProfiles = () => {
         </table>
       </div>
 
-      {/* MODAL (Unchanged Logic, just passed through) */}
+      {/* MODAL */}
       {isModalOpen && (
         <div style={styles.modalOverlay} onClick={closeModal}>
           <div style={{...styles.modalContent, width: isMobile ? '95%' : '600px', maxHeight: '90vh', overflowY: 'auto'}} onClick={e => e.stopPropagation()}>
@@ -378,7 +383,6 @@ const CentralStaffProfiles = () => {
                 Franchise: <strong>{searchFranchiseId}</strong>
             </div>
             <form onSubmit={handleSubmit} style={{...styles.formGrid, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr'}}>
-              {/* Form fields same as before... */}
               <div style={styles.inputGroup}><label style={styles.label}>Full Name *</label><input required style={styles.input} type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} /></div>
               <div style={styles.inputGroup}><label style={styles.label}>Staff ID *</label><input required style={styles.input} type="text" value={formData.staff_id} onChange={e => setFormData({...formData, staff_id: e.target.value})} /></div>
               <div style={styles.inputGroup}><label style={styles.label}>Password {editingId && "*"}</label><div style={{ position: 'relative' }}><input style={{ ...styles.input, width: '100%' }} type={showPassword ? "text" : "password"} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder={editingId ? "New password" : "Enter password"} /><button type="button" onClick={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></div>
@@ -395,7 +399,6 @@ const CentralStaffProfiles = () => {
   );
 };
 
-// UPDATED STYLES FOR ALIGNMENT
 const styles = {
   page: { background: BG_GRAY, minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: BLACK },
   headerRow: { display: 'flex', justifyContent: 'space-between', marginBottom: '24px' },
@@ -403,13 +406,10 @@ const styles = {
   mainHeading: { fontWeight: "900", margin: 0, letterSpacing: '-0.5px', color: BLACK },
   franchiseIdLabel: { fontWeight: '800', fontSize: '14px', letterSpacing: '0.5px', color: BLACK },
   
-  // Filter Card Fixed
   filterCard: { background: 'white', padding: '16px', borderRadius: '16px', border: `1px solid ${BORDER}`, marginBottom: '24px' },
   filterForm: { display: 'flex' },
   filterLabel: { fontWeight: '700', fontSize: '14px', color: '#374151' },
-  // FIX: Explicit height on input to match button
   filterInput: { padding: '0 16px', borderRadius: '10px', border: `2px solid ${BORDER}`, fontSize: '14px', outline: 'none', fontWeight: '600', color: BLACK, height: '46px', boxSizing: 'border-box' },
-  // FIX: Explicit height on button + flex alignment
   fetchBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '0 20px', background: BLACK, color: 'white', borderRadius: '10px', fontWeight: '700', border: 'none', cursor: 'pointer', height: '46px', whiteSpace: 'nowrap' },
 
   actionRow: { display: 'flex', gap: '15px', marginBottom: '24px', alignItems: 'center' },
