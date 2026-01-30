@@ -23,6 +23,11 @@ function CentralDashboard() {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
   });
 
+  // --- FIX: SCROLL TO TOP ON MOUNT ---
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener("resize", handleResize);
@@ -57,7 +62,9 @@ function CentralDashboard() {
 
   return (
     <div style={styles.page}>
+      {/* Global Style Reset for this Component */}
       <style>{`
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         .dashboard-card { transition: all 0.2s ease-in-out; }
         .dashboard-card:active { transform: scale(0.98); background-color: #f3f4f6; }
         
@@ -68,12 +75,14 @@ function CentralDashboard() {
             box-shadow: 0 12px 20px -5px rgba(0,0,0,0.05) !important;
           }
         }
+        /* Hide scrollbar but keep functionality */
         .grid-scroll-area::-webkit-scrollbar { width: 0px; background: transparent; }
       `}</style>
 
       <div style={{
           ...styles.container,
-          padding: isMobile ? "20px 16px" : "40px 40px"
+          // Adjusted padding to be safer on mobile devices
+          padding: isMobile ? "32px 20px" : "50px 40px"
       }}>
         <header style={{
             ...styles.header,
@@ -84,7 +93,12 @@ function CentralDashboard() {
           {/* LEFT SIDE */}
           <div style={styles.headerLeft}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <h1 style={{ ...styles.mainTitle, fontSize: isMobile ? '22px' : '48px' }}>
+              <h1 style={{ 
+                  ...styles.mainTitle, 
+                  fontSize: isMobile ? '22px' : '48px',
+                  // Added Left Margin for Mobile Breathing Room
+                  marginLeft: isMobile ? '4px' : '0' 
+              }}>
                 Central <span style={{ color: PRIMARY }}>Dashboard</span>
               </h1>
             </div>
@@ -108,7 +122,6 @@ function CentralDashboard() {
               </span>
             </div>
             
-            {/* UPDATED: Date is now shown on mobile too */}
             <div style={styles.dateRow}>
               <Calendar size={isMobile ? 12 : 14} style={{ color: PRIMARY, opacity: 0.8 }} />
               <span style={{
@@ -170,12 +183,12 @@ const styles = {
   page: { 
     background: BACKGROUND, 
     minHeight: "100vh", 
-    width: '100vw', 
+    width: '100%',  // Changed from 100vw to prevent horizontal scrollbars
     fontFamily: '"Inter", sans-serif', 
     color: "#111827", 
     display: 'flex', 
     flexDirection: 'column', 
-    boxSizing: 'border-box'
+    overflowX: 'hidden' // Critical for preventing cut-off content
   },
   container: { 
     maxWidth: "1400px", 
@@ -183,8 +196,7 @@ const styles = {
     margin: "0 auto", 
     display: 'flex', 
     flexDirection: 'column', 
-    flex: 1,
-    boxSizing: 'border-box' 
+    flex: 1
   },
   header: { 
     display: "flex", 
@@ -224,7 +236,6 @@ const styles = {
     background: "#fff", 
     border: `1px solid ${BORDER}`, 
     cursor: "pointer", 
-    boxSizing: 'border-box', 
     boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.02)",
     position: 'relative'
   },
