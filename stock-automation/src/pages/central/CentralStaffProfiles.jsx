@@ -222,16 +222,49 @@ const CentralStaffProfiles = () => {
 
   return (
     <div style={{...styles.page, padding: isMobile ? '20px' : '40px'}}>
-      {/* HEADER */}
-      <div style={{...styles.headerRow, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', gap: '15px'}}>
-        <button onClick={() => navigate(-1)} style={styles.backBtn}>
-          <ArrowLeft size={18} /> Back
-        </button>
-        <h1 style={{...styles.mainHeading, fontSize: isMobile ? '22px' : '28px'}}>Central Staff Profiles</h1>
-        <div style={styles.franchiseIdLabel}>
-          Franchise ID : <span style={{ color: PRIMARY }}>{loggedInFranchiseId}</span>
-        </div>
+      
+      {/* === HEADER START === */}
+      <div style={{
+        ...styles.headerRow, 
+        flexDirection: isMobile ? 'column' : 'row', 
+        alignItems: isMobile ? 'center' : 'center', 
+        gap: isMobile ? '12px' : '0'
+      }}>
+        
+        {/* MOBILE: Top Row with Back + ID */}
+        {isMobile ? (
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button onClick={() => navigate(-1)} style={styles.backBtn}>
+                    <ArrowLeft size={18} /> Back
+                </button>
+                <div style={styles.franchiseIdLabel}>
+                    ID : <span style={{ color: PRIMARY }}>{loggedInFranchiseId}</span>
+                </div>
+            </div>
+        ) : (
+            // DESKTOP: Back button (Left)
+            <button onClick={() => navigate(-1)} style={styles.backBtn}>
+                <ArrowLeft size={18} /> Back
+            </button>
+        )}
+
+        {/* HEADING (Centered on Mobile) */}
+        <h1 style={{
+            ...styles.mainHeading, 
+            fontSize: isMobile ? '22px' : '28px', 
+            textAlign: isMobile ? 'center' : 'left'
+        }}>
+            Central Staff Profiles
+        </h1>
+
+        {/* DESKTOP: ID (Right) - Only show if NOT mobile */}
+        {!isMobile && (
+            <div style={styles.franchiseIdLabel}>
+                ID : <span style={{ color: PRIMARY }}>{loggedInFranchiseId}</span>
+            </div>
+        )}
       </div>
+      {/* === HEADER END === */}
 
       {/* FILTER */}
       <div style={styles.filterCard}>
