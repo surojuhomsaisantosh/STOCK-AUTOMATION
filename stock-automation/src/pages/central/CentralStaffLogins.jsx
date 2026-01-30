@@ -182,7 +182,7 @@ const CentralStaffLogins = () => {
       
       if (isMobile) {
           return (
-              <div style={{marginBottom: '24px'}}>
+              <div style={{marginBottom: '20px'}}>
                   {/* Row 1: Back + ID */}
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
                       <button onClick={() => navigate(-1)} style={styles.backBtn}>
@@ -217,7 +217,8 @@ const CentralStaffLogins = () => {
   };
 
   return (
-    <div style={{...styles.page, padding: isMobile ? '16px' : '30px 40px'}}>
+    // FIX: Increased top padding for mobile (24px 16px)
+    <div style={{...styles.page, padding: isMobile ? '24px 16px' : '30px 40px'}}>
       
       <HeaderSection />
 
@@ -242,25 +243,73 @@ const CentralStaffLogins = () => {
         <div style={{
             ...styles.filterGroup, 
             width: isMobile ? '100%' : 'auto',
-            justifyContent: isMobile ? 'space-between' : 'flex-end'
+            justifyContent: isMobile ? 'space-between' : 'flex-end',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'stretch' : 'center'
         }}>
-          {/* Toggle Type */}
-          <div style={styles.toggleContainer}>
-             <button style={filterType === 'date' ? styles.toggleBtnActive : styles.toggleBtn} onClick={() => setFilterType('date')}>Date</button>
-             <button style={filterType === 'range' ? styles.toggleBtnActive : styles.toggleBtn} onClick={() => setFilterType('range')}>Range</button>
+          {/* Toggle Type - Full Width Segmented Control on Mobile */}
+          <div style={{
+              ...styles.toggleContainer, 
+              width: isMobile ? '100%' : 'auto',
+              display: 'flex'
+          }}>
+             <button 
+                style={{
+                    ...(filterType === 'date' ? styles.toggleBtnActive : styles.toggleBtn),
+                    flex: 1, 
+                    textAlign: 'center'
+                }} 
+                onClick={() => setFilterType('date')}
+             >
+                Date
+             </button>
+             <button 
+                style={{
+                    ...(filterType === 'range' ? styles.toggleBtnActive : styles.toggleBtn),
+                    flex: 1, 
+                    textAlign: 'center'
+                }} 
+                onClick={() => setFilterType('range')}
+             >
+                Range
+             </button>
           </div>
           
           {/* Inputs */}
-          <div style={{display: 'flex', gap: '8px', alignItems: 'center', flex: 1, justifyContent: 'flex-end'}}>
+          <div style={{
+              display: 'flex', 
+              gap: '8px', 
+              alignItems: 'center', 
+              width: isMobile ? '100%' : 'auto', 
+              justifyContent: isMobile ? 'space-between' : 'flex-end'
+          }}>
               {filterType === 'date' ? (
-                <input type="date" style={styles.dateInput} value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+                // Single Date Input
+                <input 
+                    type="date" 
+                    style={{...styles.dateInput, width: '100%'}} 
+                    value={selectedDate} 
+                    onChange={(e) => setSelectedDate(e.target.value)} 
+                />
               ) : (
+                // Range Inputs - Flex 1 to share space + minWidth 0
                 <>
-                  <input type="date" style={styles.dateInput} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                  <span style={{color:'#94a3b8'}}>-</span>
-                  <input type="date" style={styles.dateInput} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                  <input 
+                    type="date" 
+                    style={{...styles.dateInput, flex: 1, minWidth: 0}} 
+                    value={startDate} 
+                    onChange={(e) => setStartDate(e.target.value)} 
+                  />
+                  <span style={{color:'#94a3b8', flexShrink: 0}}>-</span>
+                  <input 
+                    type="date" 
+                    style={{...styles.dateInput, flex: 1, minWidth: 0}} 
+                    value={endDate} 
+                    onChange={(e) => setEndDate(e.target.value)} 
+                  />
                 </>
               )}
+              {/* Refresh Button */}
               <button onClick={() => fetchLogs(franchiseId, targetUserId)} style={styles.refreshBtn} disabled={isRefreshing}>
                 <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
               </button>
@@ -284,7 +333,7 @@ const CentralStaffLogins = () => {
         </div>
       </div>
 
-      {/* 4. DATA DISPLAY (Cards for Mobile, Table for Desktop) */}
+      {/* 4. DATA DISPLAY */}
       {loading ? (
            <div style={{padding:'60px', textAlign:'center'}}>
                <Loader2 className="animate-spin" size={32} style={{margin:'0 auto', color: THEME_GREEN}} />
@@ -298,7 +347,7 @@ const CentralStaffLogins = () => {
                        const { name, id } = getStaffDetails(log);
                        return (
                            <div key={log.id} style={styles.mobileCard}>
-                               {/* Card Header: Date & Status */}
+                               {/* Card Header */}
                                <div style={styles.mobileCardHeader}>
                                    <div style={{display:'flex', alignItems:'center', gap:'6px', fontSize:'12px', fontWeight:'600', color:'#64748b'}}>
                                        <Calendar size={14} /> {new Date(log.login_at).toLocaleDateString('en-GB')}
@@ -309,8 +358,7 @@ const CentralStaffLogins = () => {
                                        <span style={styles.badgeActive}>Active Now</span>
                                    )}
                                </div>
-                               
-                               {/* Card Body: User Info */}
+                               {/* Card Body */}
                                <div style={styles.mobileCardBody}>
                                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
                                        <div>
@@ -323,8 +371,6 @@ const CentralStaffLogins = () => {
                                            </button>
                                        )}
                                    </div>
-
-                                   {/* Time Grid */}
                                    <div style={styles.mobileTimeGrid}>
                                        <div style={styles.mobileTimeItem}>
                                            <span style={styles.mobileTimeLabel}><LogIn size={10} /> Login</span>
@@ -398,24 +444,22 @@ const CentralStaffLogins = () => {
 };
 
 const styles = {
-  page: { background: BG_GRAY, minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: TEXT_DARK, boxSizing: 'border-box' },
-  // Common Buttons & Badges
+  page: { background: BG_GRAY, minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: TEXT_DARK, boxSizing: 'border-box', overflowX: 'hidden' },
   backBtn: { display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', fontSize: '14px', fontWeight: '700', color: TEXT_DARK, cursor: 'pointer', padding: 0 },
   pageTitle: { margin: 0, fontWeight: '900', color: TEXT_DARK, textTransform: 'uppercase', letterSpacing: '-0.5px' },
   franchiseBadge: { display: 'inline-block', padding: '6px 12px', background: '#e2e8f0', borderRadius: '8px', fontSize: '12px', fontWeight: '700', color: '#475569' },
   
-  // Controls
   controlsRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
   searchContainer: { display: 'flex', alignItems: 'center', gap: '10px', background: 'white', border: `1px solid ${BORDER_COLOR}`, borderRadius: '10px', padding: '10px 15px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', boxSizing: 'border-box' },
   searchInput: { border: 'none', outline: 'none', fontSize: '14px', width: '100%', color: TEXT_DARK, background: 'transparent' },
   filterGroup: { display: 'flex', alignItems: 'center', gap: '12px' },
-  toggleContainer: { display: 'flex', background: '#e2e8f0', padding: '4px', borderRadius: '8px' },
-  toggleBtn: { padding: '6px 12px', border: 'none', background: 'transparent', fontSize: '13px', fontWeight: '600', color: '#64748b', cursor: 'pointer', borderRadius: '6px' },
-  toggleBtnActive: { padding: '6px 12px', border: 'none', background: 'white', fontSize: '13px', fontWeight: '700', color: THEME_GREEN, cursor: 'pointer', borderRadius: '6px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
-  dateInput: { padding: '8px', borderRadius: '8px', border: `1px solid ${BORDER_COLOR}`, outline: 'none', fontSize: '13px', color: TEXT_DARK, fontWeight: '600', background:'white', maxWidth: '130px' },
+  toggleContainer: { background: '#e2e8f0', padding: '4px', borderRadius: '8px' },
+  toggleBtn: { padding: '8px 12px', border: 'none', background: 'transparent', fontSize: '13px', fontWeight: '600', color: '#64748b', cursor: 'pointer', borderRadius: '6px' },
+  toggleBtnActive: { padding: '8px 12px', border: 'none', background: 'white', fontSize: '13px', fontWeight: '700', color: THEME_GREEN, cursor: 'pointer', borderRadius: '6px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
+  
+  dateInput: { padding: '8px', borderRadius: '8px', border: `1px solid ${BORDER_COLOR}`, outline: 'none', fontSize: '13px', color: TEXT_DARK, fontWeight: '600', background:'white' },
   refreshBtn: { width: '36px', height: '36px', borderRadius: '8px', background: THEME_GREEN, color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   
-  // Stats
   statsRow: { display: 'flex', gap: '16px', marginBottom: '24px' },
   statCard: { minWidth: '0', background: 'white', padding: '16px', borderRadius: '16px', border: `1px solid ${BORDER_COLOR}`, display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 4px -1px rgba(0,0,0,0.03)' },
   statIconBox: { width: '40px', height: '40px', borderRadius: '10px', background: THEME_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
@@ -423,7 +467,6 @@ const styles = {
   statValue: { fontSize: '18px', fontWeight: '800', color: TEXT_DARK, lineHeight: 1 },
   statSub: { fontSize: '10px', color: '#94a3b8', marginTop: '2px' },
   
-  // Table (Desktop)
   tableCard: { background: 'white', borderRadius: '16px', border: `1px solid ${BORDER_COLOR}`, overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
   th: { padding: '16px 20px', background: THEME_GREEN, color: 'white', fontSize: '11px', fontWeight: '700', letterSpacing: '0.5px' },
@@ -431,7 +474,6 @@ const styles = {
   td: { padding: '16px 20px', fontSize: '14px', color: '#475569', fontWeight: '500' },
   monoBadge: { fontFamily: 'monospace', background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', color: TEXT_DARK, border: '1px solid #e2e8f0' },
   
-  // Mobile Cards
   mobileCard: { background: 'white', borderRadius: '12px', border: `1px solid ${BORDER_COLOR}`, overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' },
   mobileCardHeader: { padding: '12px', background: '#f8fafc', borderBottom: `1px solid ${BORDER_COLOR}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   mobileCardBody: { padding: '16px' },
