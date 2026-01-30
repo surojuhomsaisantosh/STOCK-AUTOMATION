@@ -1,29 +1,31 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  ArrowLeft, Search, Plus, Calendar, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight 
+import {
+  ArrowLeft, Search, Plus, Calendar, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight, User, Phone, ChevronDown
 } from "lucide-react";
-import { createClient } from "@supabase/supabase-js"; 
+import { createClient } from "@supabase/supabase-js";
 import { supabase } from "../../supabase/supabaseClient";
 
 const PRIMARY = "#065f46";
 const BORDER = "#e5e7eb";
-const BLACK = "#000000"; 
+const BLACK = "#000000";
 
 const CentralStaffProfiles = () => {
   const navigate = useNavigate();
   const [profiles, setProfiles] = useState([]);
-  
+
   // STATE: Header & Search
   const [loggedInFranchiseId, setLoggedInFranchiseId] = useState("");
-  const [searchFranchiseId, setSearchFranchiseId] = useState(""); 
-  
+  const [searchFranchiseId, setSearchFranchiseId] = useState("");
+
   const [searchTerm, setSearchTerm] = useState("");
-  const [companyName, setCompanyName] = useState(""); 
+  const [companyName, setCompanyName] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [expandedId, setExpandedId] = useState(null);
+
   const [editingId, setEditingId] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -32,7 +34,10 @@ const CentralStaffProfiles = () => {
   });
 
   useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
     fetchInitialData();
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const fetchInitialData = async () => {
@@ -52,7 +57,7 @@ const CentralStaffProfiles = () => {
         setLoggedInFranchiseId(ownerProfile.franchise_id || "CENTRAL");
         setSearchFranchiseId(ownerProfile.franchise_id || "");
         if (ownerProfile.franchise_id) {
-            await fetchStaffProfiles(ownerProfile.franchise_id);
+          await fetchStaffProfiles(ownerProfile.franchise_id);
         }
       }
     } catch (err) {
@@ -69,11 +74,11 @@ const CentralStaffProfiles = () => {
   const fetchStaffProfiles = async (fid) => {
     setLoading(true);
     const { data: franchiseData } = await supabase
-        .from('profiles')
-        .select('company')
-        .eq('franchise_id', fid)
-        .maybeSingle();
-    
+      .from('profiles')
+      .select('company')
+      .eq('franchise_id', fid)
+      .maybeSingle();
+
     setCompanyName(franchiseData ? franchiseData.company : "Unknown Franchise");
 
     const { data, error } = await supabase
@@ -92,7 +97,7 @@ const CentralStaffProfiles = () => {
     setFormData({
       name: profile.name,
       staff_id: profile.staff_id,
-      password: "", // Always start empty
+      password: "",
       phone: profile.phone,
       email: profile.email || "",
       address: profile.address || "",
@@ -110,32 +115,24 @@ const CentralStaffProfiles = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!searchFranchiseId) return alert("No Franchise ID selected.");
-    
     setSubmitting(true);
 
-    // --- VALIDATION LOGIC START ---
     if (editingId) {
-        // EDIT MODE: If they typed something, it MUST be >= 8 chars
-        if (formData.password && formData.password.length > 0 && formData.password.length < 8) {
-            alert("⚠️ Password too short! It must be at least 8 characters.");
-            setSubmitting(false);
-            return;
-        }
+      if (formData.password && formData.password.length > 0 && formData.password.length < 8) {
+        alert("⚠️ Password too short! It must be at least 8 characters.");
+        setSubmitting(false);
+        return;
+      }
     } else {
-        // CREATE MODE: Password is REQUIRED and MUST be >= 8 chars
-        if (!formData.password || formData.password.length < 8) {
-            alert("⚠️ Password is required and must be at least 8 characters.");
-            setSubmitting(false);
-            return;
-        }
+      if (!formData.password || formData.password.length < 8) {
+        alert("⚠️ Password is required and must be at least 8 characters.");
+        setSubmitting(false);
+        return;
+      }
     }
-    // --- VALIDATION LOGIC END ---
 
     try {
       if (editingId) {
-        // --- UPDATE MODE ---
-
-        // 1. Update Details
         const { error: profileError } = await supabase
           .from('staff_profiles')
           .update({
@@ -150,287 +147,214 @@ const CentralStaffProfiles = () => {
 
         if (profileError) throw profileError;
 
-        // 2. Update Password (ONLY if typed)
         if (formData.password && formData.password.trim() !== "") {
-            const { error: passwordError } = await supabase.rpc('update_staff_password', {
-                target_user_id: editingId,
-                new_password: formData.password
-            });
-
-            if (passwordError) {
-                console.error("Password Update Failed:", passwordError);
-                alert("⚠️ Profile updated, but Password failed to reset. (Check Database RPC)");
-            } else {
-                alert("✅ Profile updated and Password successfully reset!");
-            }
+          const { error: passwordError } = await supabase.rpc('update_staff_password', {
+            target_user_id: editingId,
+            new_password: formData.password
+          });
+          if (passwordError) alert("⚠️ Profile updated, but Password failed to reset.");
+          else alert("✅ Profile updated and Password reset!");
         } else {
-            alert("✅ Profile updated successfully!");
+          alert("✅ Profile updated successfully!");
         }
-        
         fetchStaffProfiles(searchFranchiseId);
-
       } else {
-        // --- CREATE MODE ---
         const loginEmail = formData.email || `${formData.staff_id}@${searchFranchiseId.toLowerCase()}.com`;
-        
-        const tempSupabase = createClient(supabase.supabaseUrl, supabase.supabaseKey, {
-          auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-        });
-
-        const { data: authData, error: authError } = await tempSupabase.auth.signUp({
-          email: loginEmail,
-          password: formData.password,
-        });
-
+        const tempSupabase = createClient(supabase.supabaseUrl, supabase.supabaseKey, { auth: { persistSession: false } });
+        const { data: authData, error: authError } = await tempSupabase.auth.signUp({ email: loginEmail, password: formData.password });
         if (authError) throw authError;
-
         const { password, ...dbPayload } = formData;
-        const { error: dbError } = await supabase
-          .from('staff_profiles')
-          .insert([{
-            ...dbPayload,
-            id: authData.user.id,
-            franchise_id: searchFranchiseId, 
-            email: loginEmail 
-          }]);
-
-        if (dbError) throw dbError;
+        await supabase.from('staff_profiles').insert([{ ...dbPayload, id: authData.user.id, franchise_id: searchFranchiseId, email: loginEmail }]);
         alert("Staff created successfully!");
         fetchStaffProfiles(searchFranchiseId);
       }
       closeModal();
-      
-    } catch (err) {
-      alert("Error: " + err.message);
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (err) { alert("Error: " + err.message); } finally { setSubmitting(false); }
   };
 
   const handleDelete = async (id) => {
     if (window.confirm("⚠️ Are you sure? This will wipe the user AND all their data.")) {
       try {
         const { error } = await supabase.rpc('delete_staff_user', { target_id: id });
-        if (error) {
-           alert("❌ Delete Failed: " + error.message);
-           return;
-        }
+        if (error) throw error;
         alert("✅ Deleted successfully.");
         setProfiles(prev => prev.filter(p => p.id !== id));
-      } catch (err) {
-        alert("System Error: " + err.message);
-      }
+      } catch (err) { alert("System Error: " + err.message); }
     }
   };
 
-  const filteredProfiles = profiles.filter(p => 
-    p.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredProfiles = profiles.filter(p =>
+    p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.staff_id?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div style={styles.page}>
+    <div style={{ ...styles.page, padding: isMobile ? "15px" : "40px" }}>
       {/* HEADER */}
-      <div style={styles.headerRow}>
+      <div style={{ ...styles.headerRow, flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "center", gap: isMobile ? "15px" : "0" }}>
         <button onClick={() => navigate(-1)} style={styles.backBtn}>
           <ArrowLeft size={18} /> Back
         </button>
-        <h1 style={styles.mainHeading}>Central Staff Profiles</h1>
-        
-        <div style={styles.franchiseIdLabel}>
-          Franchise ID : <span style={{ color: PRIMARY }}>{loggedInFranchiseId}</span>
+        <h1 style={{ ...styles.mainHeading, fontSize: isMobile ? "22px" : "28px" }}>Central Staff</h1>
+        <div style={{ ...styles.franchiseIdLabel, width: isMobile ? "100%" : "auto", textAlign: "center" }}>
+          Franchise : <span style={{ color: PRIMARY }}>{loggedInFranchiseId}</span>
         </div>
       </div>
 
-      {/* FILTER */}
+      {/* FILTER SEARCH AREA */}
       <div style={styles.filterCard}>
-        <form onSubmit={handleFranchiseFetch} style={styles.filterForm}>
-            <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-                <Building2 size={20} color={PRIMARY} />
-                <span style={styles.filterLabel}>Target Franchise ID:</span>
-            </div>
-            <div style={{display: 'flex', gap: '10px', flex: 1}}>
-                <input 
-                    type="text" 
-                    placeholder="Enter Franchise ID (e.g., HYD001)" 
-                    value={searchFranchiseId}
-                    onChange={(e) => setSearchFranchiseId(e.target.value.toUpperCase())}
-                    style={styles.filterInput}
-                />
-                <button type="submit" style={styles.fetchBtn}>
-                    Load Profiles <ChevronRight size={16} />
-                </button>
-            </div>
+        <form onSubmit={handleFranchiseFetch} style={{ ...styles.filterForm, flexDirection: isMobile ? "column" : "row" }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Building2 size={20} color={PRIMARY} />
+            <span style={styles.filterLabel}>Target Franchise:</span>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', width: "100%", flex: 1 }}>
+            <input
+              type="text"
+              placeholder="Franchise ID (e.g., HYD001)"
+              value={searchFranchiseId}
+              onChange={(e) => setSearchFranchiseId(e.target.value.toUpperCase())}
+              style={{ ...styles.filterInput, flex: 1 }}
+            />
+            <button type="submit" style={styles.fetchBtn}>
+              {isMobile ? "LOAD" : "Load Profiles"}
+            </button>
+          </div>
         </form>
       </div>
 
-      {/* ACTIONS */}
-      <div style={styles.actionRow}>
-        <div style={styles.searchContainer}>
+      {/* SEARCH AND ADD ACTION ROW */}
+      <div style={{ ...styles.actionRow, flexDirection: isMobile ? "column" : "row" }}>
+        <div style={{ ...styles.searchContainer, width: "100%" }}>
           <Search size={18} style={styles.searchIcon} />
-          <input 
-            type="text" 
-            placeholder="Search loaded staff..." 
+          <input
+            type="text"
+            placeholder="Search loaded staff..."
             style={styles.searchInput}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        
-        <div style={styles.dateBtn}>
-          <Calendar size={18} />
-          {new Date().toLocaleDateString('en-GB')}
-        </div>
 
-        <button style={styles.addBtn} onClick={() => {
-            if(!searchFranchiseId) alert("Please enter and load a Franchise ID first.");
+        <div style={{ display: 'flex', width: isMobile ? "100%" : "auto", gap: "10px" }}>
+          {!isMobile && (
+            <div style={styles.dateBtn}>
+              <Calendar size={18} />
+              {new Date().toLocaleDateString('en-GB')}
+            </div>
+          )}
+          <button style={{ ...styles.addBtn, flex: isMobile ? 1 : "none" }} onClick={() => {
+            if (!searchFranchiseId) alert("Load a Franchise ID first.");
             else setIsModalOpen(true);
-        }}>
-          <Plus size={18} /> Add New User
-        </button>
+          }}>
+            <Plus size={18} /> {isMobile ? "ADD" : "Add New User"}
+          </button>
+        </div>
       </div>
 
-      {/* TABLE */}
-      <div style={styles.tableContainer}>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>S.NO</th>
-              <th style={styles.th}>COMPANY NAME</th>
-              <th style={styles.th}>STAFF NAME</th>
-              <th style={styles.th}>STAFF ID</th>
-              <th style={styles.th}>PHONE NUMBER</th>
-              <th style={{ ...styles.th, textAlign: 'center' }}>ACTION</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
+      {/* DATA VIEW: TABLE OR CARDS */}
+      {isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '30px' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '40px' }}><Loader2 className="animate-spin" color={PRIMARY} /></div>
+          ) : filteredProfiles.length > 0 ? (
+            filteredProfiles.map((p) => (
+              <div key={p.id} style={styles.mobileCard}>
+                <div onClick={() => setExpandedId(expandedId === p.id ? null : p.id)} style={styles.cardHeader}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={styles.cardAvatar}><User size={20} /></div>
+                    <div>
+                      <div style={{ fontWeight: '800', fontSize: '15px' }}>{p.name}</div>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>ID: {p.staff_id}</div>
+                    </div>
+                  </div>
+                  {expandedId === p.id ? <ChevronDown size={18} /> : <ChevronRight size={18} opacity={0.3} />}
+                </div>
+                {expandedId === p.id && (
+                  <div style={styles.cardBody}>
+                    <div style={styles.cardInfoRow}><Phone size={12} /> {p.phone}</div>
+                    <div style={styles.cardInfoRow}><Building2 size={12} /> {companyName}</div>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '15px', borderTop: `1px solid ${BORDER}`, paddingTop: '15px' }}>
+                      <button onClick={() => navigate('/central/staff-logins', { state: { targetUserId: p.id, targetName: p.name, franchiseId: searchFranchiseId } })} style={{ ...styles.cardActionBtn, color: '#2563eb', background: '#eff6ff' }}><Clock size={16} /> LOGS</button>
+                      <button onClick={() => handleOpenEdit(p)} style={{ ...styles.cardActionBtn, color: PRIMARY, background: `${PRIMARY}10` }}><Edit2 size={16} /> EDIT</button>
+                      <button onClick={() => handleDelete(p.id)} style={{ ...styles.cardActionBtn, color: '#ef4444', background: '#fef2f2' }}><Trash2 size={16} /></button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          ) : (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>No profiles loaded.</div>
+          )}
+        </div>
+      ) : (
+        <div style={styles.tableContainer}>
+          <table style={styles.table}>
+            <thead>
               <tr>
-                <td colSpan="6" style={{ ...styles.td, textAlign: 'center', padding: '40px' }}>
-                  <Loader2 className="animate-spin" style={{ margin: '0 auto', color: PRIMARY }} />
-                </td>
+                <th style={styles.th}>S.NO</th>
+                <th style={styles.th}>COMPANY NAME</th>
+                <th style={styles.th}>STAFF NAME</th>
+                <th style={styles.th}>STAFF ID</th>
+                <th style={styles.th}>PHONE NUMBER</th>
+                <th style={{ ...styles.th, textAlign: 'center' }}>ACTION</th>
               </tr>
-            ) : filteredProfiles.length > 0 ? (
-              filteredProfiles.map((profile, index) => (
-                <tr 
-                  key={profile.id} 
-                  style={{ 
-                    ...styles.tr, 
-                    backgroundColor: editingId === profile.id ? "rgba(6, 95, 70, 0.05)" : "transparent",
-                    borderLeft: editingId === profile.id ? `4px solid ${PRIMARY}` : "4px solid transparent"
-                  }}
-                >
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan="6" style={{ ...styles.td, textAlign: 'center' }}><Loader2 className="animate-spin" style={{ margin: '0 auto' }} /></td></tr>
+              ) : filteredProfiles.map((profile, index) => (
+                <tr key={profile.id} style={{ ...styles.tr, backgroundColor: editingId === profile.id ? "rgba(6, 95, 70, 0.05)" : "transparent" }}>
                   <td style={styles.td}>{index + 1}</td>
                   <td style={styles.td}>{companyName}</td>
                   <td style={styles.td}>{profile.name}</td>
                   <td style={styles.td}>{profile.staff_id}</td>
                   <td style={styles.td}>{profile.phone}</td>
                   <td style={styles.actionTd}>
-                    <button 
-                      onClick={() => navigate('/central/staff-logins', { 
-                        state: { 
-                            targetUserId: profile.id, 
-                            targetName: profile.name,
-                            franchiseId: searchFranchiseId
-                        } 
-                      })} 
-                      style={styles.timeBtn} 
-                      title="View Logins"
-                    >
-                      <Clock size={16} />
-                    </button>
-                    <button onClick={() => handleOpenEdit(profile)} style={styles.editBtn} title="Edit">
-                      <Edit2 size={16} />
-                    </button>
-                    <button onClick={() => handleDelete(profile.id)} style={styles.deleteBtn} title="Delete">
-                      <Trash2 size={16} />
-                    </button>
+                    <button onClick={() => navigate('/central/staff-logins', { state: { targetUserId: profile.id, targetName: profile.name, franchiseId: searchFranchiseId } })} style={styles.timeBtn}><Clock size={16} /></button>
+                    <button onClick={() => handleOpenEdit(profile)} style={styles.editBtn}><Edit2 size={16} /></button>
+                    <button onClick={() => handleDelete(profile.id)} style={styles.deleteBtn}><Trash2 size={16} /></button>
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                  <td colSpan="6" style={{...styles.td, textAlign: 'center', color: '#6b7280'}}>
-                    {searchFranchiseId ? "No staff found for this franchise." : "Enter a Franchise ID above to view staff."}
-                  </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* MODAL */}
       {isModalOpen && (
         <div style={styles.modalOverlay} onClick={closeModal}>
-          <div style={styles.modalContent} onClick={e => e.stopPropagation()}>
+          <div style={{ ...styles.modalContent, width: isMobile ? "95%" : "600px", height: isMobile ? "90vh" : "auto", overflowY: isMobile ? "auto" : "visible" }} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <UserPlus color={PRIMARY} />
-                <h2 style={{ margin: 0, fontWeight: '800', color: BLACK }}>
-                  {editingId ? "Edit Staff Details" : "Create Staff Account"}
+                <h2 style={{ margin: 0, fontWeight: '800', color: BLACK, fontSize: isMobile ? "18px" : "24px" }}>
+                  {editingId ? "Edit Staff" : "Add Staff"}
                 </h2>
               </div>
               <button onClick={closeModal} style={styles.closeBtn}><X size={24} /></button>
             </div>
-            
-            <div style={styles.franchiseContextBox}>
-                Adding user to Franchise: <strong>{searchFranchiseId}</strong>
-            </div>
-
-            <form onSubmit={handleSubmit} style={styles.formGrid}>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Full Name *</label>
-                <input required style={styles.input} type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-              </div>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Staff ID *</label>
-                <input required style={styles.input} type="text" value={formData.staff_id} onChange={e => setFormData({...formData, staff_id: e.target.value})} />
-              </div>
-              
-              {/* --- PASSWORD FIELD: Cleaned up & Validated --- */}
+            <form onSubmit={handleSubmit} style={{ ...styles.formGrid, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
+              <div style={styles.inputGroup}><label style={styles.label}>Full Name *</label><input required style={styles.input} type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} /></div>
+              <div style={styles.inputGroup}><label style={styles.label}>Staff ID *</label><input required style={styles.input} type="text" value={formData.staff_id} onChange={e => setFormData({ ...formData, staff_id: e.target.value })} /></div>
               <div style={styles.inputGroup}>
                 <label style={styles.label}>Password {editingId && "*"}</label>
                 <div style={{ position: 'relative' }}>
-                  <input 
-                    // No 'required' attribute here, handled in handleSubmit validation
-                    style={{ ...styles.input, width: '100%' }} 
-                    type={showPassword ? "text" : "password"} 
-                    value={formData.password} 
-                    onChange={e => setFormData({...formData, password: e.target.value})}
-                    placeholder={editingId ? "Enter new password" : "Enter password"}
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowPassword(!showPassword)} 
-                    style={styles.eyeBtn}
-                  >
-                    {showPassword ? <EyeOff size={18} color={BLACK} /> : <Eye size={18} color={BLACK} />}
-                  </button>
+                  <input style={{ ...styles.input, width: '100%' }} type={showPassword ? "text" : "password"} value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
                 </div>
               </div>
-
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Phone Number *</label>
-                <input required style={styles.input} type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
-              </div>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Email</label>
-                <input style={styles.input} type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-              </div>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Aadhar Card</label>
-                <input style={styles.input} type="text" value={formData.aadhar_card} onChange={e => setFormData({...formData, aadhar_card: e.target.value})} />
-              </div>
-              <div style={{ ...styles.inputGroup, gridColumn: 'span 2' }}>
+              <div style={styles.inputGroup}><label style={styles.label}>Phone Number *</label><input required style={styles.input} type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} /></div>
+              <div style={styles.inputGroup}><label style={styles.label}>Email</label><input style={styles.input} type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} /></div>
+              <div style={styles.inputGroup}><label style={styles.label}>Aadhar Card</label><input style={styles.input} type="text" value={formData.aadhar_card} onChange={e => setFormData({ ...formData, aadhar_card: e.target.value })} /></div>
+              <div style={{ ...styles.inputGroup, gridColumn: isMobile ? 'span 1' : 'span 2' }}>
                 <label style={styles.label}>Address</label>
-                <textarea style={{ ...styles.input, height: '80px', resize: 'none' }} value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+                <textarea style={{ ...styles.input, height: '80px', resize: 'none' }} value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
               </div>
-              
-              <div style={styles.modalFooter}>
+              <div style={{ ...styles.modalFooter, gridColumn: isMobile ? "span 1" : "span 2" }}>
                 <button type="button" onClick={closeModal} style={styles.cancelBtn}>Cancel</button>
-                <button type="submit" disabled={submitting} style={styles.submitBtn}>
-                  {submitting ? "Processing..." : editingId ? "Update User" : "Create Account"}
-                </button>
+                <button type="submit" disabled={submitting} style={styles.submitBtn}>{submitting ? "..." : "Save"}</button>
               </div>
             </form>
           </div>
@@ -441,50 +365,50 @@ const CentralStaffProfiles = () => {
 };
 
 const styles = {
-  page: { padding: "40px", background: "#f9fafb", minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: BLACK },
-  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' },
+  page: { background: "#f9fafb", minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: BLACK },
+  headerRow: { display: 'flex', justifyContent: 'space-between', marginBottom: '30px' },
   backBtn: { display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: BLACK, fontWeight: '700', cursor: 'pointer' },
-  mainHeading: { fontWeight: "900", margin: 0, fontSize: '28px', letterSpacing: '-0.5px', color: BLACK },
-  franchiseIdLabel: { fontWeight: '800', fontSize: '14px', letterSpacing: '0.5px', color: BLACK },
-  
-  filterCard: { background: 'white', padding: '20px', borderRadius: '16px', border: `1px solid ${BORDER}`, marginBottom: '30px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' },
-  filterForm: { display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' },
-  filterLabel: { fontWeight: '700', fontSize: '14px', color: '#374151' },
-  filterInput: { padding: '12px 16px', borderRadius: '10px', border: `2px solid ${BORDER}`, fontSize: '14px', outline: 'none', fontWeight: '600', width: '250px', transition: 'all 0.2s', color: BLACK },
-  fetchBtn: { display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', background: BLACK, color: 'white', borderRadius: '10px', fontWeight: '700', border: 'none', cursor: 'pointer', transition: 'all 0.2s' },
-
-  actionRow: { display: 'flex', gap: '15px', marginBottom: '30px', alignItems: 'center' },
+  mainHeading: { fontWeight: "900", margin: 0, letterSpacing: '-0.5px' },
+  franchiseIdLabel: { fontWeight: '800', background: "#fff", padding: "8px 16px", borderRadius: "10px", border: `1px solid ${BORDER}` },
+  filterCard: { background: 'white', padding: '15px', borderRadius: '16px', border: `1px solid ${BORDER}`, marginBottom: '25px' },
+  filterForm: { display: 'flex', alignItems: 'center', gap: '15px' },
+  filterLabel: { fontWeight: '700', fontSize: '13px' },
+  filterInput: { padding: '12px', borderRadius: '10px', border: `1.5px solid ${BORDER}`, outline: 'none', fontWeight: '800' },
+  fetchBtn: { display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: BLACK, color: 'white', borderRadius: '10px', fontWeight: '800', border: 'none' },
+  actionRow: { display: 'flex', gap: '15px', marginBottom: '25px' },
   searchContainer: { flex: 1, position: 'relative', display: 'flex', alignItems: 'center' },
-  searchIcon: { position: 'absolute', left: '15px', color: BLACK },
-  searchInput: { width: '100%', padding: '12px 12px 12px 45px', borderRadius: '12px', border: `1px solid ${BORDER}`, outline: 'none', fontSize: '14px', color: BLACK },
-  dateBtn: { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 20px', borderRadius: '12px', background: 'white', border: `1px solid ${BORDER}`, fontWeight: '700', color: BLACK },
-  addBtn: { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 25px', borderRadius: '12px', background: PRIMARY, border: 'none', color: 'white', fontWeight: '700', cursor: 'pointer' },
-  
+  searchIcon: { position: 'absolute', left: '15px' },
+  searchInput: { width: '100%', padding: '12px 12px 12px 45px', borderRadius: '12px', border: `1px solid ${BORDER}`, outline: 'none' },
+  dateBtn: { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 20px', background: 'white', border: `1px solid ${BORDER}`, borderRadius: '12px', fontWeight: '700' },
+  addBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px 20px', background: PRIMARY, color: 'white', borderRadius: '12px', fontWeight: '800', border: 'none' },
   tableContainer: { background: 'white', borderRadius: '20px', border: `1px solid ${BORDER}`, overflow: 'hidden' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
-  th: { padding: '20px', fontSize: '12px', fontWeight: '900', color: BLACK, borderBottom: `1px solid ${BORDER}`, letterSpacing: '1px' },
-  tr: { borderBottom: `1px solid ${BORDER}`, transition: 'all 0.2s' },
-  td: { padding: '20px', fontSize: '14px', fontWeight: '600', color: BLACK },
-  actionTd: { display: 'flex', justifyContent: 'center', gap: '10px', padding: '20px' },
-  
-  timeBtn: { padding: '8px', borderRadius: '8px', border: `1px solid ${BORDER}`, background: '#f3f4f6', color: '#2563eb', cursor: 'pointer' },
-  editBtn: { padding: '8px', borderRadius: '8px', border: `1px solid ${BORDER}`, background: '#f3f4f6', color: PRIMARY, cursor: 'pointer' },
-  deleteBtn: { padding: '8px', borderRadius: '8px', border: `1px solid ${BORDER}`, background: '#f3f4f6', color: '#ef4444', cursor: 'pointer' },
-  
+  th: { padding: '18px', fontSize: '11px', fontWeight: '900', color: '#64748b', borderBottom: `1px solid ${BORDER}`, textTransform: 'uppercase' },
+  tr: { borderBottom: `1px solid ${BORDER}` },
+  td: { padding: '18px', fontSize: '14px', fontWeight: '600' },
+  actionTd: { display: 'flex', justifyContent: 'center', gap: '8px', padding: '18px' },
+  timeBtn: { padding: '8px', borderRadius: '8px', background: '#eff6ff', color: '#2563eb', border: 'none' },
+  editBtn: { padding: '8px', borderRadius: '8px', background: '#f0fdf4', color: PRIMARY, border: 'none' },
+  deleteBtn: { padding: '8px', borderRadius: '8px', background: '#fef2f2', color: '#ef4444', border: 'none' },
+  mobileCard: { background: 'white', borderRadius: '16px', border: `1px solid ${BORDER}`, overflow: 'hidden' },
+  cardHeader: { padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  cardAvatar: { width: '40px', height: '40px', borderRadius: '10px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: PRIMARY },
+  cardBody: { padding: '0 15px 15px 15px' },
+  cardInfoRow: { fontSize: '12px', fontWeight: '700', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' },
+  cardActionBtn: { flex: 1, padding: '12px', borderRadius: '10px', border: 'none', fontSize: '11px', fontWeight: '900', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' },
+  roleBadge: { padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: '800' },
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
-  modalContent: { background: 'white', width: '600px', borderRadius: '24px', padding: '30px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' },
+  modalContent: { background: 'white', borderRadius: '24px', padding: '25px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
-  closeBtn: { background: 'none', border: 'none', cursor: 'pointer', color: BLACK },
-  franchiseContextBox: { background: '#f0fdf4', color: '#166534', padding: '10px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px', textAlign: 'center', border: '1px solid #bbf7d0' },
-  
-  formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' },
-  inputGroup: { display: 'flex', flexDirection: 'column', gap: '8px' },
-  label: { fontSize: '13px', fontWeight: '800', color: BLACK },
-  input: { padding: '12px', borderRadius: '10px', border: `1px solid ${BORDER}`, outline: 'none', fontSize: '14px', color: BLACK },
-  eyeBtn: { position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' },
-  modalFooter: { gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' },
-  cancelBtn: { padding: '12px 20px', borderRadius: '10px', border: `1px solid ${BORDER}`, background: 'white', fontWeight: '700', color: BLACK, cursor: 'pointer' },
-  submitBtn: { padding: '12px 25px', borderRadius: '10px', border: 'none', background: PRIMARY, color: 'white', fontWeight: '700', cursor: 'pointer' }
+  closeBtn: { background: 'none', border: 'none', cursor: 'pointer' },
+  formGrid: { display: 'grid', gap: '15px' },
+  inputGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
+  label: { fontSize: '12px', fontWeight: '800' },
+  input: { padding: '12px', borderRadius: '10px', border: `1px solid ${BORDER}`, outline: 'none' },
+  eyeBtn: { position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none' },
+  modalFooter: { display: 'flex', gap: '10px', marginTop: '10px' },
+  cancelBtn: { padding: '12px 20px', borderRadius: '10px', border: `1px solid ${BORDER}`, background: 'white', fontWeight: '700' },
+  submitBtn: { padding: '12px 25px', borderRadius: '10px', border: 'none', background: PRIMARY, color: 'white', fontWeight: '800' }
 };
 
 export default CentralStaffProfiles;

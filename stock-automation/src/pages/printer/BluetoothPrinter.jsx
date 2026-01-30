@@ -158,7 +158,7 @@ export function PrinterProvider({ children }) {
 
       // 2. Address: Auto-wrapped for clean centering on 58mm paper
       if (billData.address) {
-        const wrappedAddress = wrapText(billData.address, 32);
+        const wrappedAddress = wrapText(billData.address.toUpperCase(), 28);
         text += wrappedAddress + "\n";
       }
       text += "--------------------------------\n" + left;
@@ -172,7 +172,11 @@ export function PrinterProvider({ children }) {
         hour12: true
       });
 
-      text += `Date: ${dateStr}  ${timeStr}\n`;
+      text += "\n"; // One line space
+      if (billData.billId) {
+        text += `Bill Ref No: #${billData.billId}\n`;
+      }
+      text += `Date: ${new Date().toLocaleString()}\n`;
       text += "--------------------------------\n";
 
       // 4. Table Header
@@ -197,7 +201,7 @@ export function PrinterProvider({ children }) {
       }
 
       text += boldOn + `TOTAL:`.padEnd(15) + `${billData.total}`.padStart(16) + boldOff + "\n";
-      text += "\n" + center + (billData.thankYouMsg || "Thank You!, Visit Again") + "\n";
+      text += "\n" + center + (billData.thankYouMsg || "Thank You!, Visit Again.") + "\n";
       text += "\n\n\n\n"; // Final feed for easy tearing
 
       console.log("6. FINAL FORMATTED TEXT:\n", text);

@@ -149,7 +149,7 @@ function Login() {
           ...styles.title,
           fontSize: isMobile ? "18px" : "22px",
           marginBottom: isMobile ? "20px" : "28px"
-        }}>SYSTEM LOGIN</h1>
+        }}>Jksh United Pvt.Ltd</h1>
 
         <div style={{
           ...styles.toggleBar,
@@ -223,7 +223,7 @@ function Login() {
             onClick={handleLogin}
             disabled={isLoading}
           >
-            {isLoading ? "Verifying Credentials..." : "Access Dashboard"}
+            {isLoading ? "Verifying Credentials..." : "Login"}
           </button>
         </div>
       </div>

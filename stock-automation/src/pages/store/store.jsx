@@ -175,7 +175,8 @@ function Store() {
               name: i.item_name,
               qty: i.qty,
               subtotal: (i.price * i.qty).toFixed(2)
-            }))
+            })),
+            billId: bill.id.toString().slice(-6).toUpperCase()
           };
           await printReceipt(printPayload);
         } catch (printErr) {
@@ -455,8 +456,8 @@ const styles = {
   searchIcon: { position: 'absolute', left: '15px' },
   searchInput: { width: '100%', padding: "14px 14px 14px 45px", borderRadius: "12px", border: `1px solid ${BORDER}`, outline: 'none', color: BLACK, fontWeight: '700' },
   printerControlGroup: { display: 'flex', gap: '8px' },
-  connectBtn: { background: PRIMARY, color: "#fff", border: "none", padding: "0 20px", borderRadius: "12px", fontWeight: "900", fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' },
-  connectedBadge: { background: "#10b981", color: "#fff", border: "none", padding: "0 20px", borderRadius: "12px", fontWeight: "900", fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' },
+  connectBtn: { background: PRIMARY, color: "#fff", border: "none", padding: "14px 20px", borderRadius: "12px", fontWeight: "900", fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' },
+  connectedBadge: { background: "#10b981", color: "#fff", border: "none", padding: "14px 20px", borderRadius: "12px", fontWeight: "900", fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' },
   disconnectBtn: { background: "#fee2e2", color: DANGER, border: "none", width: '42px', borderRadius: "12px", display: 'flex', alignItems: 'center', justifyContent: 'center' },
   categoryRow: { display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "10px" },
   catBtn: { padding: "12px 24px", borderRadius: "12px", border: `1px solid ${BORDER}`, background: "#fff", whiteSpace: "nowrap", fontWeight: '800', color: BLACK },

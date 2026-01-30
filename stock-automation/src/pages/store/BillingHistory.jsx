@@ -153,7 +153,8 @@ function BillingHistory() {
         discount: (bill.discount || 0).toFixed(2),
         total: bill.total.toFixed(2),
         thankYouMsg: "*** DUPLICATE RECEIPT ***\nThank You! Visit Again",
-        items: bill.bills_items_generated.map(i => ({ name: i.item_name, qty: i.qty, subtotal: i.total.toFixed(2) }))
+        items: bill.bills_items_generated.map(i => ({ name: i.item_name, qty: i.qty, subtotal: i.total.toFixed(2) })),
+        billId: bill.id.toString().slice(-6).toUpperCase()
       });
     } catch (err) { alert("Reprint failed."); }
   };
@@ -190,7 +191,10 @@ function BillingHistory() {
   const stats = useMemo(() => {
     const totalSales = history.reduce((sum, b) => sum + b.total, 0);
     const orderCount = history.length;
-    return { totalSales, orderCount };
+    const upiSales = history.reduce((sum, b) => (b.payment_mode === "UPI" ? sum + b.total : sum), 0);
+    const cashSales = history.reduce((sum, b) => (b.payment_mode === "CASH" ? sum + b.total : sum), 0);
+    const totalDiscount = history.reduce((sum, b) => sum + (b.discount || 0), 0);
+    return { totalSales, orderCount, upiSales, cashSales, totalDiscount };
   }, [history]);
 
   if (loading || dataLoading) return <div style={styles.loader}><Loader2 className="animate-spin" size={40} /><span>Loading...</span></div>;
@@ -223,14 +227,33 @@ function BillingHistory() {
             <button onClick={logout} style={{ ...styles.logoutBtn, padding: isMobile ? '8px 12px' : '10px 20px' }}>LOGOUT</button>
           </div>
 
-          <div style={styles.statsRow}>
-            <div style={{ ...styles.statBox, flex: 1 }}>
-              <span style={styles.statLabel}>Revenue</span>
-              <span style={{ ...styles.statValue, fontSize: isMobile ? '20px' : '26px' }}>₹{stats.totalSales.toFixed(2)}</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '8px' : '15px', marginBottom: isMobile ? '15px' : '0' }}>
+            {/* Row 1: Primary Stats */}
+            <div style={{ display: 'flex', gap: isMobile ? '8px' : '15px', width: '100%' }}>
+              <div style={{ ...styles.statBox, flex: 1, padding: isMobile ? '15px' : '15px', textAlign: 'center', borderRadius: isMobile ? '16px' : '16px', background: BLACK, color: '#fff' }}>
+                <span style={{ ...styles.statLabel, fontSize: isMobile ? '10px' : '11px', color: '#94a3b8' }}>TOTAL REVENUE</span>
+                <span style={{ ...styles.statValue, fontSize: isMobile ? '20px' : '26px', color: '#fff' }}>₹{stats.totalSales.toFixed(0)}</span>
+              </div>
+              <div style={{ ...styles.statBox, flex: 1, padding: isMobile ? '15px' : '15px', textAlign: 'center', borderRadius: isMobile ? '16px' : '16px' }}>
+                <span style={{ ...styles.statLabel, fontSize: isMobile ? '10px' : '11px' }}>TOTAL ORDERS</span>
+                <span style={{ ...styles.statValue, fontSize: isMobile ? '20px' : '26px' }}>{stats.orderCount}</span>
+              </div>
             </div>
-            <div style={{ ...styles.statBox, flex: 1 }}>
-              <span style={styles.statLabel}>Orders</span>
-              <span style={{ ...styles.statValue, fontSize: isMobile ? '20px' : '26px' }}>{stats.orderCount}</span>
+
+            {/* Row 2: Breakdown Stats */}
+            <div style={{ display: 'flex', gap: isMobile ? '8px' : '15px', width: '100%' }}>
+              <div style={{ ...styles.statBox, flex: 1, padding: isMobile ? '10px' : '15px', textAlign: 'center', borderRadius: isMobile ? '12px' : '16px', border: `1px solid ${BORDER}` }}>
+                <span style={{ ...styles.statLabel, fontSize: isMobile ? '9px' : '11px' }}>UPI</span>
+                <span style={{ ...styles.statValue, fontSize: isMobile ? '16px' : '26px', color: '#2563eb' }}>₹{stats.upiSales.toFixed(0)}</span>
+              </div>
+              <div style={{ ...styles.statBox, flex: 1, padding: isMobile ? '10px' : '15px', textAlign: 'center', borderRadius: isMobile ? '12px' : '16px', border: `1px solid ${BORDER}` }}>
+                <span style={{ ...styles.statLabel, fontSize: isMobile ? '9px' : '11px' }}>CASH</span>
+                <span style={{ ...styles.statValue, fontSize: isMobile ? '16px' : '26px', color: '#059669' }}>₹{stats.cashSales.toFixed(0)}</span>
+              </div>
+              <div style={{ ...styles.statBox, flex: 1, padding: isMobile ? '10px' : '15px', textAlign: 'center', borderRadius: isMobile ? '12px' : '16px', border: `1px solid ${BORDER}` }}>
+                <span style={{ ...styles.statLabel, fontSize: isMobile ? '9px' : '11px', color: DANGER }}>DISCOUNT</span>
+                <span style={{ ...styles.statValue, fontSize: isMobile ? '16px' : '26px', color: DANGER }}>₹{stats.totalDiscount.toFixed(0)}</span>
+              </div>
             </div>
           </div>
 
