@@ -19,11 +19,20 @@ function PosManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [myFranchiseId, setMyFranchiseId] = useState("");
 
+  // Responsive State
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
   const [toast, setToast] = useState({ show: false, message: "", type: "success" });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [newItem, setNewItem] = useState({ item_name: "", price: "", category: "" });
   const [editingItem, setEditingItem] = useState(null);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
@@ -44,7 +53,7 @@ function PosManagement() {
   };
 
   const fetchFranchises = async () => {
-    const { data, error } = await supabase.from("profiles").select("franchise_id, company").neq("role", "stock");
+    const { data } = await supabase.from("profiles").select("franchise_id, company").neq("role", "stock");
     if (data) {
         setAllProfiles(data);
         const uniqueCompanies = [...new Set(data.map(d => d.company).filter(Boolean))];
@@ -164,52 +173,125 @@ function PosManagement() {
 
   return (
     <div style={styles.page}>
+      <style>{`
+        * { box-sizing: border-box; } 
+        body { margin: 0; padding: 0; }
+        
+        /* Custom sleek scrollbar for category list */
+        .category-scroll::-webkit-scrollbar {
+            height: 6px; /* Visible height */
+        }
+        .category-scroll::-webkit-scrollbar-track {
+            background: transparent; 
+        }
+        .category-scroll::-webkit-scrollbar-thumb {
+            background-color: rgba(0, 0, 0, 0.2); 
+            border-radius: 10px;
+        }
+        .category-scroll::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(0, 0, 0, 0.4); 
+        }
+      `}</style>
+
       {toast.show && (
         <div style={{...styles.toast, backgroundColor: toast.type === "success" ? GREEN : DANGER}}>
           {toast.message}
         </div>
       )}
 
-      <header style={styles.header}>
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
+      {/* HEADER */}
+      <header style={{
+          ...styles.header, 
+          flexDirection: isMobile ? 'column' : 'row', 
+          alignItems: isMobile ? 'flex-start' : 'center',
+          gap: isMobile ? '16px' : '0'
+      }}>
+        
+        {/* Top Row on Mobile: Back Button & Franchise ID */}
+        <div style={{ 
+            width: '100%', 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            order: isMobile ? 1 : 0, 
+            flex: isMobile ? 'none' : 1
+        }}>
             <button onClick={() => window.history.back()} style={styles.backBtn}>← Back</button>
+            
+            {isMobile && (
+                <div style={styles.idDisplay}>
+                    <span style={styles.idLabel}>ID :</span>
+                    <span style={styles.idValue}>{myFranchiseId || "--"}</span>
+                </div>
+            )}
         </div>
         
-        <div style={styles.titleWrapper}>
-          <h1 style={styles.heading}>POS Management</h1>
+        {/* Center: Title */}
+        <div style={{
+            ...styles.titleWrapper,
+            order: isMobile ? 2 : 1, 
+            width: isMobile ? '100%' : 'auto',
+            textAlign: isMobile ? 'center' : 'center'
+        }}>
+          <h1 style={{...styles.heading, fontSize: isMobile ? '24px' : '32px'}}>POS Management</h1>
           <p style={styles.subheading}>Centralized Menu Control System</p>
         </div>
         
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-            <div style={styles.idDisplay}>
-            <span style={styles.idLabel}>Franchise ID :</span>
-            <span style={styles.idValue}>{myFranchiseId || "--"}</span>
+        {/* Right: Franchise ID (Desktop Only) */}
+        {!isMobile && (
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', order: 2 }}>
+                <div style={styles.idDisplay}>
+                <span style={styles.idLabel}>Franchise ID :</span>
+                <span style={styles.idValue}>{myFranchiseId || "--"}</span>
+                </div>
             </div>
-        </div>
+        )}
       </header>
 
       <main style={styles.mainContent}>
-        <section style={styles.adminCard}>
-          <div style={styles.inputGroup}>
-            <button onClick={cloneFromCentral} style={styles.primaryBtn} disabled={loading}>Sync from Central</button>
-            <input style={styles.premiumInput} placeholder="Target ID" value={targetFranchise} onChange={e => setTargetFranchise(e.target.value)} />
+        
+        {/* 1. ADMIN ACTIONS CARD */}
+        <section style={{
+            ...styles.adminCard, 
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: 'stretch' 
+        }}>
+          <div style={{...styles.inputGroup, width: isMobile ? '100%' : 'auto'}}>
+            <button onClick={cloneFromCentral} style={{...styles.primaryBtn, width: isMobile ? '100%' : 'auto'}} disabled={loading}>Sync from Central</button>
+            <input 
+                style={{...styles.premiumInput, width: isMobile ? '100%' : '160px'}} 
+                placeholder="Target ID" 
+                value={targetFranchise} 
+                onChange={e => setTargetFranchise(e.target.value)} 
+            />
           </div>
-          <div style={styles.inputGroup}>
-            <input style={{...styles.premiumInput, borderColor: DANGER}} placeholder="Wipe ID" value={deleteTargetId} onChange={e => setDeleteTargetId(e.target.value)} />
-            <button onClick={deleteWholeMenu} style={styles.dangerBtn} disabled={loading}>Wipe Menu</button>
+          
+          {isMobile && <div style={{height: '1px', background: '#eee', margin: '8px 0'}}></div>}
+
+          <div style={{...styles.inputGroup, width: isMobile ? '100%' : 'auto'}}>
+            <input 
+                style={{...styles.premiumInput, borderColor: DANGER, width: isMobile ? '100%' : '160px'}} 
+                placeholder="Wipe ID" 
+                value={deleteTargetId} 
+                onChange={e => setDeleteTargetId(e.target.value)} 
+            />
+            <button onClick={deleteWholeMenu} style={{...styles.dangerBtn, width: isMobile ? '100%' : 'auto'}} disabled={loading}>Wipe Menu</button>
           </div>
         </section>
 
+        {/* 2. FILTERS & CONTROLS CARD */}
         <section style={styles.controlCard}>
-          <div style={styles.row}>
-            <div style={styles.selectWrapper}>
+          <div style={{...styles.row, flexDirection: isMobile ? 'column' : 'row'}}>
+            
+            <div style={{...styles.selectWrapper, width: isMobile ? '100%' : '300px'}}>
                 <label style={styles.miniLabel}>Filter by Company</label>
                 <select style={styles.premiumSelect} value={selectedCompany} onChange={e => { setSelectedCompany(e.target.value); setViewFranchise(""); setMenus([]); }}>
                     <option value="">Select Company...</option>
                     {companies.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
             </div>
-            <div style={styles.selectWrapper}>
+
+            <div style={{...styles.selectWrapper, width: isMobile ? '100%' : '300px'}}>
               <label style={styles.miniLabel}>Manage Menu For</label>
               <select 
                 style={{...styles.premiumSelect, opacity: !selectedCompany ? 0.5 : 1}} 
@@ -227,16 +309,28 @@ function PosManagement() {
             </div>
           </div>
 
-          <div style={styles.searchRow}>
+          <div style={{...styles.searchRow, flexDirection: isMobile ? 'column' : 'row'}}>
             <div style={styles.searchBarWrapper}>
               <span style={styles.searchIcon}>🔍</span>
               <input style={styles.searchField} placeholder="Quick search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
-            <button onClick={() => setIsAddModalOpen(true)} style={{...styles.addBtn, background: !viewFranchise ? '#f5f5f5' : GREEN, color: !viewFranchise ? '#aaa' : '#fff'}} disabled={!viewFranchise}>+ New Item</button>
+            <button 
+                onClick={() => setIsAddModalOpen(true)} 
+                style={{
+                    ...styles.addBtn, 
+                    width: isMobile ? '100%' : 'auto', 
+                    background: !viewFranchise ? '#f5f5f5' : GREEN, 
+                    color: !viewFranchise ? '#aaa' : '#fff'
+                }} 
+                disabled={!viewFranchise}
+            >
+                + New Item
+            </button>
           </div>
 
           {menus.length > 0 && (
-            <div style={styles.scrollWrapper}>
+            // FIX: Removed "no-scrollbar" class so default/custom scrollbar shows on laptop
+            <div style={styles.scrollWrapper} className="category-scroll">
               {categories.map(c => (
                 <button key={c} onClick={() => setSelectedCategory(c)} style={selectedCategory === c ? styles.activeTab : styles.tab}>{c}</button>
               ))}
@@ -244,6 +338,7 @@ function PosManagement() {
           )}
         </section>
 
+        {/* 3. MENU LIST */}
         <section style={styles.listContainer}>
           {loading ? (
             <div style={styles.loadingState}>Refreshing Menu...</div>
@@ -255,8 +350,10 @@ function PosManagement() {
                   {groupedMenu[cat].map(item => (
                     <div key={item.id} style={styles.premiumItemRow}>
                       <div style={styles.itemLead}>
-                        <span style={styles.itemNameText}>{item.item_name}</span>
-                        <span style={styles.itemPriceText}>₹{item.price}</span>
+                        <div style={{display: 'flex', flexDirection: 'column'}}>
+                            <span style={styles.itemNameText}>{item.item_name}</span>
+                            <span style={styles.itemPriceText}>₹{item.price}</span>
+                        </div>
                       </div>
                       <div style={styles.itemActions}>
                         <button onClick={() => { setEditingItem(item); setIsEditModalOpen(true); }} style={styles.iconBtn}>Edit</button>
@@ -278,8 +375,8 @@ function PosManagement() {
       {/* MODALS */}
       {isAddModalOpen && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modal}>
-            <h2 style={{ color: GREEN, marginBottom: '20px' }}>Add New Menu Item</h2>
+          <div style={{...styles.modal, width: isMobile ? '90%' : '400px'}}>
+            <h2 style={{ color: GREEN, marginBottom: '20px', fontSize: isMobile ? '20px' : '24px' }}>Add New Menu Item</h2>
             <label style={styles.label}>Item Name</label>
             <input style={styles.modalInput} placeholder="e.g. Chicken Burger" onChange={e => setNewItem({...newItem, item_name: e.target.value})} />
             <label style={styles.label}>Price (₹)</label>
@@ -296,8 +393,8 @@ function PosManagement() {
 
       {isEditModalOpen && editingItem && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modal}>
-            <h2 style={{ color: GREEN, marginBottom: '20px' }}>Modify Item</h2>
+          <div style={{...styles.modal, width: isMobile ? '90%' : '400px'}}>
+            <h2 style={{ color: GREEN, marginBottom: '20px', fontSize: isMobile ? '20px' : '24px' }}>Modify Item</h2>
             <label style={styles.label}>Item Name</label>
             <input style={styles.modalInput} value={editingItem.item_name} onChange={e => setEditingItem({...editingItem, item_name: e.target.value})} />
             <label style={styles.label}>Price (₹)</label>
@@ -316,57 +413,60 @@ function PosManagement() {
 }
 
 const styles = {
-  page: { background: "#f8f9fa", minHeight: "100vh", fontFamily: '"Inter", sans-serif', padding: "20px 20px 40px" },
-  toast: { position: 'fixed', top: '40px', left: '50%', transform: 'translateX(-50%)', padding: '14px 40px', borderRadius: '12px', color: '#fff', fontWeight: '800', zIndex: 9999, boxShadow: '0 10px 30px rgba(0,0,0,0.2)', textAlign: 'center', minWidth: '300px' },
-  header: { display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", maxWidth: "1100px", margin: "0 auto 20px auto", borderBottom: '1px solid #eee', paddingBottom: '20px' },
-  backBtn: { background: "none", border: "none", color: GREEN, fontSize: "16px", fontWeight: "700", cursor: "pointer" },
+  page: { background: "#f8f9fa", minHeight: "100vh", fontFamily: '"Inter", sans-serif', padding: "20px 20px 80px", overflowX: 'hidden' },
+  toast: { position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', padding: '12px 24px', borderRadius: '12px', color: '#fff', fontWeight: '800', zIndex: 9999, boxShadow: '0 10px 30px rgba(0,0,0,0.2)', textAlign: 'center', minWidth: '280px', maxWidth: '90%' },
+  header: { display: "flex", justifyContent: "space-between", position: "relative", maxWidth: "1100px", margin: "0 auto 24px auto", borderBottom: '1px solid #eee', paddingBottom: '20px' },
+  backBtn: { background: "none", border: "none", color: GREEN, fontSize: "16px", fontWeight: "700", cursor: "pointer", padding: 0 },
   titleWrapper: { textAlign: "center" },
-  heading: { fontSize: "32px", fontWeight: "800", color: "#1a1a1a", letterSpacing: "-1px", margin: 0 },
+  heading: { fontWeight: "800", color: "#1a1a1a", letterSpacing: "-1px", margin: 0 },
   subheading: { color: "#6c757d", fontSize: "14px", marginTop: "5px", fontWeight: "500" },
   
   idDisplay: { display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' },
-  idLabel: { fontSize: '14px', fontWeight: '800', color: '#888', textTransform: 'uppercase' },
-  
-  // CHANGED: Reduced font size from 22px to 16px and weight from 900 to 700
-  idValue: { fontSize: '16px', fontWeight: '700', color: GREEN, lineHeight: '1.2' },
+  idLabel: { fontSize: '12px', fontWeight: '800', color: '#888', textTransform: 'uppercase' },
+  idValue: { fontSize: '14px', fontWeight: '800', color: GREEN, background: LIGHT_GREEN, padding: '4px 8px', borderRadius: '6px' },
 
   mainContent: { maxWidth: "1100px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "24px" },
-  adminCard: { background: "#fff", padding: "20px", borderRadius: "16px", display: "flex", justifyContent: "flex-start", alignItems: "center", gap: "32px", border: "1px solid #edf2f7", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" },
+  adminCard: { background: "#fff", padding: "20px", borderRadius: "16px", display: "flex", justifyContent: "flex-start", gap: "20px", border: "1px solid #edf2f7", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" },
   
-  controlCard: { background: "#fff", padding: "24px", borderRadius: "16px", border: "1px solid #edf2f7", boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05)" },
-  inputGroup: { display: "flex", gap: "12px", alignItems: "center" },
-  premiumInput: { padding: "0 16px", height: "48px", borderRadius: "10px", border: "2px solid #edf2f7", outline: "none", width: "160px" },
-  primaryBtn: { background: GREEN, color: "#fff", border: "none", height: "48px", padding: "0 24px", borderRadius: "10px", fontWeight: "700", cursor: "pointer" },
-  dangerBtn: { background: LIGHT_GREEN, color: DANGER, border: `2px solid ${DANGER}`, height: "48px", padding: "0 24px", borderRadius: "10px", fontWeight: "700", cursor: "pointer" },
-  row: { display: "flex", gap: "16px", marginBottom: "24px", alignItems: "center" },
-  miniLabel: { fontSize: '11px', fontWeight: 'bold', color: '#888', textTransform: 'uppercase', marginBottom: '4px', display: 'block' },
-  premiumSelect: { width: "100%", height: "48px", padding: "0 16px", borderRadius: "10px", border: "2px solid #edf2f7", appearance: "none", cursor: "pointer", background: "url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%234A5568%22%20stroke-width%3D%221.66667%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E') no-repeat right 15px center", outline: "none" },
-  selectWrapper: { position: "relative", width: "300px" },
-  searchRow: { display: "flex", gap: "16px", alignItems: "center", marginBottom: "20px" },
-  searchBarWrapper: { position: "relative", flex: 1 },
-  searchIcon: { position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)" },
-  searchField: { width: "100%", height: "54px", padding: "0 16px 0 48px", borderRadius: "12px", border: `2px solid ${LIGHT_GREEN}`, background: "#fcfcfc", outline: "none" },
-  addBtn: { border: "none", height: "54px", padding: "0 28px", borderRadius: "12px", fontWeight: "700", cursor: "pointer" },
+  controlCard: { background: "#fff", padding: "20px", borderRadius: "16px", border: "1px solid #edf2f7", boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05)" },
+  inputGroup: { display: "flex", gap: "10px", alignItems: "center" },
+  premiumInput: { padding: "0 16px", height: "48px", borderRadius: "10px", border: "2px solid #edf2f7", outline: "none", fontSize: '14px' },
+  primaryBtn: { background: GREEN, color: "#fff", border: "none", height: "48px", padding: "0 20px", borderRadius: "10px", fontWeight: "700", cursor: "pointer", fontSize: '14px', whiteSpace: 'nowrap' },
+  dangerBtn: { background: "#fff", color: DANGER, border: `2px solid ${DANGER}`, height: "48px", padding: "0 20px", borderRadius: "10px", fontWeight: "700", cursor: "pointer", fontSize: '14px', whiteSpace: 'nowrap' },
+  
+  row: { display: "flex", gap: "16px", marginBottom: "20px", alignItems: "center" },
+  miniLabel: { fontSize: '11px', fontWeight: 'bold', color: '#888', textTransform: 'uppercase', marginBottom: '6px', display: 'block' },
+  premiumSelect: { width: "100%", height: "48px", padding: "0 16px", borderRadius: "10px", border: "2px solid #edf2f7", appearance: "none", cursor: "pointer", background: "url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%234A5568%22%20stroke-width%3D%221.66667%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E') no-repeat right 15px center", outline: "none", fontSize: '14px', backgroundColor: '#fff' },
+  selectWrapper: { position: "relative" },
+  
+  searchRow: { display: "flex", gap: "12px", alignItems: "center", marginBottom: "20px" },
+  searchBarWrapper: { position: "relative", flex: 1, width: '100%' },
+  searchIcon: { position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", color: '#999' },
+  searchField: { width: "100%", height: "50px", padding: "0 16px 0 44px", borderRadius: "12px", border: `2px solid ${LIGHT_GREEN}`, background: "#fcfcfc", outline: "none", fontSize: '14px' },
+  addBtn: { border: "none", height: "50px", padding: "0 24px", borderRadius: "12px", fontWeight: "700", cursor: "pointer", fontSize: '14px', whiteSpace: 'nowrap' },
+  
   scrollWrapper: { display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "10px" },
-  tab: { padding: "10px 20px", borderRadius: "30px", background: "#f1f3f5", border: "none", color: "#495057", fontWeight: "600", cursor: "pointer" },
-  activeTab: { padding: "10px 20px", borderRadius: "30px", background: GREEN, color: "#fff", fontWeight: "700", border: "none" },
-  listContainer: { display: "flex", flexDirection: "column", gap: "32px" },
-  categoryGroup: { borderBottom: "1px solid #eee", paddingBottom: "20px" },
-  categoryHeader: { fontSize: "12px", color: GREEN, fontWeight: "900", letterSpacing: "1.5px", textTransform: "uppercase", marginBottom: "16px", display: "inline-block", background: LIGHT_GREEN, padding: "4px 12px", borderRadius: "4px" },
-  premiumItemRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderRadius: "12px", background: "#fff", marginBottom: "8px" },
-  itemLead: { display: "flex", alignItems: "center", flex: 1 },
-  itemNameText: { fontSize: "16px", fontWeight: "600", color: "#2d3436", minWidth: "250px" },
-  itemPriceText: { fontSize: "16px", fontWeight: "800", color: GREEN },
-  itemActions: { display: "flex", gap: "12px", alignItems: "center" },
-  iconBtn: { background: "none", border: `1.5px solid ${GREEN}`, color: GREEN, padding: "6px 16px", borderRadius: "8px", fontWeight: "700", cursor: "pointer" },
-  deleteBtn: { background: "none", border: "none", cursor: "pointer", padding: "5px" },
-  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 },
-  modal: { background: "#fff", padding: "40px", borderRadius: "16px", width: "400px" },
-  modalInput: { padding: "12px", marginBottom: "15px", border: "1px solid #ddd", borderRadius: "8px", width: "100%", boxSizing: "border-box" },
-  label: { fontSize: "12px", fontWeight: "bold", color: "#666", marginBottom: "5px", display: "block" },
-  cancelBtn: { background: "#f5f5f5", border: "none", color: "#666", padding: "0 20px", borderRadius: "8px", height: "48px", cursor: "pointer", fontWeight: '600' },
-  loadingState: { textAlign: "center", padding: "100px", color: "#aaa" },
-  emptyState: { textAlign: "center", padding: "40px", color: "#666" }
+  tab: { padding: "8px 20px", borderRadius: "30px", background: "#f1f3f5", border: "none", color: "#495057", fontWeight: "600", cursor: "pointer", fontSize: '13px', whiteSpace: 'nowrap' },
+  activeTab: { padding: "8px 20px", borderRadius: "30px", background: GREEN, color: "#fff", fontWeight: "700", border: "none", fontSize: '13px', whiteSpace: 'nowrap' },
+  
+  listContainer: { display: "flex", flexDirection: "column", gap: "24px" },
+  categoryGroup: { borderBottom: "1px solid #eee", paddingBottom: "10px" },
+  categoryHeader: { fontSize: "12px", color: GREEN, fontWeight: "900", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "12px", display: "inline-block", background: LIGHT_GREEN, padding: "4px 10px", borderRadius: "6px" },
+  premiumItemRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderRadius: "12px", background: "#fff", marginBottom: "10px", border: '1px solid #f0f0f0' },
+  itemLead: { display: "flex", alignItems: "center", flex: 1, overflow: 'hidden' }, 
+  itemNameText: { fontSize: "15px", fontWeight: "600", color: "#2d3436", display: 'block', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  itemPriceText: { fontSize: "14px", fontWeight: "800", color: GREEN },
+  itemActions: { display: "flex", gap: "12px", alignItems: "center", paddingLeft: '10px' },
+  iconBtn: { background: "none", border: `1px solid ${GREEN}`, color: GREEN, padding: "6px 14px", borderRadius: "8px", fontWeight: "700", cursor: "pointer", fontSize: '12px' },
+  deleteBtn: { background: "none", border: "none", cursor: "pointer", padding: "5px", color: DANGER },
+  
+  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 },
+  modal: { background: "#fff", padding: "30px", borderRadius: "20px", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)" },
+  modalInput: { padding: "12px", marginBottom: "15px", border: "1px solid #e2e8f0", borderRadius: "10px", width: "100%", fontSize: '14px', outline: 'none' },
+  cancelBtn: { background: "#f1f5f9", border: "none", color: "#64748b", padding: "0 20px", borderRadius: "10px", height: "48px", cursor: "pointer", fontWeight: '700', fontSize: '14px' },
+  
+  loadingState: { textAlign: "center", padding: "60px", color: "#94a3b8", fontWeight: '500' },
+  emptyState: { textAlign: "center", padding: "40px", color: "#94a3b8", background: '#fff', borderRadius: '12px', border: '1px dashed #e2e8f0' }
 };
 
 export default PosManagement;
