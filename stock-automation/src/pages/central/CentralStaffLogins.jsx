@@ -33,7 +33,7 @@ const CentralStaffLogins = () => {
 
   const channelRef = useRef(null);
 
-  // --- FIX: SCROLL TO TOP ON MOUNT ---
+  // --- SCROLL TO TOP ON LOAD ---
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -217,7 +217,6 @@ const CentralStaffLogins = () => {
   };
 
   return (
-    // FIX: Increased top padding for mobile (24px 16px)
     <div style={{...styles.page, padding: isMobile ? '24px 16px' : '30px 40px'}}>
       
       <HeaderSection />
@@ -444,20 +443,25 @@ const CentralStaffLogins = () => {
 };
 
 const styles = {
+  // Added overflow-x-hidden to page to prevent whole page sliding
   page: { background: BG_GRAY, minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: TEXT_DARK, boxSizing: 'border-box', overflowX: 'hidden' },
   backBtn: { display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', fontSize: '14px', fontWeight: '700', color: TEXT_DARK, cursor: 'pointer', padding: 0 },
   pageTitle: { margin: 0, fontWeight: '900', color: TEXT_DARK, textTransform: 'uppercase', letterSpacing: '-0.5px' },
   franchiseBadge: { display: 'inline-block', padding: '6px 12px', background: '#e2e8f0', borderRadius: '8px', fontSize: '12px', fontWeight: '700', color: '#475569' },
   
   controlsRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
+  
+  // FIX: Added boxSizing border-box to avoid overflow
   searchContainer: { display: 'flex', alignItems: 'center', gap: '10px', background: 'white', border: `1px solid ${BORDER_COLOR}`, borderRadius: '10px', padding: '10px 15px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', boxSizing: 'border-box' },
   searchInput: { border: 'none', outline: 'none', fontSize: '14px', width: '100%', color: TEXT_DARK, background: 'transparent' },
+  
   filterGroup: { display: 'flex', alignItems: 'center', gap: '12px' },
   toggleContainer: { background: '#e2e8f0', padding: '4px', borderRadius: '8px' },
-  toggleBtn: { padding: '8px 12px', border: 'none', background: 'transparent', fontSize: '13px', fontWeight: '600', color: '#64748b', cursor: 'pointer', borderRadius: '6px' },
-  toggleBtnActive: { padding: '8px 12px', border: 'none', background: 'white', fontSize: '13px', fontWeight: '700', color: THEME_GREEN, cursor: 'pointer', borderRadius: '6px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
+  toggleBtn: { padding: '8px 12px', border: 'none', background: 'transparent', fontSize: '13px', fontWeight: '600', color: '#64748b', cursor: 'pointer', borderRadius: '6px', boxSizing: 'border-box' },
+  toggleBtnActive: { padding: '8px 12px', border: 'none', background: 'white', fontSize: '13px', fontWeight: '700', color: THEME_GREEN, cursor: 'pointer', borderRadius: '6px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', boxSizing: 'border-box' },
   
-  dateInput: { padding: '8px', borderRadius: '8px', border: `1px solid ${BORDER_COLOR}`, outline: 'none', fontSize: '13px', color: TEXT_DARK, fontWeight: '600', background:'white' },
+  // FIX: Added boxSizing here too
+  dateInput: { padding: '8px', borderRadius: '8px', border: `1px solid ${BORDER_COLOR}`, outline: 'none', fontSize: '13px', color: TEXT_DARK, fontWeight: '600', background:'white', boxSizing: 'border-box' },
   refreshBtn: { width: '36px', height: '36px', borderRadius: '8px', background: THEME_GREEN, color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   
   statsRow: { display: 'flex', gap: '16px', marginBottom: '24px' },
