@@ -7,18 +7,18 @@ import {
 } from 'recharts';
 import { 
   ArrowLeft, Search, Calendar, Download, 
-  ArrowRight, RotateCcw, Building2, Layers,
-  X, TrendingUp, MapPin, ShoppingBag
+  RotateCcw, Building2, Layers,
+  X, TrendingUp, MapPin, ShoppingBag, ChevronRight
 } from "lucide-react";
 
 const PRIMARY = "rgb(0, 100, 55)";
-const BORDER = "#e5e7eb";
 const COLORS = [PRIMARY, "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#0ea5e9", "#f472b6", "#64748b", "#fbbf24", "#4ade80"];
 
 function Reports() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("store"); 
+  const [profile, setProfile] = useState(null);
   
   const [rawData, setRawData] = useState({ store: [], billItems: [], invoices: [], invoiceItems: [] });
   const [selectedBill, setSelectedBill] = useState(null);
@@ -33,21 +33,31 @@ function Reports() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    // Note: Ensure the profiles join is correct for your schema
-    const [bills, bItems, invs, iItems] = await Promise.all([
-      supabase.from("bills_generated").select("*").order("created_at", { ascending: false }),
-      supabase.from("bills_items_generated").select("bill_id, item_name, qty, price"),
-      supabase.from("invoices").select("*, profiles(franchise_id, branch_location, address)").order("created_at", { ascending: false }),
-      supabase.from("invoice_items").select("invoice_id, item_name, quantity, price")
-    ]);
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { data } = await supabase.from("profiles").select("franchise_id").eq("id", user.id).single();
+            setProfile(data);
+        }
 
-    setRawData({
-      store: bills.data || [],
-      billItems: bItems.data || [],
-      invoices: invs.data || [],
-      invoiceItems: iItems.data || []
-    });
-    setLoading(false);
+        const [bills, bItems, invs, iItems] = await Promise.all([
+        supabase.from("bills_generated").select("*").order("created_at", { ascending: false }),
+        supabase.from("bills_items_generated").select("bill_id, item_name, qty, price"),
+        supabase.from("invoices").select("*, profiles(franchise_id, branch_location, address)").order("created_at", { ascending: false }),
+        supabase.from("invoice_items").select("invoice_id, item_name, quantity, price")
+        ]);
+
+        setRawData({
+        store: bills.data || [],
+        billItems: bItems.data || [],
+        invoices: invs.data || [],
+        invoiceItems: iItems.data || []
+        });
+    } catch (e) {
+        console.error("Error fetching data", e);
+    } finally {
+        setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -55,6 +65,38 @@ function Reports() {
   const resetFilters = () => {
     setSearch(""); setStartDate(""); setEndDate(""); setSelectedFranchise("all");
   };
+
+  // --- NEW: EXCEL/CSV DOWNLOAD LOGIC ---
+  const handleDownload = () => {
+    if (!filteredData.length) return alert("No data to export!");
+
+    // 1. Define Headers
+    const headers = ["Bill/Invoice ID", "Franchise ID", "Customer/Branch", "Date", "Time", "Total Amount (INR)"];
+    
+    // 2. Map Data Rows
+    const rows = filteredData.map(item => {
+        const id = item.id;
+        const fid = item.franchise_id || item.profiles?.franchise_id || "Head Office";
+        const name = (item.customer_name || item.profiles?.branch_location || "Walk-in").replace(/,/g, " "); // Remove commas to prevent CSV breakage
+        const dateObj = new Date(item.created_at);
+        const date = dateObj.toLocaleDateString('en-IN');
+        const time = dateObj.toLocaleTimeString('en-IN');
+        const amount = item.total || item.total_amount || 0;
+
+        return [id, fid, name, date, time, amount].join(",");
+    });
+
+    // 3. Combine and Download
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Sales_Report_${activeTab}_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  // -------------------------------------
 
   const openDetails = async (bill) => {
     setSelectedBill(bill);
@@ -69,13 +111,11 @@ function Reports() {
     setModalLoading(false);
   };
 
-  // FIXED FILTER LOGIC
   const filteredData = useMemo(() => {
     const dataSet = activeTab === "store" ? rawData.store : rawData.invoices;
     if (!dataSet.length) return [];
 
     return dataSet.filter(item => {
-      // Check for Franchise ID in both top level and nested profile
       const franchiseId = (item.franchise_id || item.profiles?.franchise_id || "").toString().toLowerCase();
       const customer = (item.customer_name || "").toLowerCase();
       const itemId = (item.id || "").toString().toLowerCase();
@@ -116,7 +156,6 @@ function Reports() {
 
   const chartData = useMemo(() => {
     const daily = {};
-    // Taking last 50 to show trend
     const sorted = [...filteredData].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     sorted.forEach(item => {
         const date = new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -134,210 +173,326 @@ function Reports() {
 
   const totalMoney = filteredData.reduce((acc, curr) => acc + Number(curr.total || curr.total_amount || 0), 0);
 
-  if (loading) return <div style={styles.loader}>Loading Reports...</div>;
+  if (loading) return <div className="flex h-screen items-center justify-center font-black text-xl text-slate-400 uppercase tracking-widest">Loading Reports...</div>;
 
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
+    <div className="min-h-screen bg-[#F8F9FA] pb-20 md:pb-10 font-sans text-slate-900 relative">
+      
+      {/* Header */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 md:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between shadow-sm gap-4 md:gap-0">
+        <div className="flex items-center justify-between w-full md:w-auto">
+            <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 font-black uppercase text-xs tracking-widest hover:text-slate-900 transition-colors">
+                <ArrowLeft size={18} /> <span>Back</span>
+            </button>
+            <h1 className="text-base md:text-xl font-black uppercase tracking-widest text-center md:hidden">Reports</h1>
+            
+            {/* Mobile ID Box & Download */}
+            <div className="flex items-center gap-2 md:hidden">
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">ID :</span>
+                    <span className="text-[10px] font-black text-black bg-white border border-slate-200 px-2 py-1 rounded-lg shadow-sm">
+                        {profile?.franchise_id || "CENTRAL"}
+                    </span>
+                </div>
+                <button 
+                    className="flex items-center justify-center text-white p-2 rounded-lg hover:opacity-90 transition-colors" 
+                    style={{ backgroundColor: PRIMARY }}
+                    onClick={handleDownload}
+                >
+                    <Download size={14} />
+                </button>
+            </div>
+        </div>
         
-        <header style={styles.header}>
-          <button onClick={() => navigate(-1)} style={styles.backBtn}><ArrowLeft size={20} /><span>Back</span></button>
-          <h1 style={styles.centerTitle}>Sales Reports</h1>
-          <button style={styles.exportBtn} onClick={() => window.print()}><Download size={18} /><span>PRINT</span></button>
-        </header>
+        <h1 className="text-xl font-black uppercase tracking-widest text-center hidden md:block absolute left-1/2 -translate-x-1/2">Sales Reports</h1>
+        
+        {/* Desktop ID Box & Download */}
+        <div className="hidden md:flex items-center gap-3">
+            <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID :</span>
+                <span className="text-xs font-black text-black bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+                    {profile?.franchise_id || "CENTRAL"}
+                </span>
+            </div>
+            <button 
+                className="flex items-center gap-2 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-colors shadow-sm" 
+                style={{ backgroundColor: PRIMARY }}
+                onClick={handleDownload}
+            >
+                <Download size={16} /> Download Report
+            </button>
+        </div>
+      </div>
 
-        <div style={styles.toggleContainer}>
-            <div style={styles.toggleTrack}>
-                <button onClick={() => setActiveTab("store")} style={{...styles.toggleBtn, color: activeTab === "store" ? "#000" : "#9ca3af"}}>Daily Shop Sales {activeTab === "store" && <div style={styles.activeIndicator} />}</button>
-                <button onClick={() => setActiveTab("invoice")} style={{...styles.toggleBtn, color: activeTab === "invoice" ? "#000" : "#9ca3af"}}>Main Supply Bills {activeTab === "invoice" && <div style={styles.activeIndicator} />}</button>
+      <div className="max-w-[1400px] mx-auto px-4 md:px-8 mt-6 md:mt-8">
+        
+        {/* Toggle Tabs */}
+        <div className="flex justify-center mb-8">
+            <div className="flex gap-2 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                <button 
+                    onClick={() => setActiveTab("store")} 
+                    className={`px-4 md:px-6 py-3 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${activeTab !== "store" ? "text-slate-400 hover:text-slate-600" : "text-white shadow-md"}`}
+                    style={activeTab === "store" ? { backgroundColor: PRIMARY } : {}}
+                >
+                    Daily Shop Sales
+                </button>
+                <button 
+                    onClick={() => setActiveTab("invoice")} 
+                    className={`px-4 md:px-6 py-3 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${activeTab !== "invoice" ? "text-slate-400 hover:text-slate-600" : "text-white shadow-md"}`}
+                    style={activeTab === "invoice" ? { backgroundColor: PRIMARY } : {}}
+                >
+                    Supply Invoices
+                </button>
             </div>
         </div>
 
-        <div style={styles.crazyFilterBar}>
-            <div style={styles.filterGroup}><Search size={18} color="#9ca3af" /><input style={styles.filterInput} placeholder="Search by name or ID..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-            <div style={styles.filterGroup}><Building2 size={18} color="#9ca3af" />
-                <select style={styles.selectInput} value={selectedFranchise} onChange={(e) => setSelectedFranchise(e.target.value)}>
+        {/* Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm mb-8">
+            <div className="flex items-center gap-3 bg-slate-50 rounded-2xl px-4 h-14 border border-slate-100">
+                <Search size={18} className="text-slate-400" />
+                <input 
+                    className="bg-transparent border-none outline-none text-xs font-bold w-full placeholder:text-slate-400 uppercase" 
+                    placeholder="Search ID or Name..." 
+                    value={search} 
+                    onChange={(e) => setSearch(e.target.value)} 
+                />
+            </div>
+            
+            <div className="flex items-center gap-3 bg-slate-50 rounded-2xl px-4 h-14 border border-slate-100 relative">
+                <Building2 size={18} className="text-slate-400" />
+                <select 
+                    className="bg-transparent border-none outline-none text-xs font-bold w-full appearance-none uppercase z-10" 
+                    value={selectedFranchise} 
+                    onChange={(e) => setSelectedFranchise(e.target.value)}
+                >
                     <option value="all">All Shops</option>
-                    {franchiseList.map(f => <option key={f} value={f}>Shop ID: {f}</option>)}
+                    {franchiseList.map(f => <option key={f} value={f}>ID: {f}</option>)}
                 </select>
+                <ChevronRight size={14} className="absolute right-4 text-slate-400 rotate-90 z-0" />
             </div>
-            <div style={styles.dateGroup}>
-                <Calendar size={18} color="#9ca3af" />
-                <input type="date" style={styles.dateInput} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                <ArrowRight size={14} color="#9ca3af" />
-                <input type="date" style={styles.dateInput} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                <button style={styles.resetBtn} onClick={resetFilters}><RotateCcw size={16}/></button>
+
+            <div className="flex items-center gap-2 bg-slate-50 rounded-2xl px-3 h-14 border border-slate-100 lg:col-span-2">
+                <Calendar size={18} className="text-slate-400 shrink-0" />
+                <input 
+                    type="date" 
+                    className="bg-transparent border-none outline-none text-[10px] font-bold uppercase w-full text-center" 
+                    value={startDate} 
+                    onChange={(e) => setStartDate(e.target.value)} 
+                />
+                <span className="text-slate-300 font-bold">-</span>
+                <input 
+                    type="date" 
+                    className="bg-transparent border-none outline-none text-[10px] font-bold uppercase w-full text-center" 
+                    value={endDate} 
+                    onChange={(e) => setEndDate(e.target.value)} 
+                />
+                <button onClick={resetFilters} className="p-2 hover:bg-white rounded-full transition-colors text-slate-400 shrink-0">
+                    <RotateCcw size={16}/>
+                </button>
             </div>
         </div>
 
-        <div style={styles.vizRow}>
-            <div style={styles.chartCard}>
-                <div style={styles.vizHeader}><TrendingUp size={16} color={PRIMARY}/><span>Earnings Graph</span></div>
-                <div style={{height: '320px'}}>
+        {/* Charts Row - FIXED HEIGHTS */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 items-start">
+            
+            {/* Area Chart */}
+            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm lg:col-span-2 h-full">
+                <div className="flex items-center gap-2 mb-6">
+                    <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600"><TrendingUp size={18} /></div>
+                    <span className="text-xs font-black uppercase text-slate-400 tracking-widest">Earnings Trend</span>
+                </div>
+                {/* FIXED: Strict Height Wrapper */}
+                <div style={{ width: '100%', height: '300px' }}>
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700}} />
-                            <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700}} tickFormatter={(v) => `₹${v}`} />
-                            <Tooltip />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}} dy={10} />
+                            <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}} tickFormatter={(v) => `₹${v}`} />
+                            <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
                             <Area type="monotone" dataKey="revenue" stroke={PRIMARY} strokeWidth={3} fill={PRIMARY} fillOpacity={0.05} />
                         </AreaChart>
                     </ResponsiveContainer>
                 </div>
             </div>
 
-            <div style={styles.pieCard}>
-                <div style={styles.vizHeader}><ShoppingBag size={16} color={PRIMARY}/><span>Top 10 Selling Items</span></div>
-                <div style={{height: '180px'}}>
-                    <ResponsiveContainer>
+            {/* Pie Chart & Top 10 List - EXPANDED */}
+            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col h-full min-w-0">
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600"><ShoppingBag size={18} /></div>
+                    <span className="text-xs font-black uppercase text-slate-400 tracking-widest">Top 10 Selling</span>
+                </div>
+                
+                {/* FIXED: Strict Height Wrapper for Pie */}
+                <div style={{ width: '100%', height: '200px', marginBottom: '20px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                            <Pie data={itemPieData} innerRadius={45} outerRadius={65} paddingAngle={5} dataKey="value">
+                            <Pie data={itemPieData} innerRadius={40} outerRadius={60} paddingAngle={5} dataKey="value">
                                 {itemPieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                             </Pie>
                             <Tooltip />
                         </PieChart>
                     </ResponsiveContainer>
                 </div>
-                <div style={styles.miniTableScroll}>
-                    <table style={styles.miniTable}>
-                        <thead><tr><th>Item Name</th><th style={{textAlign: 'right'}}>Total Sold</th></tr></thead>
-                        <tbody>{itemPieData.map((item, i) => (<tr key={i}><td>{item.name}</td><td style={{textAlign: 'right', fontWeight: 'bold'}}>{item.value}</td></tr>))}</tbody>
-                    </table>
+
+                <div className="flex-1 space-y-3 pr-2">
+                    {itemPieData.map((item, i) => (
+                        <div key={i} className="flex justify-between items-center text-xs border-b border-slate-50 pb-2 last:border-0">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full shrink-0" style={{backgroundColor: COLORS[i % COLORS.length]}}></div>
+                                <span className="font-bold text-slate-700 truncate max-w-[140px]">{item.name}</span>
+                            </div>
+                            <span className="font-black text-slate-900">{item.value}</span>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>
 
-        <div style={styles.tableCard}>
-            <div style={styles.vizHeader}><Layers size={16} color={PRIMARY}/><span>All Sales History</span></div>
-            <div style={styles.tableScroll}>
-                <table style={styles.table}>
-                    <thead>
-                      <tr style={styles.thRow}>
-                        <th style={{...styles.th, width: '25%'}}>Bill No.</th>
-                        <th style={{...styles.th, width: '30%'}}>From Shop</th>
-                        <th style={{...styles.th, width: '25%'}}>Date</th>
-                        <th style={{...styles.th, width: '20%', textAlign: 'right'}}>Amount Paid</th>
-                      </tr>
+        {/* Summary Stats - BELOW CHARTS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-900 text-white p-6 md:p-8 rounded-[2.5rem] shadow-lg mb-8">
+            <div>
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Total Earnings (Period)</p>
+                <h2 className="text-3xl font-black">₹ {totalMoney.toLocaleString('en-IN')}</h2>
+            </div>
+            <div className="md:text-right">
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Total Transactions</p>
+                <h2 className="text-3xl font-black">{filteredData.length}</h2>
+            </div>
+        </div>
+
+        {/* Data Table / Cards */}
+        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden mb-10 flex flex-col max-h-[600px]">
+            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2 shrink-0 sticky top-0 z-20">
+                <Layers size={18} className="text-slate-400" />
+                <span className="text-xs font-black uppercase text-slate-500 tracking-widest">Sales History</span>
+            </div>
+
+            {/* Desktop Table - Scrollable Container */}
+            <div className="hidden lg:block overflow-y-auto custom-scrollbar flex-1 relative">
+                <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 sticky top-0 z-10 shadow-sm">
+                        <tr>
+                            <th className="p-5 tracking-widest bg-slate-50">Bill No.</th>
+                            <th className="p-5 tracking-widest bg-slate-50">From Shop / Customer</th>
+                            <th className="p-5 tracking-widest bg-slate-50">Date</th>
+                            <th className="p-5 tracking-widest text-right bg-slate-50">Amount Paid</th>
+                        </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-slate-100 text-sm font-bold text-slate-700">
                         {filteredData.length === 0 ? (
-                            <tr><td colSpan="4" style={{textAlign: 'center', padding: '40px', color: '#9ca3af'}}>No records found for this selection.</td></tr>
+                            <tr><td colSpan="4" className="p-10 text-center text-slate-400">No records found.</td></tr>
                         ) : filteredData.map(item => (
-                            <tr key={item.id} style={styles.tr} onClick={() => openDetails(item)}>
-                                <td style={styles.td}><code style={styles.code}>#{item.id.toString().slice(-8)}</code></td>
-                                <td style={styles.td}>{item.franchise_id || item.profiles?.franchise_id || "Head Office"}</td>
-                                <td style={styles.td}>{new Date(item.created_at).toLocaleDateString()}</td>
-                                <td style={{...styles.td, textAlign: 'right', fontWeight: '800', color: PRIMARY}}>₹{(item.total || item.total_amount || 0).toFixed(2)}</td>
+                            <tr key={item.id} onClick={() => openDetails(item)} className="hover:bg-slate-50 cursor-pointer transition-colors">
+                                <td className="p-5"><span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px]">#{item.id.toString().slice(-8)}</span></td>
+                                <td className="p-5">{item.franchise_id || item.profiles?.franchise_id || "Head Office"}</td>
+                                <td className="p-5 text-slate-500 text-xs font-bold uppercase">{new Date(item.created_at).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'2-digit'})}</td>
+                                <td className="p-5 text-right font-black" style={{ color: PRIMARY }}>₹{(item.total || item.total_amount || 0).toFixed(2)}</td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
+
+            {/* Mobile Cards - Scrollable Container */}
+            <div className="lg:hidden flex flex-col gap-4 p-4 bg-slate-50/30 overflow-y-auto custom-scrollbar flex-1">
+                {filteredData.length === 0 ? (
+                    <div className="p-10 text-center text-slate-400 text-xs font-bold uppercase">No records found.</div>
+                ) : filteredData.map(item => (
+                    <div key={item.id} onClick={() => openDetails(item)} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm active:scale-95 transition-transform shrink-0">
+                        <div className="flex justify-between items-start mb-3">
+                            <div>
+                                <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase mb-1 inline-block">#{item.id.toString().slice(-8)}</span>
+                                <h3 className="text-sm font-black text-slate-800">{item.franchise_id || item.profiles?.franchise_id || "Head Office"}</h3>
+                            </div>
+                            <p className="text-lg font-black" style={{ color: PRIMARY }}>₹{(item.total || item.total_amount || 0).toFixed(2)}</p>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase border-t border-slate-50 pt-3">
+                            <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                            <span>Tap for details &rarr;</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
 
-        <div style={styles.footerSummary}>
-          <div>
-            <p style={styles.mLabel}>Total Earnings for this Period</p>
-            <h2 style={styles.mValue}>₹ {totalMoney.toLocaleString('en-IN')}</h2>
-          </div>
-          <div>
-            <p style={styles.mLabel}>Bills Found</p>
-            <h2 style={styles.mValue}>{filteredData.length}</h2>
-          </div>
-        </div>
       </div>
 
+      {/* --- RESPONSIVE MODAL --- */}
       {selectedBill && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modal}>
-            <div style={styles.modalHeader}>
-              <div><h3 style={{margin: 0, fontWeight: '900', color: '#000', fontSize: '18px'}}>Bill Details</h3><p style={{margin: 0, fontSize: '10px', color: '#9ca3af'}}>Ref: {selectedBill.id}</p></div>
-              <X size={20} style={{cursor: 'pointer'}} onClick={() => setSelectedBill(null)} />
+        <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedBill(null)} />
+          
+          <div className="relative w-full md:w-[500px] bg-white rounded-t-[2.5rem] md:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom duration-300">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black uppercase text-slate-900">Bill Details</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Ref: {selectedBill.id.toString().slice(-8)}</p>
+              </div>
+              <button onClick={() => setSelectedBill(null)} className="p-2 bg-slate-50 rounded-full hover:bg-slate-100 transition-colors">
+                <X size={20} />
+              </button>
             </div>
             
-            <div style={styles.modalBody}>
-                <div style={styles.infoStrip}>
-                    <div style={styles.infoCol}><label style={styles.label}>Shop / Person</label><p style={styles.pText}>{selectedBill.customer_name || selectedBill.profiles?.branch_location || "Walk-in Shop"}</p></div>
-                    <div style={styles.infoCol}><label style={styles.label}>Shop ID</label><p style={styles.pText}>{selectedBill.franchise_id || selectedBill.profiles?.franchise_id || "N/A"}</p></div>
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Customer / Branch</label>
+                        <p className="text-xs font-bold text-slate-800">{selectedBill.customer_name || selectedBill.profiles?.branch_location || "Walk-in"}</p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Shop ID</label>
+                        <p className="text-xs font-bold text-slate-800">{selectedBill.franchise_id || selectedBill.profiles?.franchise_id || "N/A"}</p>
+                    </div>
                 </div>
-                <div style={styles.addressBox}><MapPin size={12}/><p style={{margin:0, fontSize: '11px'}}>{selectedBill.customer_address || selectedBill.profiles?.address || "At Counter"}</p></div>
 
-                <div style={styles.itemTableWrapper}>
-                    <table style={{width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed'}}>
-                        <thead style={{background: '#f9fafb'}}><tr style={{borderBottom: `1px solid ${BORDER}`}}><th style={{...styles.modalTh, width: '55%'}}>Item</th><th style={{...styles.modalThCenter, width: '15%'}}>Qty</th><th style={{...styles.modalThRight, width: '30%'}}>Price</th></tr></thead>
-                        <tbody>
-                            {modalLoading ? <tr><td colSpan="3" style={{padding: '10px', textAlign:'center'}}>Loading...</td></tr> : currentBillItems.map(i => (
-                                <tr key={i.id} style={{borderBottom: `1px solid ${BORDER}`}}>
-                                    <td style={styles.modalTd}>{i.item_name}</td>
-                                    <td style={styles.modalTdCenter}>{i.qty || i.quantity}</td>
-                                    <td style={styles.modalTdRight}>₹{((i.qty || i.quantity) * i.price).toFixed(2)}</td>
+                <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6">
+                    <MapPin size={16} className="text-slate-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-slate-600 font-medium">{selectedBill.customer_address || selectedBill.profiles?.address || "Location not provided"}</p>
+                </div>
+
+                <div className="border border-slate-100 rounded-2xl overflow-hidden">
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400">
+                            <tr>
+                                <th className="p-3">Item</th>
+                                <th className="p-3 text-center">Qty</th>
+                                <th className="p-3 text-right">Price</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
+                            {modalLoading ? (
+                                <tr><td colSpan="3" className="p-6 text-center text-slate-400">Loading...</td></tr>
+                            ) : currentBillItems.map((i, idx) => (
+                                <tr key={idx}>
+                                    <td className="p-3">{i.item_name}</td>
+                                    <td className="p-3 text-center">{i.qty || i.quantity}</td>
+                                    <td className="p-3 text-right">₹{((i.qty || i.quantity) * i.price).toFixed(2)}</td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-                <div style={{...styles.footerRow, fontWeight: '900', color: PRIMARY, fontSize: '18px', borderTop: `2px solid ${PRIMARY}`, paddingTop: '10px'}}>
-                    <span>Grand Total</span><span>₹{Number(selectedBill.total || selectedBill.total_amount).toFixed(2)}</span>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 border-t border-slate-100 bg-white md:rounded-b-[2.5rem]">
+                <div className="flex justify-between items-center bg-slate-900 text-white p-5 rounded-2xl shadow-lg">
+                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">Grand Total</span>
+                    <span className="text-xl font-black">₹{Number(selectedBill.total || selectedBill.total_amount).toFixed(2)}</span>
                 </div>
             </div>
           </div>
         </div>
       )}
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+      `}</style>
     </div>
   );
 }
-
-const styles = {
-  page: { background: "#fff", minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: "#111827" },
-  container: { maxWidth: "1400px", margin: "0 auto", padding: "40px 20px" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px", position: "relative" },
-  centerTitle: { fontSize: "22px", fontWeight: "900", position: "absolute", left: "50%", transform: "translateX(-50%)", color: "#000", letterSpacing: "-1px" },
-  backBtn: { display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#6b7280", fontWeight: "700", cursor: "pointer" },
-  exportBtn: { background: PRIMARY, color: "#fff", border: "none", padding: "10px 20px", borderRadius: "10px", fontSize: "11px", fontWeight: "800", cursor: "pointer", display: 'flex', alignItems: 'center', gap: '8px' },
-  toggleContainer: { display: 'flex', justifyContent: 'center', marginBottom: '35px' },
-  toggleTrack: { display: 'flex', gap: '30px', borderBottom: `2px solid ${BORDER}` },
-  toggleBtn: { background: 'none', border: 'none', padding: '15px 5px', fontSize: '13px', fontWeight: '900', cursor: 'pointer', position: 'relative' },
-  activeIndicator: { position: 'absolute', bottom: '-2px', left: 0, right: 0, height: '3px', background: PRIMARY, borderRadius: '10px' },
-  crazyFilterBar: { display: 'flex', gap: '15px', background: '#f9fafb', padding: '15px', borderRadius: '16px', border: `1.5px solid ${BORDER}`, marginBottom: '30px' },
-  filterGroup: { display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', border: `1.5px solid ${BORDER}`, borderRadius: '10px', padding: '0 12px', flex: 1 },
-  filterInput: { border: 'none', background: 'none', padding: '10px 0', outline: 'none', fontSize: '13px', width: '100%', fontWeight: '600' },
-  selectInput: { border: 'none', background: 'none', padding: '10px 0', outline: 'none', fontSize: '13px', width: '100%', fontWeight: '700', cursor: 'pointer', color: PRIMARY },
-  dateGroup: { display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', border: `1.5px solid ${BORDER}`, borderRadius: '10px', padding: '0 12px' },
-  dateInput: { border: 'none', outline: 'none', fontSize: '12px', fontWeight: '700', color: PRIMARY },
-  resetBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af' },
-  vizRow: { display: 'grid', gridTemplateColumns: '1.8fr 1fr', gap: '25px', marginBottom: '30px' },
-  chartCard: { background: '#fff', border: `1.5px solid ${BORDER}`, borderRadius: '24px', padding: '25px' },
-  pieCard: { background: '#fff', border: `1.5px solid ${BORDER}`, borderRadius: '24px', padding: '25px' },
-  vizHeader: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10px', fontWeight: '900', color: '#9ca3af', marginBottom: '20px', textTransform: 'uppercase' },
-  miniTableScroll: { maxHeight: '160px', overflowY: 'auto', marginTop: '10px' },
-  miniTable: { width: '100%', borderCollapse: 'collapse', fontSize: '11px' },
-  tableCard: { background: '#fff', border: `1.5px solid ${BORDER}`, borderRadius: '24px', padding: '25px' },
-  tableScroll: { maxHeight: '350px', overflowY: 'auto' },
-  table: { width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' },
-  thRow: { borderBottom: `1px solid ${BORDER}` },
-  th: { textAlign: 'left', fontSize: '10px', fontWeight: '900', color: '#9ca3af', padding: '15px 12px' },
-  tr: { borderBottom: `1px solid ${BORDER}`, cursor: 'pointer' },
-  td: { padding: '15px 12px', fontSize: '13px', fontWeight: '600' },
-  code: { background: '#f3f4f6', padding: '3px 6px', borderRadius: '4px', fontSize: '11px' },
-  footerSummary: { display: 'flex', gap: '40px', background: '#f9fafb', border: `1px solid ${BORDER}`, borderRadius: '24px', padding: '30px', marginTop: '30px' },
-  mLabel: { fontSize: '11px', fontWeight: '900', color: '#9ca3af', textTransform: 'uppercase', margin: 0 },
-  mValue: { fontSize: '24px', fontWeight: '900', color: PRIMARY, margin: '5px 0 0 0' },
-  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(2px)' },
-  modal: { background: '#fff', borderRadius: '24px', padding: '30px', width: '450px' },
-  modalHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: '20px', borderBottom: `1px solid ${BORDER}`, paddingBottom: '10px' },
-  infoStrip: { display: 'flex', gap: '20px', marginBottom: '15px' },
-  label: { fontSize: '8px', fontWeight: '900', color: '#9ca3af', textTransform: 'uppercase' },
-  pText: { margin: 0, fontWeight: '800', fontSize: '13px' },
-  addressBox: { display: 'flex', gap: '8px', background: '#f9fafb', padding: '10px', borderRadius: '8px', marginBottom: '15px', color: '#6b7280' },
-  itemTableWrapper: { border: `1px solid ${BORDER}`, borderRadius: '12px', overflow: 'hidden', marginBottom: '15px' },
-  modalTh: { fontSize: '9px', padding: '10px 12px', textAlign: 'left', color: '#9ca3af' },
-  modalThCenter: { fontSize: '9px', padding: '10px 12px', textAlign: 'center', color: '#9ca3af' },
-  modalThRight: { fontSize: '9px', padding: '10px 12px', textAlign: 'right', color: '#9ca3af' },
-  modalTd: { fontSize: '12px', padding: '12px', fontWeight: '700' },
-  modalTdCenter: { fontSize: '12px', padding: '12px', textAlign: 'center' },
-  modalTdRight: { fontSize: '12px', padding: '12px', textAlign: 'right' },
-  footerRow: { display: 'flex', justifyContent: 'space-between', fontSize: '12px' },
-  loader: { height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "900", color: PRIMARY }
-};
 
 export default Reports;
