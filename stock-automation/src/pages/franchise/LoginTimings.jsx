@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { 
   ArrowLeft, Search, Clock, Loader2, RefreshCw, PowerOff, 
-  Calendar, Timer
+  Calendar, Timer, User, Hash, ChevronRight, ChevronDown, AlertCircle
 } from "lucide-react";
 import { supabase } from "../../supabase/supabaseClient";
 
@@ -15,48 +15,54 @@ const BORDER_COLOR = "#e2e8f0";
 const LoginTimings = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  // Optional params passed from previous screen
   const { targetUserId, targetName } = location.state || {};
 
-  // --- STATE MANAGEMENT ---
+  // --- STATE ---
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [processingLogoutId, setProcessingLogoutId] = useState(null); // Track specific row loading
   
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState("date"); // 'date' or 'range'
-  
-  // Dates: Initialize to Browser's Local Date (YYYY-MM-DD)
-  const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
-  const [startDate, setStartDate] = useState(new Date().toLocaleDateString('en-CA'));
-  const [endDate, setEndDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [filterType, setFilterType] = useState("date"); 
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // User Context
-  const [franchiseId, setFranchiseId] = useState("");
+  // Context
+  const [franchiseId, setFranchiseId] = useState("...");
   const [userRole, setUserRole] = useState(null); 
   const [currentUserId, setCurrentUserId] = useState(null);
 
-  // Realtime Subscription Ref
+  // Refs
   const channelRef = useRef(null);
 
   // --- LIFECYCLE ---
-  useEffect(() => { 
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    
+    // Initial Load
     fetchInitialData();
-    // Cleanup on unmount
+
     return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
+      window.removeEventListener('resize', handleResize);
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
   }, [targetUserId]); 
 
-  // --- HELPER UTILITIES ---
-  const getStaffDetails = (log) => {
-    let profile = log.staff_profiles;
-    if (Array.isArray(profile)) profile = profile[0];
-    return { name: profile?.name || "Unknown", id: profile?.staff_id || "N/A" };
-  };
+  // --- HELPERS ---
+  const getStaffDetails = useCallback((log) => {
+    // Handle array or object response from Supabase joins
+    const profile = Array.isArray(log.staff_profiles) ? log.staff_profiles[0] : log.staff_profiles;
+    return { 
+      name: profile?.name || "Unknown Staff", 
+      id: profile?.staff_id || "N/A" 
+    };
+  }, []);
 
   const formatTime = (dateString) => {
     if (!dateString) return "---";
@@ -66,11 +72,9 @@ const LoginTimings = () => {
   };
 
   const calculateDurationDisplay = (startStr, endStr) => {
-    if (!endStr) return "Active Now";
-    const start = new Date(startStr);
-    const end = new Date(endStr);
-    
-    // Calculate difference in milliseconds
+    if (!endStr) return "Active";
+    const start = new Date(startStr).getTime();
+    const end = new Date(endStr).getTime();
     const diff = Math.max(0, end - start); 
     
     const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -80,8 +84,11 @@ const LoginTimings = () => {
     return `${hours}h ${mins}m`;
   };
 
+  // --- ACTIONS ---
   const handleForceLogout = async (logId) => {
-    if (!window.confirm("⚠️ Force end this session?")) return;
+    if (!window.confirm("Are you sure you want to force logout this user?")) return;
+    
+    setProcessingLogoutId(logId);
     try {
         const { error } = await supabase
         .from('login_logs')
@@ -89,21 +96,39 @@ const LoginTimings = () => {
         .eq('id', logId);
         
         if (error) throw error;
+        
+        // Optimistic Update
+        setLogs(prev => prev.map(log => 
+            log.id === logId 
+            ? { ...log, logout_at: new Date().toISOString() } 
+            : log
+        ));
     } catch (err) {
-        alert("❌ Error: " + err.message);
+        alert("Action Failed: " + err.message);
+    } finally {
+        setProcessingLogoutId(null);
     }
   };
 
-  // --- DATA FETCHING & REALTIME ---
+  // --- DATA FETCHING ---
   const setupRealtime = (fid, role, uid) => {
     if (channelRef.current) supabase.removeChannel(channelRef.current);
-
+    
     const channel = supabase
       .channel(`realtime-logs-${fid}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'login_logs', filter: `franchise_id=eq.${fid}` },
-        () => fetchLogs(fid, role, uid, targetUserId, false) 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'login_logs', 
+          filter: `franchise_id=eq.${fid}` 
+        },
+        (payload) => {
+            // Re-fetch only if necessary, or just prepend/update local state
+            // For simplicity and accuracy, we re-fetch the latest batch
+            fetchLogs(fid, role, uid, targetUserId, false); 
+        }
       )
       .subscribe();
       
@@ -112,122 +137,112 @@ const LoginTimings = () => {
 
   const fetchInitialData = async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        setCurrentUserId(user.id);
 
-    setCurrentUserId(user.id);
+        // Determine Role
+        const [ownerCheck, staffCheck] = await Promise.all([
+            supabase.from('profiles').select('franchise_id').eq('id', user.id).maybeSingle(),
+            supabase.from('staff_profiles').select('franchise_id').eq('id', user.id).maybeSingle()
+        ]);
 
-    // Identify if user is Owner or Staff
-    const [ownerCheck, staffCheck] = await Promise.all([
-      supabase.from('profiles').select('franchise_id').eq('id', user.id).maybeSingle(),
-      supabase.from('staff_profiles').select('franchise_id').eq('id', user.id).maybeSingle()
-    ]);
+        let fid = null;
+        let role = null;
 
-    let fid = null;
-    let role = null;
+        if (ownerCheck.data) {
+            fid = ownerCheck.data.franchise_id;
+            role = 'owner';
+        } else if (staffCheck.data) {
+            fid = staffCheck.data.franchise_id;
+            role = 'staff';
+        }
 
-    if (ownerCheck.data) {
-      fid = ownerCheck.data.franchise_id;
-      role = 'owner';
-    } else if (staffCheck.data) {
-      fid = staffCheck.data.franchise_id;
-      role = 'staff';
+        if (fid) {
+            setFranchiseId(fid);
+            setUserRole(role);
+            await fetchLogs(fid, role, user.id, targetUserId);
+            setupRealtime(fid, role, user.id);
+        }
+    } catch (e) { 
+        console.error("Init Error:", e);
+    } finally {
+        setLoading(false);
     }
-
-    if (fid) {
-      setFranchiseId(fid);
-      setUserRole(role);
-      await fetchLogs(fid, role, user.id, targetUserId);
-      setupRealtime(fid, role, user.id);
-    }
-    setLoading(false);
   };
 
-  const fetchLogs = async (fid, role, uid, specificTargetId, showLoading = true) => {
+  const fetchLogs = useCallback(async (fid, role, uid, specificTargetId, showLoading = true) => {
     if (showLoading) setIsRefreshing(true);
     
-    // Using !inner to ensure we only get logs for existing staff profiles
-    let query = supabase
-      .from('login_logs')
-      .select(`*, staff_profiles!inner( name, staff_id )`) 
-      .eq('franchise_id', fid)
-      .order('login_at', { ascending: false });
+    try {
+        let query = supabase
+        .from('login_logs')
+        .select(`
+            *,
+            staff_profiles!inner ( name, staff_id )
+        `)
+        .eq('franchise_id', fid)
+        .order('login_at', { ascending: false })
+        .limit(200); // Optimization: Limit to last 200 records to prevent crash
 
-    // Apply User Filters
-    if (specificTargetId) {
-        query = query.eq('staff_id', specificTargetId);
-    } else if (role === 'staff') {
-        query = query.eq('staff_id', uid);
+        if (specificTargetId) {
+            query = query.eq('staff_id', specificTargetId);
+        } else if (role === 'staff') {
+            query = query.eq('staff_id', uid);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        setLogs(data || []);
+    } catch (err) {
+        console.error("Fetch Logs Error:", err);
+    } finally {
+        if (showLoading) setIsRefreshing(false);
     }
+  }, []);
 
-    const { data, error } = await query;
-
-    if (error) console.error("❌ DB Error:", error.message);
-    else setLogs(data || []);
-    
-    if (showLoading) setIsRefreshing(false);
-  };
-
-  // --- FILTERING & STATS LOGIC ---
-  const getFilteredLogs = () => {
+  // --- FILTERING & STATS (MEMOIZED) ---
+  const finalLogs = useMemo(() => {
     return logs.filter(log => {
-      // 1. Text Search
       const { name, id } = getStaffDetails(log);
       const searchLower = searchTerm.toLowerCase();
-      const matchesSearch = name.toLowerCase().includes(searchLower) || 
-                            id.toLowerCase().includes(searchLower);
+      const matchesSearch = name.toLowerCase().includes(searchLower) || id.toLowerCase().includes(searchLower);
       
-      if (!matchesSearch) return false;
-
-      // 2. Date Filter
-      // Convert UTC DB time to Local YYYY-MM-DD for comparison
-      const logDate = new Date(log.login_at).toLocaleDateString('en-CA'); 
+      // Date Conversion logic handling timezone offsets simply
+      const logDate = new Date(log.login_at).toISOString().split('T')[0]; 
       
+      let matchesDate = true;
       if (filterType === 'date') {
-        return logDate === selectedDate;
+        matchesDate = logDate === selectedDate;
       } else {
-        return logDate >= startDate && logDate <= endDate;
+        matchesDate = logDate >= startDate && logDate <= endDate;
       }
+      return matchesSearch && matchesDate;
     });
-  };
+  }, [logs, searchTerm, filterType, selectedDate, startDate, endDate, getStaffDetails]);
 
-  const finalLogs = getFilteredLogs();
-
-  const calculateStats = () => {
+  const stats = useMemo(() => {
     let totalSeconds = 0;
-
     finalLogs.forEach(log => {
-      const start = new Date(log.login_at);
-      
-      let diffInSeconds = 0;
-
+      const start = new Date(log.login_at).getTime();
+      let diff = 0;
       if (log.logout_at) {
-        // Closed Session
-        const end = new Date(log.logout_at);
-        diffInSeconds = (end - start) / 1000;
+        diff = (new Date(log.logout_at).getTime() - start) / 1000;
       } else {
-        // Active Session
-        const end = new Date();
-        diffInSeconds = (end - start) / 1000;
-        
-        // GHOST SESSION GUARD: 
-        // If session > 24 hours (86400s), ignore it for stats
-        if (diffInSeconds > 86400) diffInSeconds = 0;
+         const currentDiff = (Date.now() - start) / 1000;
+         // Ignore if active for > 24 hours (ghost session)
+         if (currentDiff < 86400) diff = currentDiff;
       }
-
-      // Safety: Prevent negative time (clock skew)
-      if (diffInSeconds > 0) {
-        totalSeconds += diffInSeconds;
-      }
+      if (diff > 0) totalSeconds += diff;
     });
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    return { totalDuration: `${h}h ${m}m` };
+  }, [finalLogs]);
 
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-
-    return { totalDuration: `${hours}h ${minutes}m` };
-  };
-
-  const stats = calculateStats();
+  // --- EXPAND STATE FOR MOBILE CARDS ---
+  const [expandedCardId, setExpandedCardId] = useState(null);
 
   // --- RENDER ---
   return (
@@ -235,28 +250,28 @@ const LoginTimings = () => {
       
       {/* HEADER */}
       <div style={styles.headerRow}>
-        <div style={{flex: 1}}>
+        <div style={styles.headerLeft}>
           <button onClick={() => navigate(-1)} style={styles.backBtn}>
-            <ArrowLeft size={20} /> Back
+            <ArrowLeft size={18} /> <span>Back</span>
           </button>
         </div>
         
-        <div style={{flex: 2, textAlign: 'center'}}>
-           <h1 style={styles.pageTitle}>
-              {targetName ? `${targetName}'s Timings` : "Login Timings"}
-           </h1>
+        <div style={styles.headerCenter}>
+           <h1 style={styles.pageTitle}>Timings</h1>
         </div>
 
-        <div style={{flex: 1, textAlign: 'right'}}>
-          <div style={styles.franchiseBadge}>
-            FRANCHISE ID : <span>{franchiseId}</span>
+        <div style={styles.headerRight}>
+          <div style={styles.idBox}>
+            <span style={styles.idLabel}>ID:</span>
+            <span style={styles.idValue}>{franchiseId}</span>
           </div>
         </div>
       </div>
 
       {/* CONTROLS */}
-      <div style={styles.controlsRow}>
-        <div style={styles.searchContainer}>
+      <div style={{...styles.controlsRow, flexDirection: isMobile ? 'column' : 'row'}}>
+        {/* Search */}
+        <div style={{...styles.searchContainer, width: isMobile ? '100%' : '320px'}}>
           <Search size={18} color="#94a3b8" />
           <input 
             placeholder="Search Staff Name or ID..." 
@@ -266,176 +281,252 @@ const LoginTimings = () => {
           />
         </div>
 
-        <div style={styles.filterGroup}>
+        {/* Filters */}
+        <div style={{...styles.filterGroup, width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end'}}>
           <div style={styles.toggleContainer}>
-             <button 
-                style={filterType === 'date' ? styles.toggleBtnActive : styles.toggleBtn}
-                onClick={() => setFilterType('date')}
-             >
-                Date
-             </button>
-             <button 
-                style={filterType === 'range' ? styles.toggleBtnActive : styles.toggleBtn}
-                onClick={() => setFilterType('range')}
-             >
-                Range
-             </button>
+             <button style={filterType === 'date' ? styles.toggleBtnActive : styles.toggleBtn} onClick={() => setFilterType('date')}>Date</button>
+             <button style={filterType === 'range' ? styles.toggleBtnActive : styles.toggleBtn} onClick={() => setFilterType('range')}>Range</button>
           </div>
 
-          {filterType === 'date' ? (
-             <input 
-               type="date" 
-               style={styles.dateInput}
-               value={selectedDate}
-               onChange={(e) => setSelectedDate(e.target.value)}
-             />
-          ) : (
-            <div style={{display:'flex', gap:'8px', alignItems:'center'}}>
-               <input 
-                 type="date" 
-                 style={styles.dateInput}
-                 value={startDate}
-                 onChange={(e) => setStartDate(e.target.value)}
-               />
-               <span style={{color:'#94a3b8'}}>-</span>
-               <input 
-                 type="date" 
-                 style={styles.dateInput}
-                 value={endDate}
-                 onChange={(e) => setEndDate(e.target.value)}
-               />
-            </div>
-          )}
+          <div style={{flex: 1, display: 'flex', justifyContent: 'center'}}>
+            {filterType === 'date' ? (
+                <input type="date" style={styles.dateInput} value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+            ) : (
+                <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
+                <input type="date" style={{...styles.dateInput, width: isMobile ? '95px' : 'auto'}} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                <span style={{color:'#94a3b8'}}>-</span>
+                <input type="date" style={{...styles.dateInput, width: isMobile ? '95px' : 'auto'}} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                </div>
+            )}
+          </div>
 
-          <button 
-             onClick={() => fetchLogs(franchiseId, userRole, currentUserId, targetUserId)}
-             style={styles.refreshBtn} 
-             disabled={isRefreshing}
-          >
+          <button onClick={() => fetchLogs(franchiseId, userRole, currentUserId, targetUserId)} style={styles.refreshBtn} disabled={isRefreshing}>
              <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
 
-      {/* STATS */}
+      {/* STATS CARD */}
       <div style={styles.statsRow}>
-        <div style={styles.statCard}>
+        <div style={{...styles.statCard, width: isMobile ? '100%' : 'auto'}}>
            <div style={styles.statIconBox}><Timer size={20} color="white" /></div>
            <div>
               <div style={styles.statLabel}>Total Login Hours</div>
               <div style={styles.statValue}>{stats.totalDuration}</div>
-              <div style={styles.statSub}>For selected period</div>
            </div>
         </div>
       </div>
 
-      {/* TABLE */}
-      <div style={styles.tableCard}>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>DATE</th>
-              <th style={styles.th}>STAFF NAME</th>
-              <th style={styles.th}>STAFF ID</th>
-              <th style={styles.th}>LOGIN TIME</th>
-              <th style={styles.th}>LOGOUT TIME</th>
-              <th style={styles.th}>DURATION</th>
-              <th style={{...styles.th, textAlign: 'center'}}>STATUS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-               <tr><td colSpan="7" style={{padding:'60px', textAlign:'center'}}><Loader2 className="animate-spin" size={30} style={{margin:'0 auto', color: THEME_GREEN}} /></td></tr>
-            ) : finalLogs.length > 0 ? (
-               finalLogs.map((log) => {
-                  const isLoggedOut = !!log.logout_at;
-                  const { name, id } = getStaffDetails(log);
-                  
-                  return (
-                    <tr key={log.id} style={styles.tr}>
-                      <td style={styles.td}>
-                         <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
-                            <Calendar size={14} color="#64748b"/>
-                            {new Date(log.login_at).toLocaleDateString('en-GB')}
-                         </div>
-                      </td>
-                      <td style={{...styles.td, fontWeight: '700', color: TEXT_DARK}}>{name}</td>
-                      <td style={styles.td}><span style={styles.monoBadge}>{id}</span></td>
-                      <td style={{...styles.td, color: THEME_GREEN, fontWeight:'700'}}>
-                        {formatTime(log.login_at)}
-                      </td>
-                      <td style={{...styles.td, color: '#ef4444'}}>
-                         {isLoggedOut ? formatTime(log.logout_at) : '-- : --'}
-                      </td>
-                      <td style={{...styles.td, fontWeight: '700'}}>
-                         {calculateDurationDisplay(log.login_at, log.logout_at)}
-                      </td>
-                      <td style={{...styles.td, textAlign: 'center'}}>
-                        {isLoggedOut ? (
-                           <span style={styles.badgeInactive}>Completed</span>
-                        ) : (
-                           <div style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>
-                              <span style={styles.badgeActive}>Active</span>
-                              {userRole === 'owner' && (
-                                <button onClick={() => handleForceLogout(log.id)} style={styles.forceBtn} title="Force Logout">
-                                   <PowerOff size={12} />
-                                </button>
-                              )}
-                           </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-               })
-            ) : (
-               <tr><td colSpan="7" style={{padding:'40px', textAlign:'center', color:'#64748b'}}>No records found.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* DATA DISPLAY */}
+      {loading ? (
+         <div style={{padding:'60px', textAlign:'center'}}><Loader2 className="animate-spin" size={30} style={{margin:'0 auto', color: THEME_GREEN}} /></div>
+      ) : finalLogs.length === 0 ? (
+         <div style={styles.emptyState}>
+            <AlertCircle size={40} style={{marginBottom: '10px', opacity: 0.3}}/>
+            <p>No records found for this period.</p>
+         </div>
+      ) : isMobile ? (
+        // --- MOBILE CARD VIEW ---
+        <div style={styles.mobileList}>
+            {finalLogs.map(log => {
+                const { name, id } = getStaffDetails(log);
+                const isLoggedOut = !!log.logout_at;
+                const isProcessing = processingLogoutId === log.id;
 
+                return (
+                    <div key={log.id} style={styles.mobileCard}>
+                        <div 
+                            style={styles.cardHeader} 
+                            onClick={() => setExpandedCardId(expandedCardId === log.id ? null : log.id)}
+                        >
+                            <div style={styles.cardUser}>
+                                <div style={styles.userAvatar}><User size={16}/></div>
+                                <div>
+                                    <div style={styles.cardName}>{name}</div>
+                                    <div style={styles.cardId}>ID: {id}</div>
+                                </div>
+                            </div>
+                            <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                                {isLoggedOut ? (
+                                    <span style={styles.badgeInactive}>Done</span>
+                                ) : (
+                                    <span style={styles.badgeActive}>Active</span>
+                                )}
+                                {expandedCardId === log.id ? <ChevronDown size={16} color="#94a3b8"/> : <ChevronRight size={16} color="#94a3b8"/>}
+                            </div>
+                        </div>
+                        
+                        {expandedCardId === log.id && (
+                            <div style={styles.cardBody}>
+                                <div style={styles.cardRow}>
+                                    <span style={styles.cardLabel}><Calendar size={12}/> Date</span>
+                                    <span style={styles.cardValue}>{new Date(log.login_at).toLocaleDateString('en-GB')}</span>
+                                </div>
+                                <div style={styles.cardRow}>
+                                    <span style={styles.cardLabel}><Clock size={12}/> In - Out</span>
+                                    <span style={styles.cardValue}>
+                                        <span style={{color: THEME_GREEN}}>{formatTime(log.login_at)}</span>
+                                        <span style={{margin: '0 4px', color: '#cbd5e1'}}>➜</span> 
+                                        <span style={{color: isLoggedOut ? '#ef4444' : '#cbd5e1'}}>{isLoggedOut ? formatTime(log.logout_at) : '...'}</span>
+                                    </span>
+                                </div>
+                                <div style={styles.cardRow}>
+                                    <span style={styles.cardLabel}><Timer size={12}/> Duration</span>
+                                    <span style={{...styles.cardValue, fontWeight: '800'}}>{calculateDurationDisplay(log.login_at, log.logout_at)}</span>
+                                </div>
+                                
+                                {!isLoggedOut && userRole === 'owner' && (
+                                    <button 
+                                        onClick={() => handleForceLogout(log.id)} 
+                                        style={styles.mobileForceBtn}
+                                        disabled={isProcessing}
+                                    >
+                                        {isProcessing ? <Loader2 className="animate-spin" size={12}/> : <PowerOff size={12}/>}
+                                        {isProcessing ? "Processing..." : "Force Logout"}
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )
+            })}
+        </div>
+      ) : (
+        // --- DESKTOP TABLE VIEW ---
+        <div style={styles.tableCard}>
+            <table style={styles.table}>
+            <thead>
+                <tr>
+                <th style={styles.th}>DATE</th>
+                <th style={styles.th}>STAFF NAME</th>
+                <th style={styles.th}>STAFF ID</th>
+                <th style={styles.th}>LOGIN TIME</th>
+                <th style={styles.th}>LOGOUT TIME</th>
+                <th style={styles.th}>DURATION</th>
+                <th style={{...styles.th, textAlign: 'center'}}>STATUS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {finalLogs.map((log) => {
+                    const isLoggedOut = !!log.logout_at;
+                    const { name, id } = getStaffDetails(log);
+                    const isProcessing = processingLogoutId === log.id;
+
+                    return (
+                        <tr key={log.id} style={styles.tr}>
+                        <td style={styles.td}>
+                            <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                                <Calendar size={14} color="#64748b"/>
+                                {new Date(log.login_at).toLocaleDateString('en-GB')}
+                            </div>
+                        </td>
+                        <td style={{...styles.td, fontWeight: '700', color: TEXT_DARK}}>{name}</td>
+                        <td style={styles.td}><span style={styles.monoBadge}>{id}</span></td>
+                        <td style={{...styles.td, color: THEME_GREEN, fontWeight:'700'}}>
+                            {formatTime(log.login_at)}
+                        </td>
+                        <td style={{...styles.td, color: '#ef4444'}}>
+                            {isLoggedOut ? formatTime(log.logout_at) : '-- : --'}
+                        </td>
+                        <td style={{...styles.td, fontWeight: '700'}}>
+                            {calculateDurationDisplay(log.login_at, log.logout_at)}
+                        </td>
+                        <td style={{...styles.td, textAlign: 'center'}}>
+                            {isLoggedOut ? (
+                            <span style={styles.badgeInactive}>Completed</span>
+                            ) : (
+                            <div style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>
+                                <span style={styles.badgeActive}>Active</span>
+                                {userRole === 'owner' && (
+                                    <button 
+                                        onClick={() => handleForceLogout(log.id)} 
+                                        style={styles.forceBtn} 
+                                        title="Force Logout"
+                                        disabled={isProcessing}
+                                    >
+                                        {isProcessing ? <Loader2 className="animate-spin" size={12}/> : <PowerOff size={12} />}
+                                    </button>
+                                )}
+                            </div>
+                            )}
+                        </td>
+                        </tr>
+                    );
+                })}
+            </tbody>
+            </table>
+        </div>
+      )}
     </div>
   );
 };
 
 // --- STYLES ---
 const styles = {
-  page: { padding: "30px 40px", background: BG_GRAY, minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: TEXT_DARK },
+  page: { padding: "20px", background: BG_GRAY, minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: TEXT_DARK },
   
-  headerRow: { display: 'flex', alignItems: 'center', marginBottom: '30px' },
-  backBtn: { display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', fontSize: '15px', fontWeight: '700', color: TEXT_DARK, cursor: 'pointer' },
-  pageTitle: { margin: 0, fontSize: '24px', fontWeight: '800', color: TEXT_DARK, textTransform: 'uppercase', letterSpacing: '-0.5px' },
-  franchiseBadge: { display: 'inline-block', padding: '8px 16px', background: '#e2e8f0', borderRadius: '8px', fontSize: '13px', fontWeight: '700', color: '#475569' },
+  // Header
+  headerRow: { display: 'flex', alignItems: 'center', marginBottom: '20px', height: '40px', position: 'relative' },
+  headerLeft: { flex: 1, display: 'flex', justifyContent: 'flex-start' },
+  headerCenter: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', textAlign: 'center' },
+  headerRight: { flex: 1, display: 'flex', justifyContent: 'flex-end' },
+  
+  backBtn: { display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', fontSize: '14px', fontWeight: '700', color: TEXT_DARK, cursor: 'pointer', padding: 0 },
+  pageTitle: { margin: 0, fontSize: '18px', fontWeight: '900', color: TEXT_DARK, textTransform: 'uppercase', letterSpacing: '-0.5px', whiteSpace: 'nowrap' },
+  
+  // ID Box
+  idBox: { display: 'flex', alignItems: 'center', gap: '6px', background: 'white', border: `1px solid ${BORDER_COLOR}`, padding: '6px 10px', borderRadius: '8px' },
+  idLabel: { fontSize: '10px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase' },
+  idValue: { fontSize: '12px', fontWeight: '800', color: TEXT_DARK },
 
-  controlsRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', gap: '20px' },
-  searchContainer: { display: 'flex', alignItems: 'center', gap: '10px', background: 'white', border: `1px solid ${BORDER_COLOR}`, borderRadius: '10px', padding: '10px 15px', width: '300px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' },
+  // Controls
+  controlsRow: { display: 'flex', gap: '15px', marginBottom: '20px' },
+  searchContainer: { display: 'flex', alignItems: 'center', gap: '10px', background: 'white', border: `1px solid ${BORDER_COLOR}`, borderRadius: '12px', padding: '10px 15px' },
   searchInput: { border: 'none', outline: 'none', fontSize: '14px', width: '100%', color: TEXT_DARK },
   
-  filterGroup: { display: 'flex', alignItems: 'center', gap: '15px' },
-  toggleContainer: { display: 'flex', background: '#e2e8f0', padding: '4px', borderRadius: '8px' },
-  toggleBtn: { padding: '6px 16px', border: 'none', background: 'transparent', fontSize: '13px', fontWeight: '600', color: '#64748b', cursor: 'pointer', borderRadius: '6px' },
-  toggleBtnActive: { padding: '6px 16px', border: 'none', background: 'white', fontSize: '13px', fontWeight: '700', color: THEME_GREEN, cursor: 'pointer', borderRadius: '6px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
+  filterGroup: { display: 'flex', alignItems: 'center', gap: '10px' },
+  toggleContainer: { display: 'flex', background: '#e2e8f0', padding: '3px', borderRadius: '8px' },
+  toggleBtn: { padding: '6px 12px', border: 'none', background: 'transparent', fontSize: '12px', fontWeight: '600', color: '#64748b', cursor: 'pointer', borderRadius: '6px' },
+  toggleBtnActive: { padding: '6px 12px', border: 'none', background: 'white', fontSize: '12px', fontWeight: '700', color: THEME_GREEN, cursor: 'pointer', borderRadius: '6px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
   
-  dateInput: { padding: '8px 12px', borderRadius: '8px', border: `1px solid ${BORDER_COLOR}`, outline: 'none', fontSize: '13px', color: TEXT_DARK, fontWeight: '600' },
-  refreshBtn: { width: '38px', height: '38px', borderRadius: '8px', background: THEME_GREEN, color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  dateInput: { padding: '8px 10px', borderRadius: '8px', border: `1px solid ${BORDER_COLOR}`, outline: 'none', fontSize: '12px', color: TEXT_DARK, fontWeight: '600', background: 'white' },
+  refreshBtn: { width: '36px', height: '36px', borderRadius: '10px', background: THEME_GREEN, color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 
-  statsRow: { display: 'flex', gap: '20px', marginBottom: '25px' },
-  statCard: { minWidth: '240px', background: 'white', padding: '20px', borderRadius: '16px', border: `1px solid ${BORDER_COLOR}`, display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 6px -2px rgba(0,0,0,0.03)' },
-  statIconBox: { width: '45px', height: '45px', borderRadius: '12px', background: THEME_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  statLabel: { fontSize: '12px', fontWeight: '700', color: '#64748b', marginBottom: '2px' },
-  statValue: { fontSize: '20px', fontWeight: '800', color: TEXT_DARK },
-  statSub: { fontSize: '11px', color: '#94a3b8' },
+  // Stats
+  statsRow: { marginBottom: '20px' },
+  statCard: { background: 'white', padding: '15px', borderRadius: '16px', border: `1px solid ${BORDER_COLOR}`, display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' },
+  statIconBox: { width: '40px', height: '40px', borderRadius: '10px', background: THEME_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  statLabel: { fontSize: '11px', fontWeight: '700', color: '#64748b' },
+  statValue: { fontSize: '18px', fontWeight: '900', color: TEXT_DARK },
 
-  tableCard: { background: 'white', borderRadius: '16px', border: `1px solid ${BORDER_COLOR}`, overflow: 'hidden', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' },
+  // Empty State
+  emptyState: { padding: '60px', textAlign: 'center', color: '#94a3b8', background: 'white', borderRadius: '16px', border: `1px solid ${BORDER_COLOR}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
+
+  // Desktop Table
+  tableCard: { background: 'white', borderRadius: '16px', border: `1px solid ${BORDER_COLOR}`, overflow: 'hidden', boxShadow: '0 4px 6px -2px rgba(0,0,0,0.02)' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
-  th: { padding: '16px 24px', background: THEME_GREEN, color: 'white', fontSize: '12px', fontWeight: '700', letterSpacing: '0.5px' },
+  th: { padding: '14px 20px', background: '#f1f5f9', color: '#64748b', fontSize: '11px', fontWeight: '800', letterSpacing: '0.5px' },
   tr: { borderBottom: `1px solid ${BORDER_COLOR}`, transition: 'background 0.2s' },
-  td: { padding: '16px 24px', fontSize: '14px', color: '#475569', fontWeight: '500' },
+  td: { padding: '14px 20px', fontSize: '13px', color: '#475569', fontWeight: '500' },
 
-  monoBadge: { fontFamily: 'monospace', background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '13px', color: TEXT_DARK },
-  badgeActive: { background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' },
-  badgeInactive: { background: '#f1f5f9', color: '#64748b', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' },
-  
+  // Mobile Cards
+  mobileList: { display: 'flex', flexDirection: 'column', gap: '12px' },
+  mobileCard: { background: 'white', borderRadius: '14px', border: `1px solid ${BORDER_COLOR}`, padding: '16px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' },
+  cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' },
+  cardUser: { display: 'flex', alignItems: 'center', gap: '10px' },
+  userAvatar: { width: '32px', height: '32px', borderRadius: '8px', background: '#f0fdf4', color: THEME_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  cardName: { fontSize: '13px', fontWeight: '800', color: TEXT_DARK },
+  cardId: { fontSize: '11px', fontWeight: '600', color: '#94a3b8' },
+  cardBody: { display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px', paddingTop: '12px', borderTop: `1px dashed ${BORDER_COLOR}` },
+  cardRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' },
+  cardLabel: { display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontWeight: '600' },
+  cardValue: { color: TEXT_DARK, fontWeight: '500' },
+  mobileForceBtn: { marginTop: '12px', width: '100%', padding: '8px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', borderRadius: '8px', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' },
+
+  // Badges
+  monoBadge: { fontFamily: 'monospace', background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', color: TEXT_DARK },
+  badgeActive: { background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase' },
+  badgeInactive: { background: '#f1f5f9', color: '#64748b', padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase' },
   forceBtn: { background: '#fee2e2', border: '1px solid #fca5a5', width: '24px', height: '24px', borderRadius: '6px', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }
 };
 
