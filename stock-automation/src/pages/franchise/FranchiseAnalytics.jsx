@@ -24,8 +24,6 @@ function FranchiseAnalytics() {
   const [bills, setBills] = useState([]);
   const [expandedBill, setExpandedBill] = useState(null);
   const [loading, setLoading] = useState(false);
-  
-  // New state for the Franchise Profile
   const [franchiseId, setFranchiseId] = useState("...");
 
   useEffect(() => {
@@ -33,20 +31,14 @@ function FranchiseAnalytics() {
     fetchData();
   }, [activeTab, startDate, endDate, dateRangeMode]);
 
-  // Fetches the Franchise ID directly from the profiles table
   const fetchFranchiseProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("franchise_id")
-        .eq("id", user.id)
-        .single();
-      
-      if (!error && data) {
-        setFranchiseId(data.franchise_id);
-      }
-    }
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { data } = await supabase.from("profiles").select("franchise_id").eq("id", user.id).single();
+            if (data) setFranchiseId(data.franchise_id);
+        }
+    } catch (e) { console.error(e); }
   };
 
   const fetchData = async () => {
@@ -97,58 +89,78 @@ function FranchiseAnalytics() {
   };
 
   return (
-    <div style={styles.page}>
-      <nav style={styles.navBar}>
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
-          <button onClick={() => navigate(-1)} style={styles.backBtn}>
-            <ArrowLeft size={18} /> Back
+    <div className="analytics-page">
+      {/* HEADER */}
+      <nav className="nav-bar">
+        {/* Left: Back Button */}
+        <div className="nav-left">
+          <button onClick={() => navigate(-1)} className="back-btn">
+            <ArrowLeft size={18} /> <span>Back</span>
           </button>
         </div>
 
-        <div style={{ flex: 1, textAlign: 'center' }}>
-          <h1 style={styles.headerTitle}>Analysis</h1>
+        {/* Center: Title (Absolutely Centered) */}
+        <div className="nav-center">
+          <h1 className="header-title">Analysis</h1>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={styles.franchiseBadge}>
-            <Store size={14} color={PRIMARY} />
-            <span style={styles.franchiseLabel}>
-              Franchise ID: <span style={styles.franchiseValue}>{franchiseId}</span>
-            </span>
+        {/* Right: ID Box */}
+        <div className="nav-right">
+          <div className="id-container">
+            <span className="id-label">ID:</span>
+            <span className="id-box">{franchiseId}</span>
           </div>
         </div>
       </nav>
 
-      <div style={styles.container}>
-        <div style={styles.centerWrapper}>
-          <div style={styles.toggleBar}>
-            <button onClick={() => setActiveTab("store")} style={{ ...styles.tab, ...(activeTab === "store" ? styles.activeTab : {}) }}>Store Analysis</button>
-            <button onClick={() => setActiveTab("invoice")} style={{ ...styles.tab, ...(activeTab === "invoice" ? styles.activeTab : {}) }}>Orders Analysis</button>
+      <div className="main-container">
+        
+        {/* TABS */}
+        <div className="tab-container">
+          <div className="toggle-bar">
+            <button onClick={() => setActiveTab("store")} className={`tab-btn ${activeTab === "store" ? "active" : ""}`}>Store Sales</button>
+            <button onClick={() => setActiveTab("invoice")} className={`tab-btn ${activeTab === "invoice" ? "active" : ""}`}>Orders</button>
           </div>
         </div>
 
-        <div style={styles.filterRow}>
-          <div style={styles.leftFilterGroup}>
-            <div style={styles.miniToggle}>
-              <button onClick={() => setDateRangeMode("single")} style={dateRangeMode === "single" ? styles.miniTabActive : styles.miniTab}>Single</button>
-              <button onClick={() => setDateRangeMode("range")} style={dateRangeMode === "range" ? styles.miniTabActive : styles.miniTab}>Range</button>
+        {/* FILTERS */}
+        <div className="filter-row">
+          <div className="date-controls">
+            <div className="mini-toggle">
+              <button onClick={() => setDateRangeMode("single")} className={`mini-btn ${dateRangeMode === "single" ? "active" : ""}`}>Single</button>
+              <button onClick={() => setDateRangeMode("range")} className={`mini-btn ${dateRangeMode === "range" ? "active" : ""}`}>Range</button>
             </div>
-            <div style={styles.dateInputs}>
+            <div className="date-inputs">
               <Calendar size={14} color="#6b7280" />
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={styles.input} />
-              {dateRangeMode === "range" && <><span style={{color: '#d1d5db'}}>—</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={styles.input} /></>}
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="date-input" />
+              {dateRangeMode === "range" && (
+                <>
+                  <span className="date-separator">—</span>
+                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="date-input" />
+                </>
+              )}
             </div>
           </div>
         </div>
 
-        {loading ? <div style={styles.loader}>Synchronizing Data...</div> : (
-          <div style={styles.dashboardGrid}>
-            <div style={styles.chartCard}>
-              <h3 style={styles.chartTitle}>Revenue Trend</h3>
+        {/* CONTENT GRID */}
+        {loading ? (
+          <div className="loader">Synchronizing Data...</div>
+        ) : (
+          <div className="dashboard-grid">
+            
+            {/* Chart 1: Revenue */}
+            <div className="chart-card">
+              <h3 className="chart-title">Revenue Trend</h3>
               <div style={{ height: "300px", width: "100%" }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={graphData}>
-                    <defs><linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={PRIMARY} stopOpacity={0.2}/><stop offset="95%" stopColor={PRIMARY} stopOpacity={0}/></linearGradient></defs>
+                    <defs>
+                      <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={PRIMARY} stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor={PRIMARY} stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                     <XAxis dataKey="date" fontSize={11} tickLine={false} axisLine={false} />
                     <YAxis fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
@@ -159,8 +171,9 @@ function FranchiseAnalytics() {
               </div>
             </div>
 
-            <div style={styles.chartCard}>
-              <h3 style={styles.chartTitle}>Top 10 Items</h3>
+            {/* Chart 2: Top Items */}
+            <div className="chart-card">
+              <h3 className="chart-title">Top 10 Items</h3>
               <div style={{ height: "180px", width: "100%", marginBottom: '20px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -171,54 +184,55 @@ function FranchiseAnalytics() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div style={styles.topItemsList}>
+              <div className="top-items-list">
                 {topItems.map((item, index) => (
-                  <div key={index} style={styles.topItemRow}>
-                    <span style={{ width: 25, color: COLORS[index % COLORS.length], fontWeight: 900 }}>{index + 1}</span>
-                    <span style={{ flex: 1, fontWeight: 600, color: '#334155' }}>{item.name}</span>
-                    <span style={{ fontWeight: 800 }}>{item.value}</span>
+                  <div key={index} className="top-item-row">
+                    <span className="rank-num" style={{ color: COLORS[index % COLORS.length] }}>{index + 1}</span>
+                    <span className="item-name">{item.name}</span>
+                    <span className="item-value">{item.value}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div style={{ ...styles.chartCard, gridColumn: "span 2" }}>
-              <h3 style={styles.chartTitle}>{activeTab === "store" ? "Generated Bills" : "Stock Invoices"}</h3>
-              <div style={styles.listContainer}>
-                <div style={styles.tableHead}>
-                  <span style={styles.col1}>Franchise ID</span>
-                  <span style={styles.col2}>Timestamp</span>
-                  <span style={styles.col3}>Amount</span>
+            {/* List: Bills/Invoices */}
+            <div className="chart-card full-width">
+              <h3 className="chart-title">{activeTab === "store" ? "Generated Bills" : "Stock Invoices"}</h3>
+              <div className="list-container">
+                <div className="table-head">
+                  <span className="col-id">ID</span>
+                  <span className="col-time">Time</span>
+                  <span className="col-amt">Amt</span>
                   <span style={{ width: 18 }} />
                 </div>
                 
                 {bills.map(bill => (
-                  <div key={bill.id} style={styles.billRow} onClick={() => setExpandedBill(expandedBill === bill.id ? null : bill.id)}>
-                    <div style={styles.billMain}>
-                      <span style={{ ...styles.idTxt, ...styles.col1 }}>
+                  <div key={bill.id} className="bill-row" onClick={() => setExpandedBill(expandedBill === bill.id ? null : bill.id)}>
+                    <div className="bill-main">
+                      <span className="col-id cell-id">
                         <Hash size={12} color={PRIMARY} /> 
                         {bill.profiles?.franchise_id || bill.franchise_id || "N/A"}
                       </span>
 
-                      <div style={{ ...styles.dateTimeContainer, ...styles.col2 }}>
-                        <span style={styles.dateTxt}>
+                      <div className="col-time cell-time">
+                        <span className="date-txt">
                           {new Date(bill.created_at).toLocaleDateString("en-IN", { day: '2-digit', month: 'short' })}
                         </span>
-                        <span style={styles.timeHeaderTxt}>
+                        <span className="time-txt">
                           <Clock size={10} style={{marginRight: 4}} />
                           {new Date(bill.created_at).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', hour12: true })}
                         </span>
                       </div>
 
-                      <div style={{ ...styles.rightInfo, ...styles.col3 }}>
-                        <span style={styles.amtTxt}>₹{Number(bill.total ?? bill.total_amount ?? 0).toLocaleString('en-IN')}</span>
+                      <div className="col-amt cell-amt">
+                        <span className="amt-txt">₹{Number(bill.total ?? bill.total_amount ?? 0).toLocaleString('en-IN')}</span>
                       </div>
                       {expandedBill === bill.id ? <ChevronDown size={18} color={PRIMARY} /> : <ChevronRight size={18} color="#d1d5db" />}
                     </div>
 
                     {expandedBill === bill.id && (
-                      <div style={styles.popupInner}>
-                        <div style={styles.popupHeader}>Order Items Breakdown</div>
+                      <div className="popup-inner">
+                        <div className="popup-header">Breakdown</div>
                         <BillItems billId={bill.id} type={activeTab} />
                       </div>
                     )}
@@ -226,13 +240,206 @@ function FranchiseAnalytics() {
                 ))}
               </div>
             </div>
+
           </div>
         )}
       </div>
+
+      <style>{`
+        /* --- GLOBAL & RESET --- */
+        .analytics-page {
+          background: #f8fafc;
+          min-height: 100vh;
+          font-family: 'Inter', sans-serif;
+          color: #1e293b;
+        }
+
+        /* --- NAVIGATION --- */
+        .nav-bar {
+          padding: 0 16px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: #fff;
+          border-bottom: 1px solid #e2e8f0;
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          height: 64px;
+        }
+        
+        .nav-left { flex: 1; display: flex; justify-content: flex-start; }
+        .nav-right { flex: 1; display: flex; justify-content: flex-end; }
+        
+        /* Absolute Centering for Title */
+        .nav-center {
+          position: absolute;
+          left: 50%;
+          transform: translateX(-50%);
+          text-align: center;
+        }
+
+        .back-btn {
+          border: none;
+          background: none;
+          cursor: pointer;
+          color: ${PRIMARY};
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 13px;
+          padding: 0;
+        }
+
+        .header-title {
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          font-size: 16px;
+          margin: 0;
+          white-space: nowrap;
+        }
+
+        /* --- ID BOX STYLING --- */
+        .id-container {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .id-label {
+          font-size: 10px;
+          font-weight: 900;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          display: none; /* Hide label on very small screens if needed, usually fine to keep */
+        }
+        @media (min-width: 350px) { .id-label { display: block; } }
+
+        .id-box {
+          font-size: 11px;
+          font-weight: 800;
+          color: #000;
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          padding: 4px 8px;
+          border-radius: 8px;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        /* --- CONTAINER --- */
+        .main-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 20px;
+        }
+
+        /* --- TABS --- */
+        .tab-container { display: flex; justify-content: center; margin-bottom: 24px; }
+        .toggle-bar { background: #f1f5f9; padding: 4px; border-radius: 12px; display: flex; width: 100%; max-width: 400px; }
+        .tab-btn {
+          flex: 1;
+          padding: 10px;
+          border: none;
+          background: none;
+          cursor: pointer;
+          border-radius: 8px;
+          font-weight: 600;
+          color: #64748b;
+          font-size: 12px;
+          transition: 0.2s;
+        }
+        .tab-btn.active { background: #fff; color: ${PRIMARY}; box-shadow: 0 2px 8px rgba(0,0,0,0.05); font-weight: 800; }
+
+        /* --- FILTERS --- */
+        .filter-row { margin-bottom: 24px; }
+        .date-controls { display: flex; flex-direction: column; gap: 12px; }
+        .mini-toggle { display: flex; background: #f1f5f9; border-radius: 8px; padding: 2px; align-self: flex-start; }
+        .mini-btn { border: none; background: none; fontSize: 11px; fontWeight: 600; color: #64748b; padding: 6px 16px; cursor: pointer; }
+        .mini-btn.active { background: #fff; color: ${PRIMARY}; font-weight: 800; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        
+        .date-inputs {
+          display: flex;
+          align-items: center;
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          padding: 8px 12px;
+          border-radius: 10px;
+          width: 100%;
+          gap: 10px;
+        }
+        .date-input { border: none; outline: none; font-size: 12px; font-weight: 600; color: #1e293b; background: transparent; flex: 1; }
+        .date-separator { color: #d1d5db; font-weight: 700; }
+
+        /* --- GRID LAYOUT --- */
+        .dashboard-grid {
+          display: grid;
+          gap: 20px;
+          grid-template-columns: 1fr; /* Default Mobile: 1 Column */
+        }
+
+        .chart-card {
+          background: #fff;
+          padding: 20px;
+          border-radius: 20px;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+        }
+        .chart-title { font-weight: 800; margin-bottom: 16px; font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; }
+
+        /* --- TOP ITEMS LIST --- */
+        .top-items-list { display: flex; flex-direction: column; gap: 10px; }
+        .top-item-row { display: flex; align-items: center; font-size: 12px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
+        .rank-num { width: 24px; font-weight: 900; }
+        .item-name { flex: 1; font-weight: 600; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .item-value { font-weight: 800; }
+
+        /* --- LIST TABLE --- */
+        .list-container { display: flex; flex-direction: column; gap: 10px; }
+        .table-head { display: flex; padding: 0 16px 8px 16px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; }
+        .bill-row { border: 1px solid #f1f5f9; border-radius: 12px; overflow: hidden; cursor: pointer; background: #fff; transition: 0.2s; }
+        .bill-main { padding: 14px 16px; display: flex; align-items: center; }
+        
+        .col-id { flex: 1.2; }
+        .col-time { flex: 1.5; text-align: center; }
+        .col-amt { flex: 1; text-align: right; padding-right: 10px; }
+
+        .cell-id { font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; color: #334155; }
+        .cell-time { display: flex; flex-direction: column; gap: 2px; }
+        .date-txt { font-size: 11px; font-weight: 600; color: #1e293b; }
+        .time-txt { font-size: 10px; font-weight: 500; color: #94a3b8; display: flex; align-items: center; justify-content: center; }
+        .cell-amt .amt-txt { font-weight: 800; color: ${PRIMARY}; font-size: 14px; }
+
+        .popup-inner { padding: 16px; border-top: 1px solid #f1f5f9; background: #f8fafc; }
+        .popup-header { font-weight: 800; margin-bottom: 10px; color: #64748b; font-size: 10px; text-transform: uppercase; }
+        .items-table { display: flex; flex-direction: column; gap: 6px; }
+        .item-line-header { display: flex; padding: 0 8px 6px 8px; font-size: 10px; font-weight: 700; color: #cbd5e1; text-transform: uppercase; }
+        .item-line { display: flex; align-items: center; font-size: 11px; background: #fff; padding: 10px 12px; border-radius: 8px; border: 1px solid #f1f5f9; }
+
+        .loader { text-align: center; padding: 100px 0; font-weight: 700; color: ${PRIMARY}; }
+
+        /* --- MEDIA QUERIES --- */
+        @media (min-width: 768px) {
+          .nav-bar { padding: 0 40px; }
+          .date-controls { flex-direction: row; }
+          .date-inputs { width: auto; }
+          .dashboard-grid { grid-template-columns: 1fr 1fr; } /* Tablet 2 col */
+          .full-width { grid-column: span 2; }
+        }
+
+        @media (min-width: 1024px) {
+          .dashboard-grid { grid-template-columns: 1.6fr 1fr; } /* Laptop Ratio */
+          .full-width { grid-column: span 2; }
+          .bill-main { padding: 14px 24px; }
+          .table-head { padding: 0 24px 12px 24px; }
+        }
+      `}</style>
     </div>
   );
 }
 
+// Sub-component for bill items
 function BillItems({ billId, type }) {
   const [items, setItems] = useState([]);
   useEffect(() => {
@@ -246,17 +453,17 @@ function BillItems({ billId, type }) {
   }, [billId, type]);
 
   return (
-    <div style={styles.itemsTable}>
-       <div style={styles.itemLineHeader}>
-          <span style={{ flex: 2 }}>Item Name</span>
-          <span style={{ flex: 1, textAlign: 'center' }}>Quantity</span>
+    <div className="items-table">
+       <div className="item-line-header">
+          <span style={{ flex: 2 }}>Item</span>
+          <span style={{ flex: 1, textAlign: 'center' }}>Qty</span>
           <span style={{ flex: 1, textAlign: 'right' }}>Total</span>
        </div>
       {items.map((i, idx) => {
         const qty = Number(i.qty ?? i.quantity ?? 0);
         const price = Number(i.price ?? 0);
         return (
-          <div key={idx} style={styles.itemLine}>
+          <div key={idx} className="item-line">
             <span style={{ fontWeight: 600, flex: 2, color: '#1e293b' }}>{i.item_name}</span>
             <span style={{ flex: 1, textAlign: 'center', color: '#64748b' }}>{qty}</span>
             <span style={{ fontWeight: 700, flex: 1, textAlign: 'right', color: '#0f172a' }}>₹{(qty * price).toLocaleString('en-IN')}</span>
@@ -266,70 +473,5 @@ function BillItems({ billId, type }) {
     </div>
   );
 }
-
-const styles = {
-  page: { background: "#f8fafc", minHeight: "100vh", fontFamily: '"Inter", sans-serif' },
-  navBar: { 
-    padding: "0 40px", 
-    display: "flex", 
-    alignItems: "center", 
-    justifyContent: "space-between", 
-    background: "#fff", 
-    borderBottom: "1px solid #e2e8f0", 
-    position: 'sticky', 
-    top: 0, 
-    zIndex: 10,
-    height: "70px"
-  },
-  backBtn: { border: "none", background: "none", cursor: "pointer", color: PRIMARY, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 },
-  headerTitle: { fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '16px', color: '#1e293b', margin: 0 },
-  franchiseBadge: { 
-    display: 'flex', 
-    alignItems: 'center', 
-    gap: '10px', 
-    background: '#f0fdf4', 
-    padding: '8px 16px', 
-    borderRadius: '12px', 
-    border: `1px solid #dcfce7` 
-  },
-  franchiseLabel: { fontSize: '12px', fontWeight: 700, color: '#166534', textTransform: 'uppercase' },
-  franchiseValue: { color: PRIMARY, fontWeight: 900 },
-  container: { maxWidth: 1100, margin: "auto", padding: '30px 20px' },
-  centerWrapper: { display: "flex", justifyContent: "center", marginBottom: 30 },
-  toggleBar: { background: "#f1f5f9", padding: 4, borderRadius: 12, display: "flex" },
-  tab: { padding: "8px 20px", border: "none", background: "none", cursor: "pointer", borderRadius: 8, fontWeight: 600, color: '#64748b', transition: '0.2s' },
-  activeTab: { background: "#fff", color: PRIMARY, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' },
-  filterRow: { marginBottom: 25 },
-  leftFilterGroup: { display: "flex", gap: 12, alignItems: 'center' },
-  miniToggle: { display: "flex", background: "#f1f5f9", borderRadius: 8, padding: 2 },
-  miniTab: { border: "none", background: "none", fontSize: '11px', fontWeight: 600, color: '#64748b', padding: '6px 12px', cursor: 'pointer' },
-  miniTabActive: { background: "#fff", color: PRIMARY, fontSize: '11px', fontWeight: 700, borderRadius: 6, padding: '6px 12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' },
-  dateInputs: { display: "flex", gap: 8, alignItems: 'center', background: '#fff', border: '1px solid #e2e8f0', padding: '6px 12px', borderRadius: '8px' },
-  input: { border: "none", outline: 'none', fontSize: '12px', fontWeight: 600, color: '#1e293b' },
-  dashboardGrid: { display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 24 },
-  chartCard: { background: "#fff", padding: "24px", borderRadius: "20px", border: "1px solid #e2e8f0", boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' },
-  chartTitle: { fontWeight: 800, marginBottom: 20, fontSize: '11px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em' },
-  col1: { flex: 1.5 },
-  col2: { flex: 1.2, textAlign: 'center' },
-  col3: { flex: 1, textAlign: 'right', paddingRight: 10 },
-  tableHead: { display: 'flex', padding: '0 24px 12px 24px', fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' },
-  listContainer: { display: "flex", flexDirection: "column", gap: 10 },
-  billRow: { border: "1px solid #f1f5f9", borderRadius: 12, overflow: 'hidden', cursor: 'pointer', background: '#fff', transition: '0.2s' },
-  billMain: { padding: '14px 24px', display: "flex", alignItems: 'center' },
-  idTxt: { fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: 6, color: '#334155' },
-  dateTimeContainer: { display: 'flex', flexDirection: 'column', gap: 2 },
-  dateTxt: { fontSize: '12px', fontWeight: 600, color: '#1e293b' },
-  timeHeaderTxt: { fontSize: '10px', fontWeight: 500, color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  rightInfo: { display: "flex", justifyContent: 'flex-end', alignItems: 'center' },
-  amtTxt: { fontWeight: 800, color: PRIMARY, fontSize: '15px' },
-  popupInner: { padding: '20px 24px', borderTop: "1px solid #f1f5f9", background: '#f8fafc' },
-  popupHeader: { fontWeight: 800, marginBottom: 12, color: '#64748b', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' },
-  itemsTable: { display: "flex", flexDirection: "column", gap: 4 },
-  itemLineHeader: { display: 'flex', padding: '0 12px 8px 12px', fontSize: '10px', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase' },
-  itemLine: { display: "flex", alignItems: "center", fontSize: 12, background: '#fff', padding: '10px 12px', borderRadius: '8px', border: '1px solid #f1f5f9' },
-  topItemsList: { display: 'flex', flexDirection: 'column', gap: 8 },
-  topItemRow: { display: 'flex', alignItems: 'center', fontSize: '12px', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9' },
-  loader: { textAlign: "center", padding: 100, fontWeight: 700, color: PRIMARY }
-};
 
 export default FranchiseAnalytics;

@@ -307,7 +307,6 @@ function StockOrder() {
                               <span>Subtotal</span>
                               <span className="text-black">₹{calculations.subtotal.toFixed(2)}</span>
                           </div>
-                          {/* UPDATED: Unified GST Row */}
                           <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
                               <span>GST</span>
                               <span className="text-black">+ ₹{calculations.totalGst.toFixed(2)}</span>
@@ -355,8 +354,9 @@ function StockOrder() {
       {/* --- STICKY HEADER (Desktop & Mobile) --- */}
       <nav className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b-2 border-slate-100 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
+             {/* UPDATED: Back Button with Text Visible on Mobile */}
              <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-all">
-                <FiArrowLeft size={18} /> <span className="hidden md:inline">BACK</span>
+                <FiArrowLeft size={18} /> <span>Back</span>
             </button>
         </div>
         
