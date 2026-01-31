@@ -1,7 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../../supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
-import { FiArrowLeft, FiSearch, FiTrash2, FiPlus, FiMinus, FiShoppingCart, FiCalendar, FiCreditCard, FiAlertTriangle, FiX, FiCheck, FiFilter, FiBell } from "react-icons/fi";
+import { 
+  FiArrowLeft, FiSearch, FiCalendar, FiShoppingCart, 
+  FiAlertTriangle, FiX, FiCheck, FiFilter, FiBell, FiMinus, FiPlus, FiTrash2
+} from "react-icons/fi";
 
 const BRAND_COLOR = "rgb(0, 100, 55)";
 
@@ -62,10 +65,7 @@ function StockOrder() {
         .eq('online_store', true)
         .order("item_name");
 
-      if (error) {
-        console.error("❌ SUPABASE ERROR:", error);
-        return;
-      }
+      if (error) throw error;
 
       const stockData = data || [];
       setStocks(stockData);
@@ -80,11 +80,10 @@ function StockOrder() {
       setQtyInput(initialQtys);
 
     } catch (err) {
-      console.error("❌ UNEXPECTED ERROR:", err);
+      console.error("Error:", err);
     }
   };
 
-  // NEW: Handle Notify Me Request
   const handleNotifyMe = async (item) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -92,7 +91,6 @@ function StockOrder() {
         alert("Please login to request stock.");
         return;
       }
-
       const { error } = await supabase.from("stock_requests").insert([{
         stock_id: item.id,
         item_name: item.item_name,
@@ -101,11 +99,9 @@ function StockOrder() {
         user_name: profile?.name || "Unknown User",
         status: 'pending'
       }]);
-
       if (error) throw error;
       alert(`Request for ${item.item_name} sent to Admin!`);
     } catch (error) {
-      console.error("Error sending request:", error);
       alert("Failed to send request: " + error.message);
     }
   };
@@ -113,17 +109,19 @@ function StockOrder() {
   const calculations = useMemo(() => {
     const details = cart.map(item => {
       const itemSubtotal = item.price * item.qty;
-      const itemGst = itemSubtotal * ((item.gst_rate || 0) / 100);
+      const gstRate = item.gst_rate || 0; 
+      const itemGstAmt = itemSubtotal * (gstRate / 100);
+      
       return {
         ...item,
         preciseSubtotal: itemSubtotal,
-        preciseGst: itemGst,
-        preciseTotal: itemSubtotal + itemGst
+        preciseGst: itemGstAmt,
       };
     });
 
     const totalSubtotal = details.reduce((acc, curr) => acc + curr.preciseSubtotal, 0);
     const totalGst = details.reduce((acc, curr) => acc + curr.preciseGst, 0);
+    
     const exactBill = totalSubtotal + totalGst;
     const roundedBill = Math.round(exactBill);
     const roundOff = roundedBill - exactBill;
@@ -132,8 +130,6 @@ function StockOrder() {
       items: details,
       subtotal: totalSubtotal,
       totalGst: totalGst,
-      cgst: totalGst / 2,
-      sgst: totalGst / 2,
       exactBill: exactBill,
       roundedBill: roundedBill,
       roundOff: roundOff
@@ -203,39 +199,6 @@ function StockOrder() {
     setQtyInput(prev => ({ ...prev, [itemId]: 0 }));
   };
 
-  const updateCartItemQty = (itemId, newDisplayQty) => {
-    const cartItem = cart.find(c => c.id === itemId);
-    const stockItem = stocks.find(s => s.id === itemId);
-
-    if (!cartItem || !stockItem) return;
-
-    let numVal = Math.max(0, Number(newDisplayQty));
-    const factor = getConversionFactor(cartItem.cartUnit);
-
-    const requestedBaseQty = parseFloat((numVal * factor).toFixed(3));
-    const availableBaseQty = parseFloat(Number(stockItem.quantity).toFixed(3));
-
-    if (requestedBaseQty > availableBaseQty) {
-      setStockAlert({
-        show: true,
-        itemName: stockItem.item_name,
-        maxAvailable: availableBaseQty,
-        unit: stockItem.unit
-      });
-      numVal = Math.floor((availableBaseQty / factor) * 1000) / 1000;
-    }
-
-    const finalBaseQty = numVal * factor;
-
-    if (numVal <= 0) {
-      setCart(prev => prev.filter(c => c.id !== itemId));
-      setQtyInput(prev => ({ ...prev, [itemId]: 0 }));
-    } else {
-      setCart(prev => prev.map(c => c.id === itemId ? { ...c, qty: finalBaseQty, displayQty: numVal } : c));
-      setQtyInput(prev => ({ ...prev, [itemId]: numVal }));
-    }
-  };
-
   const handlePlaceOrder = async () => {
     if (cart.length === 0) return;
     setLoading(true);
@@ -290,15 +253,98 @@ function StockOrder() {
   }, [stocks, search, selectedCategory, showOnlyAvailable]);
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] pb-10 font-sans text-black">
+    <div className="min-h-screen bg-[#F8F9FA] pb-10 font-sans text-black relative">
+      
+      {/* --- CART DRAWER (Responsive Modal) --- */}
+      {isCartOpen && (
+        <>
+            {/* Backdrop */}
+            <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" onClick={() => setIsCartOpen(false)}></div>
+            
+            {/* Drawer */}
+            <div className="fixed inset-y-0 right-0 z-[70] w-full md:w-[500px] bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+                <div className="p-6 border-b-2 border-slate-100 flex items-center justify-between bg-white">
+                    <h2 className="text-lg font-black uppercase tracking-widest flex items-center gap-2">
+                        <FiShoppingCart /> Your Order ({cart.length})
+                    </h2>
+                    <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                        <FiX size={20} />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                    {cart.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-300 space-y-4">
+                            <FiShoppingCart size={48} />
+                            <p className="text-xs font-black uppercase tracking-widest">Cart is Empty</p>
+                        </div>
+                    ) : (
+                        cart.map(item => (
+                            <div key={item.id} className="flex gap-4 p-4 border-2 border-slate-100 rounded-2xl bg-slate-50">
+                                <div className="flex-1">
+                                    <h4 className="text-xs font-black uppercase mb-1">{item.item_name}</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">
+                                        {item.displayQty} {item.cartUnit}
+                                    </p>
+                                    <p className="text-sm font-black mt-2">₹{(item.price * item.qty).toFixed(2)}</p>
+                                </div>
+                                <button 
+                                    onClick={() => removeFromCart(item.id)}
+                                    className="self-center p-3 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
+                                >
+                                    <FiTrash2 size={18} />
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* --- DETAILED BREAKDOWN FOOTER --- */}
+                {cart.length > 0 && (
+                  <div className="p-6 border-t-2 border-slate-100 bg-white">
+                      <div className="space-y-3 mb-6 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100">
+                          <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
+                              <span>Subtotal</span>
+                              <span className="text-black">₹{calculations.subtotal.toFixed(2)}</span>
+                          </div>
+                          {/* UPDATED: Unified GST Row */}
+                          <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
+                              <span>GST</span>
+                              <span className="text-black">+ ₹{calculations.totalGst.toFixed(2)}</span>
+                          </div>
+                           <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
+                              <span>Round Off</span>
+                              <span className="text-black">{calculations.roundOff >= 0 ? '+' : ''} ₹{calculations.roundOff.toFixed(2)}</span>
+                          </div>
+                          <div className="h-px bg-slate-200 my-2"></div>
+                          <div className="flex justify-between items-center text-sm font-black uppercase">
+                              <span>Total Payable</span>
+                              <span className="text-xl">₹{calculations.roundedBill}</span>
+                          </div>
+                      </div>
+
+                      <button 
+                          onClick={handlePlaceOrder}
+                          disabled={loading}
+                          className="w-full py-4 bg-black text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                          {loading ? <span className="animate-spin">C</span> : <FiCheck size={16}/>} 
+                          {loading ? "Processing..." : "Confirm Order"}
+                      </button>
+                  </div>
+                )}
+            </div>
+        </>
+      )}
+
       {/* Stock Alert Modal */}
       {stockAlert.show && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl border-4 border-rose-500 text-center">
+          <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl border-4 border-rose-500 text-center animate-in zoom-in-95 duration-200">
             <FiAlertTriangle size={40} className="text-rose-600 mx-auto mb-4" />
             <h3 className="text-xl font-black uppercase mb-2 text-black">Stock Limit</h3>
             <p className="text-slate-500 text-sm font-bold leading-relaxed mb-6 uppercase">
-              Available in Godown: <span className="text-black">{stockAlert.maxAvailable} {stockAlert.unit}</span>.
+              Available: <span className="text-black">{stockAlert.maxAvailable} {stockAlert.unit}</span>.
               <br /><br />Contact Admin for bulk orders.
             </p>
             <button onClick={() => setStockAlert({ ...stockAlert, show: false })} className="w-full py-4 bg-black text-white rounded-xl font-black uppercase text-xs active:scale-95 transition-all">OK</button>
@@ -306,54 +352,86 @@ function StockOrder() {
         </div>
       )}
 
-      {/* Navigation */}
-      <nav className="sticky top-0 z-40 bg-white border-b-2 border-slate-100 px-8 py-5 h-20 flex items-center justify-between shadow-sm">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-xs tracking-widest hover:opacity-50 transition-all"><FiArrowLeft size={18} /> BACK</button>
-        <h1 className="text-xl font-black uppercase tracking-[0.2em] text-black">Order Inventory</h1>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Franchise ID:</span>
-          <span className="text-xs font-black text-black uppercase bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">{profile?.franchise_id || "..."}</span>
+      {/* --- STICKY HEADER (Desktop & Mobile) --- */}
+      <nav className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b-2 border-slate-100 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-4">
+             <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-all">
+                <FiArrowLeft size={18} /> <span className="hidden md:inline">BACK</span>
+            </button>
+        </div>
+        
+        <h1 className="text-sm md:text-xl font-black uppercase tracking-[0.2em] text-black text-center absolute left-1/2 -translate-x-1/2">
+            Inventory
+        </h1>
+        
+        {/* --- TOP RIGHT ID BOX & CART --- */}
+        <div className="flex items-center gap-3">
+             {/* ID BOX (Visible on ALL screens) */}
+             <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">ID :</span>
+                <span className="text-[10px] sm:text-xs font-black text-black bg-white border border-slate-200 px-2 sm:px-3 py-1 rounded-lg shadow-sm">
+                    {profile?.franchise_id || "CENTRAL"}
+                </span>
+            </div>
+
+            {/* CART ICON */}
+             <button 
+                onClick={() => setIsCartOpen(true)} 
+                className="relative p-2 md:p-3 bg-white border-2 border-slate-100 rounded-xl hover:border-black transition-all shadow-sm text-black group"
+            >
+              <FiShoppingCart size={20} className="md:w-5 md:h-5" />
+              {cart.length > 0 && (
+                <span className="absolute -top-2 -right-2 text-white text-[9px] font-black h-5 w-5 flex items-center justify-center rounded-full shadow-lg border-2 border-white animate-in zoom-in" style={{ backgroundColor: BRAND_COLOR }}>
+                    {cart.length}
+                </span>
+              )}
+            </button>
         </div>
       </nav>
 
-      {/* Search and Filters */}
-      <div className="max-w-[1400px] mx-auto px-6 mt-8">
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-4 mb-6">
-          <div className="relative w-full max-w-2xl flex items-center gap-3">
-            <div className="relative flex-1">
-              <FiSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-black opacity-60" size={18} />
-              <input placeholder="SEARCH ITEM NAME OR CODE..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full h-full pl-14 pr-6 py-4 bg-white border-2 border-slate-100 rounded-2xl text-sm outline-none focus:border-black transition-all text-black font-black placeholder:text-slate-300 uppercase shadow-sm" />
+      {/* --- MAIN CONTENT --- */}
+      <div className="max-w-[1400px] mx-auto px-4 md:px-6 mt-6 md:mt-8">
+        
+        {/* Sticky Filters / Toolbar */}
+        <div className="sticky top-16 md:top-20 z-30 bg-[#F8F9FA]/95 backdrop-blur-sm py-2 mb-4 -mx-4 px-4 md:mx-0 md:px-0">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                {/* Search */}
+                <div className="relative w-full md:flex-1">
+                    <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-black opacity-60" size={16} />
+                    <input 
+                        placeholder="SEARCH ITEM..." 
+                        value={search} 
+                        onChange={(e) => setSearch(e.target.value)} 
+                        className="w-full h-12 md:h-14 pl-10 md:pl-12 pr-4 bg-white border-2 border-slate-100 rounded-2xl text-[10px] md:text-sm outline-none focus:border-black transition-all text-black font-black placeholder:text-slate-300 uppercase shadow-sm" 
+                    />
+                </div>
+
+                {/* Filter Buttons */}
+                <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
+                     <button 
+                        onClick={() => setShowOnlyAvailable(!showOnlyAvailable)}
+                        className={`flex items-center gap-2 px-4 h-12 md:h-14 rounded-2xl border-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-sm whitespace-nowrap flex-shrink-0 ${showOnlyAvailable ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "bg-white border-slate-100 text-slate-400 hover:border-black"}`}
+                        >
+                        <FiFilter size={14} className={showOnlyAvailable ? "text-emerald-600" : "text-slate-300"} />
+                        <span className="hidden sm:inline">Show Available Only</span>
+                        <span className="sm:hidden">Available</span>
+                    </button>
+
+                    <div className="flex items-center gap-2 bg-white px-4 h-12 md:h-14 rounded-2xl border-2 border-slate-100 shadow-sm font-black text-xs uppercase text-black flex-shrink-0 whitespace-nowrap">
+                        <FiCalendar size={16} className="opacity-40" /> {today}
+                    </div>
+                </div>
             </div>
-            
-            <button 
-              onClick={() => setShowOnlyAvailable(!showOnlyAvailable)}
-              className={`flex items-center gap-2 px-5 py-4 rounded-2xl border-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-sm whitespace-nowrap ${showOnlyAvailable ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "bg-white border-slate-100 text-slate-400 hover:border-black"}`}
-            >
-              <FiFilter size={14} className={showOnlyAvailable ? "text-emerald-600" : "text-slate-300"} />
-              {showOnlyAvailable ? "Showing Available" : "Show Available Only"}
-            </button>
-          </div>
-
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="flex items-center gap-3 bg-white px-6 py-4 rounded-2xl border-2 border-slate-100 whitespace-nowrap shadow-sm flex-1 md:flex-none font-black text-sm uppercase text-black"><FiCalendar size={18} className="opacity-40" /> {today}</div>
-            <button onClick={() => setIsCartOpen(true)} className="relative p-4 bg-white border-2 border-slate-100 rounded-2xl hover:border-black transition-all shadow-sm text-black group">
-              <FiShoppingCart size={22} className="group-hover:scale-110 transition-transform" />
-              {cart.length > 0 && <span className="absolute -top-2 -right-2 text-white text-[10px] font-black h-6 w-6 flex items-center justify-center rounded-full shadow-lg border-2 border-white" style={{ backgroundColor: BRAND_COLOR }}>{cart.length}</span>}
-            </button>
-          </div>
+             {/* Categories */}
+             <div className="flex gap-2 overflow-x-auto py-3 no-scrollbar touch-pan-x">
+                {dynamicCategories.map((cat) => (
+                <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border-2 whitespace-nowrap flex-shrink-0 ${selectedCategory === cat ? "text-white border-transparent shadow-md" : "bg-white text-black border-slate-100 hover:border-black shadow-sm"}`} style={selectedCategory === cat ? { backgroundColor: BRAND_COLOR } : {}} >{cat}</button>
+                ))}
+            </div>
         </div>
 
-        {/* Categories */}
-        <div className="mb-10 text-black">
-          <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
-            {dynamicCategories.map((cat) => (
-              <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border-2 whitespace-nowrap ${selectedCategory === cat ? "text-white border-transparent shadow-md" : "bg-white text-black border-slate-100 hover:border-black shadow-sm"}`} style={selectedCategory === cat ? { backgroundColor: BRAND_COLOR } : {}} >{cat}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* Stock Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* --- STOCK GRID --- */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 pb-20">
           {filteredStocks.map((item) => {
             const isOutOfStock = item.quantity <= 0;
             const unit = selectedUnit[item.id] ?? item.unit ?? "pcs";
@@ -363,41 +441,40 @@ function StockOrder() {
             return (
               <div
                 key={item.id}
-                className={`relative bg-white p-5 rounded-2xl transition-all flex flex-col border-2 
+                className={`relative bg-white p-4 md:p-5 rounded-2xl transition-all flex flex-col border-2 
                     ${isOutOfStock ? 'border-slate-100 bg-slate-50/50' :
                     isInCart ? `border-emerald-500 shadow-md ring-1 ring-emerald-500` :
                       'border-slate-200 hover:border-black'}`}
               >
                 {isInCart && (
-                  <div className="absolute top-4 right-4 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1">
-                    <FiCheck size={12} /> Added
+                  <div className="absolute top-3 right-3 bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[9px] font-black uppercase flex items-center gap-1">
+                    <FiCheck size={10} /> Added
                   </div>
                 )}
 
-                <span className="text-[10px] font-black uppercase text-black mb-1">ITEM CODE : {item.item_code || '---'}</span>
-                <h3 className="font-black text-base uppercase text-black min-h-[48px] leading-tight mb-2">{item.item_name}</h3>
+                <span className="text-[9px] font-black uppercase text-slate-400 mb-1">CODE: {item.item_code || '---'}</span>
+                <h3 className="font-black text-sm md:text-base uppercase text-black leading-tight mb-3 line-clamp-2 min-h-[40px]">{item.item_name}</h3>
 
                 <div className="mb-4">
-                  <p className="text-xl font-black text-black">₹{item.price}<span className="ml-1 text-[10px] font-black text-black opacity-40 uppercase">/ {item.unit}</span></p>
+                  <p className="text-lg md:text-xl font-black text-black">₹{item.price}<span className="ml-1 text-[10px] font-black text-black opacity-40 uppercase">/ {item.unit}</span></p>
 
                   {isCentral && (
-                    <p className={`text-[10px] font-black mt-1 uppercase tracking-wider ${isOutOfStock ? 'text-rose-500' : 'text-emerald-700'}`}>
-                      {isOutOfStock ? "OUT OF STOCK" : `Available: ${item.quantity} ${item.unit}`}
+                    <p className={`text-[9px] font-black mt-1 uppercase tracking-wider ${isOutOfStock ? 'text-rose-500' : 'text-emerald-700'}`}>
+                      {isOutOfStock ? "OUT OF STOCK" : `Stock: ${item.quantity} ${item.unit}`}
                     </p>
                   )}
                 </div>
 
                 <div className="mt-auto space-y-3">
-                  {/* Hide Qty controls if out of stock */}
                   {!isOutOfStock ? (
                     <>
-                      <div className="flex items-center gap-2">
-                        <div className={`flex flex-1 items-center border-2 rounded-lg h-10 overflow-hidden bg-white ${isInCart ? 'border-emerald-200' : 'border-slate-200'}`}>
-                          <button onClick={() => handleQtyInputChange(item.id, null, item.quantity, true, -1)} className="w-8 h-full flex items-center justify-center border-r border-slate-100 hover:bg-slate-50 transition-colors text-black"><FiMinus size={12} /></button>
+                      <div className="flex items-center gap-2 h-10">
+                        <div className={`flex flex-1 items-center border-2 rounded-lg h-full overflow-hidden bg-white ${isInCart ? 'border-emerald-200' : 'border-slate-200'}`}>
+                          <button onClick={() => handleQtyInputChange(item.id, null, item.quantity, true, -1)} className="w-10 h-full flex items-center justify-center border-r border-slate-100 active:bg-slate-100 text-black"><FiMinus size={12} /></button>
                           <input type="number" value={qtyInput[item.id] || ""} placeholder="0" onChange={(e) => handleQtyInputChange(item.id, e.target.value, item.quantity)} className="w-full text-center font-black text-sm outline-none bg-transparent text-black" />
-                          <button onClick={() => handleQtyInputChange(item.id, null, item.quantity, true, 1)} className="w-8 h-full flex items-center justify-center border-l border-slate-100 hover:bg-slate-50 transition-colors text-black"><FiPlus size={12} /></button>
+                          <button onClick={() => handleQtyInputChange(item.id, null, item.quantity, true, 1)} className="w-10 h-full flex items-center justify-center border-l border-slate-100 active:bg-slate-100 text-black"><FiPlus size={12} /></button>
                         </div>
-                        <select value={unit} onChange={(e) => handleUnitChange(item.id, e.target.value)} className="w-20 bg-slate-50 border-2 border-slate-200 rounded-lg h-10 px-1 text-[9px] font-black uppercase outline-none focus:border-black appearance-none text-center cursor-pointer text-black">
+                        <select value={unit} onChange={(e) => handleUnitChange(item.id, e.target.value)} className="w-16 bg-slate-50 border-2 border-slate-200 rounded-lg h-full px-1 text-[9px] font-black uppercase outline-none focus:border-black appearance-none text-center cursor-pointer text-black">
                           <option value={item.unit}>{item.unit?.toUpperCase()}</option>
                           {item.alt_unit && item.alt_unit !== item.unit && (<option value={item.alt_unit}>{item.alt_unit.toUpperCase()}</option>)}
                         </select>
@@ -422,12 +499,11 @@ function StockOrder() {
                       )}
                     </>
                   ) : (
-                    /* SHOW NOTIFY ME BUTTON IF OUT OF STOCK */
                     <button
                       onClick={() => handleNotifyMe(item)}
                       className="w-full py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-rose-600 border-2 border-rose-600 hover:bg-rose-50 active:scale-95 flex items-center justify-center gap-2"
                     >
-                      <FiBell size={14} /> Notify Admin
+                      <FiBell size={14} /> Notify
                     </button>
                   )}
                 </div>
@@ -437,8 +513,10 @@ function StockOrder() {
         </div>
       </div>
 
-      {/* Cart Modal Logic Remains Same */}
-      {/* ... */}
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
 }
