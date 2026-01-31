@@ -13,15 +13,15 @@ import tleafLogo from "../../assets/tleaf_logo.jpeg";
 
 const BRAND_COLOR = "rgb(0, 100, 55)";
 
-// --- INTERNAL TOAST COMPONENT (Updated Position) ---
+// --- INTERNAL TOAST COMPONENT (Updated Position: LEFT) ---
 const ToastContainer = ({ toasts, removeToast }) => {
   return (
-    // UPDATED: Fixed bottom on mobile, Top right on desktop
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:bottom-auto md:top-4 z-[100] flex flex-col gap-2 pointer-events-none items-center md:items-end">
+    // POSITION: Fixed to LEFT side for all devices
+    <div className="fixed bottom-4 left-4 right-4 md:right-auto md:bottom-auto md:top-4 md:left-4 z-[100] flex flex-col gap-2 pointer-events-none items-center md:items-start">
       {toasts.map((toast) => (
         <div 
           key={toast.id} 
-          className={`pointer-events-auto w-full md:w-auto md:min-w-[300px] p-4 rounded-xl shadow-2xl border-l-4 flex items-start gap-3 animate-in slide-in-from-bottom md:slide-in-from-right duration-300 bg-white ${
+          className={`pointer-events-auto w-full md:w-auto md:min-w-[300px] p-4 rounded-xl shadow-2xl border-l-4 flex items-start gap-3 animate-in slide-in-from-left duration-300 bg-white ${
             toast.type === 'error' ? 'border-rose-500' : 'border-emerald-500'
           }`}
         >
@@ -203,7 +203,7 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails }) => {
                 </div>
                 <div className="p-2 flex-1">
                     <p className="font-black uppercase underline text-[9px] mb-1">Terms & Conditions</p>
-                    <ol className="list-decimal list-inside text-[8px] font-bold leading-tight text-slate-600 uppercase print:text-black">
+                    <ol className="list-decimal list-inside text-[8px] font-bold leading-tight text-black uppercase print:text-black">
                         {termsList.map((term, i) => (<li key={i}>{term.replace(/^\d+\)\s*/, '')}</li>))}
                     </ol>
                 </div>
@@ -234,20 +234,17 @@ function StockOrder() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
 
-  // States
   const [qtyInput, setQtyInput] = useState({});
   const [selectedUnit, setSelectedUnit] = useState({});
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   
-  // Status States
   const [loadingStocks, setLoadingStocks] = useState(true);
   const [processingOrder, setProcessingOrder] = useState(false);
   const [fetchError, setFetchError] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [stockAlert, setStockAlert] = useState({ show: false, itemName: "", maxAvailable: 0, unit: "" });
   
-  // Print States
   const [printData, setPrintData] = useState(null);
   const [lastOrderId, setLastOrderId] = useState(null);
 
@@ -255,7 +252,6 @@ function StockOrder() {
     day: '2-digit', month: 'short', year: 'numeric'
   }).format(new Date());
 
-  // --- TOAST SYSTEM ---
   const addToast = (type, title, message) => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, type, title, message }]);
@@ -266,12 +262,10 @@ function StockOrder() {
 
   const removeToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
 
-  // --- DATA FETCHING ---
   const fetchData = useCallback(async () => {
     setLoadingStocks(true);
     setFetchError(false);
     try {
-      // 1. User/Profile
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profileData } = await supabase.from("profiles").select("*").eq("id", user.id).single();
@@ -283,21 +277,17 @@ function StockOrder() {
         }
       }
 
-      // 2. Company Details
       const { data: companyData } = await supabase.from('companies').select('*').order('created_at', { ascending: false }).limit(1).single();
       if (companyData) setCompanyDetails(companyData);
 
-      // 3. Stocks
       const { data: stockData, error: stockError } = await supabase.from("stocks").select("*").eq('online_store', true).order("item_name");
       if (stockError) throw stockError;
 
-      const stocks = stockData || [];
-      setStocks(stocks);
+      setStocks(stockData || []);
 
-      // Initialize Inputs
       const units = {};
       const initialQtys = {};
-      stocks.forEach(item => {
+      (stockData || []).forEach(item => {
         units[item.id] = item.unit || 'pcs';
         initialQtys[item.id] = 0;
       });
@@ -305,9 +295,9 @@ function StockOrder() {
       setQtyInput(initialQtys);
 
     } catch (err) {
-      console.error("Critical Fetch Error:", err);
+      console.error(err);
       setFetchError(true);
-      addToast('error', 'Connection Failed', 'Could not load inventory. Please check your internet.');
+      addToast('error', 'Connection Failed', 'Could not load inventory.');
     } finally {
       setLoadingStocks(false);
     }
@@ -317,12 +307,11 @@ function StockOrder() {
     fetchData();
   }, [fetchData]);
 
-  // --- HANDLERS ---
   const handleNotifyMe = async (item) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        addToast('error', 'Login Required', 'You must be logged in to request stock.');
+        addToast('error', 'Login Required', 'Please log in to request stock.');
         return;
       }
       const { error } = await supabase.from("stock_requests").insert([{
@@ -345,14 +334,13 @@ function StockOrder() {
     if (!item) return;
 
     const unit = selectedUnit[itemId] || item.unit;
-    const isGrams = ["g", "grams", "gram", "gm", "gms"].includes(unit.toLowerCase().trim());
     const currentVal = qtyInput[itemId] || 0;
+    const isGrams = ["g", "grams", "gram", "gm", "gms"].includes(unit.toLowerCase().trim());
 
     let numVal;
     if (isStepButton) {
       if (isGrams) {
-        if (direction === 1) numVal = currentVal < 0 ? 0 : currentVal + 50;
-        else numVal = currentVal <= 0 ? 0 : currentVal - 50;
+        numVal = direction === 1 ? currentVal + 50 : Math.max(0, currentVal - 50);
       } else {
         numVal = direction === 1 ? currentVal + 1 : Math.max(0, currentVal - 1);
       }
@@ -378,7 +366,7 @@ function StockOrder() {
 
     const numVal = qtyInput[itemId];
     if (!numVal || numVal <= 0) {
-        addToast('error', 'Invalid Quantity', 'Please enter a valid quantity greater than 0');
+        addToast('error', 'Invalid Quantity', 'Please enter a quantity greater than 0');
         return;
     }
 
@@ -386,18 +374,27 @@ function StockOrder() {
     const factor = getConversionFactor(unit);
     const finalBaseQty = numVal * factor;
 
+    // Check existing OUTSIDE of setCart to trigger toast only once
+    const existingItem = cart.find(c => c.id === itemId);
+
     setCart(prev => {
-      const exists = prev.find(c => c.id === itemId);
-      let newCart;
-      if (exists) {
-        newCart = prev.map(c => c.id === itemId ? { ...c, qty: finalBaseQty, displayQty: numVal, cartUnit: unit } : c);
-        addToast('success', 'Cart Updated', `${item.item_name} updated to ${numVal} ${unit}`);
-      } else {
-        newCart = [...prev, { ...item, qty: finalBaseQty, displayQty: numVal, cartUnit: unit }];
-        addToast('success', 'Added to Cart', `${item.item_name} added successfully`);
+      if (existingItem) {
+        return prev.map(c => c.id === itemId ? { ...c, qty: finalBaseQty, displayQty: numVal, cartUnit: unit } : c);
       }
-      return newCart;
+      return [...prev, { ...item, qty: finalBaseQty, displayQty: numVal, cartUnit: unit }];
     });
+
+    if (existingItem) {
+      addToast('success', 'Cart Updated', `${item.item_name} updated to ${numVal} ${unit}`);
+    } else {
+      addToast('success', 'Added to Cart', `${item.item_name} added successfully`);
+    }
+  };
+
+  const handleUnitChange = (itemId, newUnit) => {
+    setSelectedUnit(prev => ({ ...prev, [itemId]: newUnit }));
+    setQtyInput(prev => ({ ...prev, [itemId]: 0 }));
+    setCart(prev => prev.filter(c => c.id !== itemId));
   };
 
   const removeFromCart = (itemId) => {
@@ -405,19 +402,23 @@ function StockOrder() {
     setQtyInput(prev => ({ ...prev, [itemId]: 0 }));
   };
 
-  // --- ORDER LOGIC ---
   const calculations = useMemo(() => {
     const details = cart.map(item => {
-      const itemSubtotal = item.price * item.qty;
-      const gstRate = item.gst_rate || 0; 
-      const itemGstAmt = itemSubtotal * (gstRate / 100);
-      return { ...item, preciseSubtotal: itemSubtotal, preciseGst: itemGstAmt, hsn_code: item.hsn_code };
+      const subtotal = item.price * item.qty;
+      const gstAmt = subtotal * ((item.gst_rate || 0) / 100);
+      return { ...item, preciseSubtotal: subtotal, preciseGst: gstAmt };
     });
-    const totalSubtotal = details.reduce((acc, curr) => acc + curr.preciseSubtotal, 0);
-    const totalGst = details.reduce((acc, curr) => acc + curr.preciseGst, 0);
-    const exactBill = totalSubtotal + totalGst;
+    const totalSub = details.reduce((acc, c) => acc + c.preciseSubtotal, 0);
+    const totalGst = details.reduce((acc, c) => acc + c.preciseGst, 0);
+    const exactBill = totalSub + totalGst;
     const roundedBill = Math.round(exactBill);
-    return { items: details, subtotal: totalSubtotal, totalGst: totalGst, exactBill: exactBill, roundedBill: roundedBill, roundOff: roundedBill - exactBill };
+    return { 
+      items: details, 
+      subtotal: totalSub, 
+      totalGst, 
+      roundedBill, 
+      roundOff: roundedBill - exactBill 
+    };
   }, [cart]);
 
   const handlePlaceOrder = async () => {
@@ -425,7 +426,7 @@ function StockOrder() {
     setProcessingOrder(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if(!user) throw new Error("User session expired. Please log in again.");
+      if(!user) throw new Error("User session expired.");
 
       const orderItems = cart.map(item => ({
         stock_id: item.id,
@@ -435,9 +436,7 @@ function StockOrder() {
         price: item.price
       }));
 
-      // Snapshot for print
-      const snapshotCalculations = { ...calculations };
-      setPrintData(snapshotCalculations);
+      setPrintData({ ...calculations });
 
       const { data: result, error } = await supabase.rpc('place_stock_order', {
         p_total_amount: calculations.roundedBill,
@@ -454,26 +453,23 @@ function StockOrder() {
       if (error) throw error;
 
       setLastOrderId(result?.order_id || "INV-" + Date.now());
-      addToast('success', 'Order Successful!', 'Preparing invoice for print...');
+      addToast('success', 'Order Successful!', 'Printing invoice...');
       
-      // Delay to ensure DOM update
       setTimeout(() => {
         window.print();
         setCart([]); 
         setQtyInput({}); 
         setIsCartOpen(false); 
-        fetchData(); // Refresh stock levels
+        fetchData();
       }, 800);
 
     } catch (error) {
-      console.error(error);
-      addToast('error', 'Order Failed', error.message || 'Something went wrong processing your order.');
+      addToast('error', 'Order Failed', error.message);
     } finally {
       setProcessingOrder(false);
     }
   };
 
-  // --- FILTERS ---
   const dynamicCategories = useMemo(() => {
     const uniqueCats = [...new Set(stocks.map(s => s.category).filter(Boolean))];
     return ["All", ...uniqueCats.sort()];
@@ -489,18 +485,15 @@ function StockOrder() {
     });
   }, [stocks, search, selectedCategory, showOnlyAvailable]);
 
-  // --- RENDER ---
   return (
     <>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       
-      {/* Print Section (Hidden on screen) */}
       <div className="print-only hidden print:block">
         <FullPageInvoice data={printData} profile={profile} orderId={lastOrderId} companyDetails={companyDetails} />
       </div>
 
       <div className="min-h-screen bg-[#F8F9FA] pb-20 font-sans text-black relative">
-        {/* Cart Drawer */}
         {isCartOpen && (
             <>
                 <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm transition-opacity" onClick={() => setIsCartOpen(false)}></div>
@@ -549,7 +542,6 @@ function StockOrder() {
             </>
         )}
 
-        {/* Stock Alert Modal */}
         {stockAlert.show && (
             <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                 <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl border-4 border-rose-500 text-center animate-in zoom-in-95 duration-200">
@@ -564,14 +556,12 @@ function StockOrder() {
             </div>
         )}
 
-        {/* Sticky Header */}
         <nav className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b-2 border-slate-100 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between shadow-sm transition-all">
             <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-all">
                 <FiArrowLeft size={18} /> <span>Back</span>
             </button>
             <h1 className="text-sm md:text-xl font-black uppercase tracking-[0.2em] text-black text-center absolute left-1/2 -translate-x-1/2">Inventory</h1>
             <div className="flex items-center gap-3">
-                {/* UPDATED: Removed 'hidden' class so ID shows on mobile */}
                 <div className="flex items-center gap-2">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID :</span>
                     <span className="text-[10px] sm:text-xs font-black text-black bg-white border border-slate-200 px-2 sm:px-3 py-1 rounded-lg shadow-sm">{profile?.franchise_id || "..."}</span>
@@ -585,9 +575,7 @@ function StockOrder() {
             </div>
         </nav>
 
-        {/* Content */}
         <div className="max-w-[1400px] mx-auto px-4 md:px-6 mt-6 md:mt-8">
-            {/* Filters */}
             <div className="sticky top-16 md:top-20 z-30 bg-[#F8F9FA]/95 backdrop-blur-sm py-2 mb-4 -mx-4 px-4 md:mx-0 md:px-0">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center">
                     <div className="relative w-full md:flex-1 group">
@@ -609,33 +597,27 @@ function StockOrder() {
                 </div>
             </div>
 
-            {/* ERROR STATE */}
             {fetchError && !loadingStocks && (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                     <div className="bg-red-50 p-6 rounded-full mb-4"><FiAlertTriangle size={48} className="text-red-500" /></div>
                     <h3 className="text-xl font-black uppercase text-slate-700 mb-2">Connection Failed</h3>
-                    <p className="text-slate-400 text-xs font-bold uppercase mb-6">Unable to load inventory data.</p>
                     <button onClick={fetchData} className="px-8 py-3 bg-black text-white font-black uppercase text-xs rounded-xl hover:opacity-80 transition-all flex items-center gap-2"><FiRefreshCw /> Retry</button>
                 </div>
             )}
 
-            {/* LOADING STATE */}
             {loadingStocks && !fetchError && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 pb-20">
                     {[...Array(8)].map((_, i) => <StockSkeleton key={i} />)}
                 </div>
             )}
 
-            {/* EMPTY STATE */}
             {!loadingStocks && !fetchError && filteredStocks.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in slide-in-from-bottom-4">
                     <div className="bg-slate-50 p-6 rounded-full mb-4 grayscale opacity-50"><FiSearch size={48} className="text-slate-400" /></div>
                     <h3 className="text-xl font-black uppercase text-slate-700 mb-2">No Items Found</h3>
-                    <p className="text-slate-400 text-xs font-bold uppercase">Try adjusting your search or filters.</p>
                 </div>
             )}
 
-            {/* GRID */}
             {!loadingStocks && !fetchError && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 pb-20">
                 {filteredStocks.map((item) => {
