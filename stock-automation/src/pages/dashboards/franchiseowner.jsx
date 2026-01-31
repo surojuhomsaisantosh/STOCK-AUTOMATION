@@ -12,7 +12,8 @@ import {
   Users,
   CheckCircle2,
   PackageCheck,
-  Check
+  Check,
+  Building2
 } from "lucide-react";
 
 import MobileNav from "../../components/MobileNav";
@@ -25,69 +26,79 @@ function FranchiseOwnerDashboard() {
   const [franchiseName, setFranchiseName] = useState("");
   const [franchiseId, setFranchiseId] = useState("");
   const [notifications, setNotifications] = useState([]); 
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
+    // Initial fetch
     fetchProfileAndNotifications();
-    return () => window.removeEventListener('resize', handleResize);
+    
+    // Realtime subscription for instant notification updates
+    const channel = supabase
+      .channel('realtime-stock-requests')
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'stock_requests', 
+          filter: 'status=eq.fulfilled' 
+        },
+        () => { fetchProfileAndNotifications(); }
+      )
+      .subscribe();
+
+    // Cleanup subscription on unmount to prevent leaks
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const fetchProfileAndNotifications = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-    // 1. Fetch Profile
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('name, franchise_id')
-      .eq('id', user.id)
-      .single();
+        // 1. Fetch Profile
+        const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('name, franchise_id')
+        .eq('id', user.id)
+        .single();
 
-    if (profile) {
-      setFranchiseName(profile.name);
-      setFranchiseId(profile.franchise_id);
+        if (profileError) console.error("Error fetching profile:", profileError);
+
+        if (profile) {
+            setFranchiseName(profile.name);
+            setFranchiseId(profile.franchise_id);
+        }
+
+        // 2. Fetch Unread Fulfilled Stock Requests
+        const { data: restockedItems, error: notifError } = await supabase
+        .from('stock_requests')
+        .select('id, item_name, created_at, status')
+        .eq('user_id', user.id)
+        .eq('status', 'fulfilled') 
+        .eq('is_read', false) 
+        .order('created_at', { ascending: false });
+
+        if (notifError) console.error("Error fetching notifications:", notifError);
+        if (restockedItems) setNotifications(restockedItems);
+
+    } catch (error) {
+        console.error("Critical dashboard error:", error);
     }
-
-    // 2. Fetch Unread Fulfilled Stock Requests
-    const { data: restockedItems } = await supabase
-      .from('stock_requests')
-      .select('id, item_name, created_at, status')
-      .eq('user_id', user.id)
-      .eq('status', 'fulfilled') 
-      .eq('is_read', false) // Only fetch unread
-      .order('created_at', { ascending: false });
-
-    if (restockedItems) setNotifications(restockedItems);
   };
 
-  // Just open the panel, do NOT mark as read yet
-  const handleOpenNotifications = () => {
-    setShowNotifications(true);
-  };
+  const handleOpenNotifications = () => setShowNotifications(true);
 
-  // Handle clicking a single notification item
   const handleItemClick = async (itemId) => {
-    // 1. Optimistic Update: Remove from UI immediately for speed
+    // Optimistic Update: Remove from UI immediately
     setNotifications((prev) => prev.filter((n) => n.id !== itemId));
 
-    // 2. Update DB: Mark this specific item as read
-    const { error } = await supabase
-      .from('stock_requests')
-      .update({ is_read: true })
-      .eq('id', itemId);
-
-    if (error) {
-      console.error("❌ Error marking read:", error.message);
-      // Optional: If you want to show an alert on failure
-      // alert("Failed to update notification status");
+    // Background Database Update
+    try {
+        await supabase.from('stock_requests').update({ is_read: true }).eq('id', itemId);
+    } catch (error) {
+        console.error("Failed to mark notification as read:", error);
     }
-  };
-
-  const closeNotifications = () => {
-    setShowNotifications(false);
   };
 
   const navItems = [
@@ -100,128 +111,108 @@ function FranchiseOwnerDashboard() {
   ];
 
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
-        <header style={styles.header}>
-          <div style={styles.headerTopRow}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-              <MobileNav
-                navItems={navItems}
-                title="Franchise Menu"
-                userProfile={{ name: franchiseName, role: "Franchise Owner" }}
-              />
-              <div style={{ width: isMobile ? 0 : 40 }} />
-              <h1 style={{ ...styles.title, fontSize: isMobile ? '20px' : '36px', textAlign: isMobile ? 'left' : 'center' }}>
-                FRANCHISE DASHBOARD
-              </h1>
+    <div className="dashboard-page">
+      <div className="dashboard-container">
+        
+        {/* HEADER SECTION */}
+        <header className="dashboard-header">
+          <div className="header-top">
+            <div className="header-left">
+              {/* HIDDEN ON MOBILE: MobileNav only visible on larger screens if needed */}
+              <div className="desktop-only">
+                <MobileNav
+                    navItems={navItems}
+                    title="Franchise Menu"
+                    userProfile={{ name: franchiseName, role: "Franchise Owner" }}
+                />
+              </div>
+              <h1 className="header-title">DASHBOARD</h1>
             </div>
 
-            <button
-              style={styles.notificationBtn}
-              onClick={handleOpenNotifications}
-            >
-              <Bell size={isMobile ? 22 : 28} color={PRIMARY} />
+            <button className="notification-btn" onClick={handleOpenNotifications}>
+              <Bell size={24} color={PRIMARY} />
               {notifications.length > 0 && (
-                <div style={styles.badgeWrapper}>
-                  <div style={styles.numericBadge}>
-                    {notifications.length}
-                  </div>
+                <div className="notification-badge">
+                  <span>{notifications.length}</span>
                 </div>
               )}
             </button>
           </div>
 
-          <div style={styles.subHeaderAlign}>
-            <p style={{ ...styles.subtitle, fontSize: isMobile ? '13px' : '16px' }}>
-              Hello User: {" "}
-              <span style={{ color: PRIMARY, fontWeight: "700" }}>
-                {franchiseName || "Store Owner"}
-              </span>
-            </p>
+          <div className="header-bottom">
+            <div className="user-welcome">
+              Hello, <span className="highlight-text">{franchiseName || "Owner"}</span>
+            </div>
+            {/* Franchise ID Box - Visible on all devices */}
+            <div className="franchise-id-box">
+               <Building2 size={12} className="id-icon"/>
+               <span className="id-label">ID:</span>
+               <span className="id-value">{franchiseId || "..."}</span>
+            </div>
           </div>
         </header>
 
-        {!isMobile && (
-          <div style={styles.statsStrip}>
-            <div style={styles.statItem}>
-              FRANCHISE ID:{" "}
-              <span style={{ color: PRIMARY }}>
-                {franchiseId || "N/A"}
-              </span>
-            </div>
-          </div>
-        )}
-
-        <div style={{
-          ...styles.grid,
-          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
-          gridTemplateRows: isMobile ? "auto" : "repeat(2, 1fr)",
-          height: isMobile ? 'auto' : '60vh'
-        }}>
+        {/* NAVIGATION GRID - Single Col Mobile, Multi Col Desktop */}
+        <div className="nav-grid">
           {navItems.map((item, idx) => (
             <div
               key={idx}
               onClick={() => navigate(item.path)}
-              style={styles.card}
+              className="nav-card"
             >
-              <div style={styles.iconWrapper}>
+              <div className="card-icon-wrapper">
                 {item.icon}
               </div>
-              <div style={styles.cardContent}>
-                <h2 style={{ ...styles.cardTitle, fontSize: isMobile ? '18px' : '22px' }}>
-                  {item.title}
-                </h2>
-                {!isMobile && <p style={styles.cardDesc}>{item.desc}</p>}
+              <div className="card-content">
+                <h2 className="card-title">{item.title}</h2>
+                <p className="card-desc">{item.desc}</p>
               </div>
             </div>
           ))}
         </div>
       </div>
 
+      {/* NOTIFICATIONS DRAWER */}
       {showNotifications && (
-        <div style={styles.notifOverlay} onClick={closeNotifications}>
-          <div style={styles.notifPanel} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.notifHeader}>
-              <h3 style={{ margin: 0, fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="notif-overlay" onClick={() => setShowNotifications(false)}>
+          <div className="notif-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="notif-header">
+              <h3 className="notif-heading">
                 <PackageCheck size={20} color={PRIMARY}/> 
-                Items Restocked
+                Restock Alerts
               </h3>
-              <button style={styles.closeBtn} onClick={closeNotifications}>
-                <X size={20} />
+              <button className="close-btn" onClick={() => setShowNotifications(false)}>
+                <X size={22} />
               </button>
             </div>
             
-            <div style={styles.notifBody}>
+            <div className="notif-body custom-scrollbar">
               {notifications.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#9ca3af' }}>
-                  <CheckCircle2 size={40} style={{ marginBottom: '10px', opacity: 0.5 }} />
-                  <p style={{ fontSize: '14px', fontWeight: '600' }}>All Caught Up!</p>
-                  <p style={{ fontSize: '12px' }}>No new restock alerts.</p>
+                <div className="empty-state">
+                  <CheckCircle2 size={48} className="empty-icon" />
+                  <p className="empty-title">All Caught Up!</p>
+                  <p className="empty-desc">No new items have been restocked recently.</p>
                 </div>
               ) : (
-                <div style={{ width: '100%' }}>
-                  <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '15px', paddingLeft: '10px' }}>
-                    Click an item to mark as seen:
-                  </p>
+                <div className="notif-list">
+                  <p className="notif-hint">Tap item to mark as read</p>
                   {notifications.map((n) => (
                     <div 
                       key={n.id} 
-                      style={styles.notifItem}
-                      onClick={() => handleItemClick(n.id)} // Click updates DB & removes from UI
-                      className="notif-item-hover" // Class for hover effect
+                      className="notif-item"
+                      onClick={() => handleItemClick(n.id)}
                     >
-                      <div style={styles.notifIcon}>
-                        <PackageCheck size={18} color="white" />
+                      <div className="notif-item-icon">
+                        <PackageCheck size={16} color="white" />
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <p style={styles.notifTitle}>{n.item_name}</p>
-                        <p style={styles.notifDate}>
-                          Available since: {new Date(n.created_at).toLocaleDateString('en-GB')}
+                      <div className="notif-item-content">
+                        <p className="notif-item-title">{n.item_name}</p>
+                        <p className="notif-item-date">
+                          Restocked on {new Date(n.created_at).toLocaleDateString('en-GB')}
                         </p>
                       </div>
-                      {/* Visual indicator to click */}
-                      <div style={styles.checkIcon}>
-                        <Check size={16} color="#9ca3af" />
+                      <div className="check-indicator">
+                        <Check size={16} />
                       </div>
                     </div>
                   ))}
@@ -229,11 +220,8 @@ function FranchiseOwnerDashboard() {
               )}
             </div>
 
-            <div style={styles.notifFooter}>
-              <button
-                style={styles.viewAllBtn}
-                onClick={() => navigate('/stock-orders')}
-              >
+            <div className="notif-footer">
+              <button className="action-btn" onClick={() => navigate('/stock-orders')}>
                 Go to Order Stock
               </button>
             </div>
@@ -241,59 +229,386 @@ function FranchiseOwnerDashboard() {
         </div>
       )}
 
+      {/* CSS STYLES */}
       <style>{`
+        /* --- LAYOUT RESET & BASE --- */
+        .dashboard-page {
+          background-color: #f9fafb;
+          min-height: 100vh;
+          width: 100%;
+          font-family: 'Inter', sans-serif;
+          color: #111827;
+          display: flex;
+          justify-content: center;
+        }
+
+        .dashboard-container {
+          max-width: 1400px;
+          width: 100%;
+          padding: 20px;
+          box-sizing: border-box;
+        }
+
+        @media (min-width: 768px) {
+          .dashboard-container { padding: 40px; }
+        }
+
+        /* --- HEADER --- */
+        .dashboard-header {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          margin-bottom: 30px;
+          padding-top: 10px;
+        }
+
+        .header-top {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .header-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        /* Desktop Only Utility */
+        .desktop-only {
+            display: none;
+        }
+        @media (min-width: 1024px) {
+            .desktop-only { display: block; }
+        }
+
+        .header-title {
+          font-size: 20px;
+          font-weight: 900;
+          letter-spacing: -0.5px;
+          margin: 0;
+          text-transform: uppercase;
+        }
+
+        @media (min-width: 768px) {
+          .header-title { font-size: 32px; letter-spacing: -1px; }
+        }
+
+        .notification-btn {
+          background: white;
+          border: 1px solid ${BORDER};
+          padding: 10px;
+          border-radius: 14px;
+          cursor: pointer;
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: transform 0.1s;
+        }
+        .notification-btn:active { transform: scale(0.95); }
+
+        .notification-badge {
+          position: absolute;
+          top: -6px;
+          right: -6px;
+          background: #ef4444;
+          color: white;
+          font-size: 10px;
+          font-weight: 900;
+          height: 20px;
+          min-width: 20px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 2px solid white;
+          padding: 0 4px;
+          animation: badge-pulse 2s infinite;
+        }
+
+        .header-bottom {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: white;
+          padding: 12px 16px;
+          border-radius: 16px;
+          border: 1px solid ${BORDER};
+          box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        }
+
+        .user-welcome {
+          font-size: 13px;
+          color: #6b7280;
+          font-weight: 600;
+        }
+        
+        .highlight-text {
+          color: ${PRIMARY};
+          font-weight: 800;
+          text-transform: uppercase;
+        }
+
+        .franchise-id-box {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          background: #f3f4f6;
+          padding: 6px 12px;
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+        }
+
+        .id-icon { color: #9ca3af; }
+        .id-label { font-size: 10px; font-weight: 800; color: #9ca3af; text-transform: uppercase; }
+        .id-value { font-size: 12px; font-weight: 800; color: #111827; }
+
+        @media (min-width: 768px) {
+          .user-welcome { font-size: 16px; }
+          .franchise-id-box { padding: 8px 16px; }
+          .id-value { font-size: 14px; }
+        }
+
+        /* --- NAV GRID (RESPONSIVE) --- */
+        .nav-grid {
+          display: grid;
+          gap: 16px;
+          grid-template-columns: 1fr; /* Mobile: Single Column */
+          padding-bottom: 40px;
+        }
+
+        @media (min-width: 768px) {
+          .nav-grid { grid-template-columns: repeat(2, 1fr); gap: 20px; } /* Tablet: 2 Col */
+        }
+
+        @media (min-width: 1024px) {
+          .nav-grid { grid-template-columns: repeat(3, 1fr); gap: 24px; } /* Laptop: 3 Col */
+        }
+
+        .nav-card {
+          display: flex;
+          align-items: center;
+          background: white;
+          border-radius: 20px;
+          border: 1px solid ${BORDER};
+          padding: 20px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        }
+
+        .nav-card:hover {
+          border-color: ${PRIMARY};
+          transform: translateY(-2px);
+          box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+        }
+
+        .nav-card:active { transform: scale(0.98); }
+
+        .card-icon-wrapper {
+          width: 56px;
+          height: 56px;
+          background: rgba(6,95,70,0.08);
+          border-radius: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-right: 16px;
+          color: ${PRIMARY};
+          flex-shrink: 0;
+        }
+
+        @media (min-width: 1024px) {
+          .nav-card { padding: 30px; border-radius: 24px; }
+          .card-icon-wrapper { width: 64px; height: 64px; margin-right: 20px; }
+        }
+
+        .card-content { flex: 1; }
+        
+        .card-title {
+          font-weight: 800;
+          margin: 0;
+          font-size: 16px;
+          color: #111827;
+        }
+
+        .card-desc {
+          margin: 4px 0 0 0;
+          font-size: 12px;
+          color: #6b7280;
+          display: block; 
+        }
+
+        @media (min-width: 768px) {
+          .card-title { font-size: 18px; }
+          .card-desc { font-size: 13px; }
+        }
+
+        /* --- NOTIFICATIONS DRAWER --- */
+        .notif-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.3);
+          z-index: 100;
+          display: flex;
+          justify-content: flex-end;
+          backdrop-filter: blur(3px);
+          animation: fade-in 0.2s ease-out;
+        }
+
+        .notif-panel {
+          width: 100%;
+          max-width: 400px;
+          background: white;
+          height: 100%;
+          box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+          display: flex;
+          flex-direction: column;
+          animation: slide-in 0.3s ease-out;
+        }
+
+        .notif-header {
+          padding: 20px;
+          border-bottom: 1px solid ${BORDER};
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: #fafafa;
+        }
+
+        .notif-heading {
+          margin: 0;
+          font-weight: 800;
+          font-size: 16px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .close-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: #9ca3af;
+          padding: 5px;
+          display: flex;
+        }
+        .close-btn:hover { color: #111827; }
+
+        .notif-body {
+          flex: 1;
+          overflow-y: auto;
+          padding: 16px;
+          background: white;
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 60px 20px;
+          color: #9ca3af;
+        }
+        .empty-icon { margin-bottom: 15px; opacity: 0.3; }
+        .empty-title { font-size: 16px; font-weight: 700; color: #374151; margin-bottom: 4px;}
+        .empty-desc { font-size: 12px; }
+
+        .notif-hint {
+          font-size: 11px;
+          color: #9ca3af;
+          margin-bottom: 12px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .notif-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 14px;
+          border-radius: 12px;
+          border: 1px solid ${BORDER};
+          margin-bottom: 10px;
+          background: white;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .notif-item:hover {
+          background-color: #f0fdf4;
+          border-color: ${PRIMARY};
+        }
+
+        .notif-item-icon {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: ${PRIMARY};
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .notif-item-content { flex: 1; min-width: 0; }
+        
+        .notif-item-title {
+          margin: 0;
+          font-size: 13px;
+          font-weight: 700;
+          color: #111827;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .notif-item-date {
+          margin: 2px 0 0 0;
+          font-size: 11px;
+          color: #6b7280;
+        }
+
+        .check-indicator { color: #d1d5db; }
+        .notif-item:hover .check-indicator { color: ${PRIMARY}; }
+
+        .notif-footer {
+          padding: 20px;
+          border-top: 1px solid ${BORDER};
+          background: white;
+        }
+
+        .action-btn {
+          width: 100%;
+          background: #111827;
+          color: white;
+          border: none;
+          padding: 14px;
+          border-radius: 12px;
+          font-weight: 700;
+          font-size: 13px;
+          cursor: pointer;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          transition: background 0.2s;
+        }
+        .action-btn:hover { background: black; }
+        .action-btn:active { transform: scale(0.98); }
+
+        /* Animations */
         @keyframes badge-pulse {
           0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-          70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+          70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
           100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
         }
-        /* Hover effect for notification items */
-        .notif-item-hover:hover {
-          background-color: #f3f4f6 !important;
-          border-color: ${PRIMARY} !important;
-          transform: translateY(-2px);
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
+        @keyframes slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
       `}</style>
     </div>
   );
 }
-
-const styles = {
-  page: { background: "#f9fafb", height: "100vh", width: '100vw', fontFamily: '"Inter", sans-serif', color: "#111827", overflow: "hidden", display: 'flex', justifyContent: 'center' },
-  container: { maxWidth: "1400px", width: '100%', margin: "0 auto", padding: "0 40px" },
-  header: { display: "flex", flexDirection: "column", paddingTop: "50px", marginBottom: "10px" },
-  headerTopRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' },
-  notificationBtn: { background: 'white', border: `1px solid ${BORDER}`, padding: '10px', borderRadius: '14px', cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  badgeWrapper: { position: 'absolute', top: '-6px', right: '-6px', animation: 'badge-pulse 2s infinite ease-in-out' },
-  numericBadge: { background: '#ef4444', color: 'white', fontSize: '10px', fontWeight: '900', height: '20px', minWidth: '20px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid white', padding: '0 4px', boxSizing: 'border-box' },
-  title: { fontWeight: "900", margin: 0, textAlign: "center", flex: 1, letterSpacing: "-0.5px" },
-  subHeaderAlign: { width: "100%", textAlign: "left", marginTop: "10px" },
-  subtitle: { color: "#6b7280", margin: 0 },
-  statsStrip: { paddingBottom: "16px", borderBottom: `1px solid ${BORDER}`, marginBottom: "30px", textAlign: "left" },
-  statItem: { fontSize: "11px", fontWeight: "700", color: "#6b7280", letterSpacing: "1px" },
-  grid: { display: "grid", gap: "20px" },
-  card: { display: "flex", alignItems: "center", background: "#fff", borderRadius: "24px", border: `1px solid ${BORDER}`, padding: "0 30px", cursor: "pointer" },
-  iconWrapper: { width: "64px", height: "64px", background: "rgba(6,95,70,0.08)", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center", marginRight: "20px", color: PRIMARY },
-  cardContent: { flex: 1 },
-  cardTitle: { fontWeight: "800", margin: 0 },
-  cardDesc: { marginTop: "4px", fontSize: "13px", color: "#6b7280" },
-  
-  // Notification Styles
-  notifOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.2)', zIndex: 100, display: 'flex', justifyContent: 'flex-end', backdropFilter: 'blur(2px)' },
-  notifPanel: { width: 'min(400px, 90vw)', background: 'white', height: '100%', boxShadow: '-10px 0 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' },
-  notifHeader: { padding: '25px 24px', borderBottom: `1px solid ${BORDER}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fafafa' },
-  closeBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af' },
-  notifBody: { flex: 1, overflowY: 'auto', padding: '20px' },
-  notifFooter: { padding: '20px', borderTop: `1px solid ${BORDER}`, background: '#fff' },
-  viewAllBtn: { width: '100%', background: 'black', color: 'white', border: 'none', padding: '14px', borderRadius: '12px', fontWeight: '700', fontSize: '13px', cursor: 'pointer', letterSpacing: '0.5px' },
-  
-  // Notification Item
-  notifItem: { display: 'flex', alignItems: 'center', gap: '15px', padding: '16px', borderRadius: '12px', border: `1px solid ${BORDER}`, marginBottom: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.02)', cursor: 'pointer', transition: 'all 0.2s ease', backgroundColor: 'white' },
-  notifIcon: { width: '36px', height: '36px', borderRadius: '50%', background: PRIMARY, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  notifTitle: { margin: 0, fontSize: '14px', fontWeight: '800', color: '#111827', textTransform: 'uppercase' },
-  notifDate: { margin: '4px 0 0 0', fontSize: '11px', color: '#9ca3af', fontWeight: '600' },
-  checkIcon: { marginLeft: 'auto' } // Pushes check icon to right
-};
 
 export default FranchiseOwnerDashboard;
