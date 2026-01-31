@@ -4,11 +4,10 @@ import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { 
   ArrowLeft, Search, X, RotateCcw, User, 
-  FileText, IndianRupee, Printer, Phone, Hash, ShoppingBag, Shield, Activity
+  FileText, IndianRupee, Printer, Phone, Hash, ShoppingBag, Shield, Activity, Calendar, Filter, Inbox
 } from "lucide-react";
 
 const PRIMARY = "rgb(0, 100, 55)";
-const BORDER = "#e5e7eb";
 
 function CentralInvoices() {
   const navigate = useNavigate();
@@ -18,11 +17,13 @@ function CentralInvoices() {
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState(null);
   
+  // Filter States
   const [search, setSearch] = useState("");
   const [rangeMode, setRangeMode] = useState(false); 
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [singleDate, setSingleDate] = useState(new Date().toISOString().split('T')[0]); 
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
   
+  // Modal States
   const [showModal, setShowModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [items, setItems] = useState([]);
@@ -31,16 +32,36 @@ function CentralInvoices() {
   useEffect(() => { 
     fetchInvoices(); 
     fetchUserProfile();
+
+    // 🚀 PRODUCTION OPTIMIZATION: Real-time Listener
+    const channel = supabase
+      .channel('realtime-invoices')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'invoices' },
+        () => {
+          fetchInvoices(false); // Fetch without setting global loading state to avoid flicker
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const fetchUserProfile = async () => {
-    if (!user) return;
-    const { data } = await supabase.from('profiles').select('franchise_id').eq('id', user.id).single();
-    if (data) setUserProfile(data);
+    try {
+        if (!user) return;
+        const { data } = await supabase.from('profiles').select('franchise_id').eq('id', user.id).single();
+        if (data) setUserProfile(data);
+    } catch (e) {
+        console.error("Profile fetch error", e);
+    }
   };
 
-  const fetchInvoices = async () => {
-    setLoading(true);
+  const fetchInvoices = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const { data, error } = await supabase
         .from("invoices")
@@ -49,39 +70,25 @@ function CentralInvoices() {
       if (error) throw error;
       setInvoices(data || []);
     } catch (error) {
-      console.error(error.message);
+      console.error("Error fetching invoices:", error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  /**
-   * BUG FIX: Robust UTC to IST Conversion
-   * This handles the Supabase "YYYY-MM-DD HH:MM:SS" string properly.
-   */
   const formatDateTime = (dateStr) => {
     if (!dateStr) return "—";
-    
     try {
-      // 1. Sanitize the string: Replace space with 'T' and ensure 'Z' (UTC) suffix
-      // This stops the browser from guessing the timezone incorrectly.
+      // Fix UTC strings for Safari/Mobile compatibility
       const formattedStr = dateStr.replace(" ", "T");
       const isoStr = formattedStr.endsWith("Z") ? formattedStr : `${formattedStr}Z`;
-      
       const date = new Date(isoStr);
-      
-      // 2. Explicitly format for Indian Standard Time
       return new Intl.DateTimeFormat('en-IN', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true,
         timeZone: 'Asia/Kolkata' 
       }).format(date).toUpperCase();
     } catch (err) {
-      console.error("Date error:", err);
       return dateStr; 
     }
   };
@@ -91,10 +98,7 @@ function CentralInvoices() {
     setShowModal(true);
     setItemsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("invoice_items")
-        .select("*")
-        .eq("invoice_id", invoice.id);
+      const { data, error } = await supabase.from("invoice_items").select("*").eq("invoice_id", invoice.id);
       if (error) throw error;
       setItems(data || []);
     } catch (err) {
@@ -105,12 +109,14 @@ function CentralInvoices() {
   };
 
   const resetFilters = () => {
-    setSearch(""); setStartDate(""); setEndDate(""); setRangeMode(false);
+    setSearch(""); 
+    setRangeMode(false);
+    setSingleDate(new Date().toISOString().split('T')[0]);
+    setDateRange({ start: "", end: "" });
+    fetchInvoices();
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
@@ -121,12 +127,18 @@ function CentralInvoices() {
       
       const invDate = inv.created_at?.split('T')[0];
       let matchesDate = true;
-      if (rangeMode && startDate && endDate) matchesDate = invDate >= startDate && invDate <= endDate;
-      else if (startDate) matchesDate = invDate === startDate;
+      
+      if (rangeMode) {
+        if (dateRange.start && dateRange.end) {
+             matchesDate = invDate >= dateRange.start && invDate <= dateRange.end;
+        }
+      } else {
+        if (singleDate) matchesDate = invDate === singleDate;
+      }
 
       return matchesSearch && matchesDate;
     });
-  }, [search, startDate, endDate, rangeMode, invoices]);
+  }, [search, singleDate, dateRange, rangeMode, invoices]);
 
   const stats = useMemo(() => {
     const revenue = filteredInvoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
@@ -135,240 +147,326 @@ function CentralInvoices() {
 
   const getStatusStyle = (status) => {
     switch(status?.toLowerCase()) {
-        case 'dispatched': return { bg: '#ecfdf5', text: '#065f46', border: '#10b981' };
-        case 'packed': return { bg: '#fffbeb', text: '#92400e', border: '#f59e0b' };
-        case 'incoming': return { bg: '#eff6ff', text: '#1e40af', border: '#3b82f6' };
-        default: return { bg: '#f3f4f6', text: '#374151', border: '#9ca3af' };
+        case 'dispatched': return "bg-emerald-100 text-emerald-700 border-emerald-200";
+        case 'packed': return "bg-amber-100 text-amber-700 border-amber-200";
+        case 'incoming': return "bg-blue-100 text-blue-700 border-blue-200";
+        default: return "bg-slate-100 text-slate-600 border-slate-200";
     }
   };
 
-  if (loading) return <div style={styles.loader}>Accessing Ledger...</div>;
-
   return (
-    <div style={styles.page}>
+    <div className="min-h-screen bg-[#F8F9FA] pb-10 font-sans text-black relative selection:bg-black selection:text-white">
       <style>{`
         @media print {
           body * { visibility: hidden; }
           #printable-area, #printable-area * { visibility: visible; }
-          #printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+          #printable-area { position: absolute; left: 0; top: 0; width: 100%; height: auto; overflow: visible; }
           .no-print { display: none !important; }
         }
-        .custom-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: ${PRIMARY} #f1f1f1; }
-        .custom-scroll::-webkit-scrollbar { width: 6px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .tr-hover:hover { background: #f8fafc; transition: 0.2s; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      <div style={styles.container} className="no-print">
-        <header style={styles.header}>
-          <button onClick={() => navigate(-1)} style={styles.backBtn}><ArrowLeft size={20} /> Back</button>
-          <h1 style={styles.centerTitle}>INVOICE LEDGER</h1>
-          <div style={styles.topFranchiseBadge}>FRANCHISE ID : {userProfile?.franchise_id || 'HQ-01'}</div>
-        </header>
-
-        <div style={styles.statsRow}>
-          <div style={styles.statCard}>
-            <div style={styles.statIcon}><FileText size={20} color={PRIMARY}/></div>
-            <div><p style={styles.statLabel}>Total Records</p><h2 style={styles.statValue}>{stats.total}</h2></div>
-          </div>
-          <div style={styles.statCard}>
-            <div style={{...styles.statIcon, background: '#ecfdf5'}}><IndianRupee size={20} color={PRIMARY}/></div>
-            <div><p style={styles.statLabel}>Total Billing</p><h2 style={styles.statValue}>₹{stats.revenue.toLocaleString('en-IN')}</h2></div>
-          </div>
-        </div>
-
-        <div style={styles.filterBar}>
-          <div style={styles.searchBox}>
-            <Search size={18} color="#9ca3af" />
-            <input style={styles.input} placeholder="Search by Name or Franchise ID..." value={search} onChange={(e) => setSearch(e.target.value)} />
-          </div>
-          <div style={styles.dateSection}>
-             <input type="date" style={styles.dateInput} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-             {rangeMode && <input type="date" style={styles.dateInput} value={endDate} onChange={(e) => setEndDate(e.target.value)} />}
-             <button onClick={() => setRangeMode(!rangeMode)} style={styles.toggleBtn}>{rangeMode ? "Daily" : "Range"}</button>
-             <button onClick={resetFilters} style={styles.resetBtn}><RotateCcw size={16} /></button>
-          </div>
-        </div>
-
-        <div style={styles.tableWrapper} className="custom-scroll">
-          <table style={styles.table}>
-            <thead style={styles.thead}>
-              <tr>
-                <th style={styles.th}>INVOICE</th>
-                <th style={styles.th}>FRANCHISE ID</th>
-                <th style={styles.th}>CUSTOMER</th>
-                <th style={styles.th}>STATUS</th>
-                <th style={styles.th}>DATE & TIME</th>
-                <th style={{...styles.th, textAlign: 'right'}}>AMOUNT</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredInvoices.map((inv) => {
-                const statusStyle = getStatusStyle(inv.status);
-                return (
-                  <tr key={inv.id} className="tr-hover" style={styles.tr} onClick={() => openInvoiceModal(inv)}>
-                    <td style={styles.td}><span style={styles.idBadge}>#{inv.id.toString().slice(-6).toUpperCase()}</span></td>
-                    <td style={styles.td}><span style={styles.fIdBadge}>ID: {inv.franchise_id}</span></td>
-                    <td style={styles.td}>
-                      <div style={{fontWeight: '700'}}>{inv.customer_name}</div>
-                      <div style={{fontSize: '11px', color: '#6b7280'}}>{inv.customer_phone}</div>
-                    </td>
-                    <td style={styles.td}>
-                      <span style={{
-                        ...styles.statusBadge, 
-                        backgroundColor: statusStyle.bg, 
-                        color: statusStyle.text,
-                        borderColor: statusStyle.border
-                      }}>
-                        {inv.status || 'Incoming'}
-                      </span>
-                    </td>
-                    <td style={styles.td}>{formatDateTime(inv.created_at)}</td>
-                    <td style={{...styles.td, textAlign: 'right', fontWeight: '800', color: PRIMARY}}>₹{Number(inv.total_amount).toLocaleString('en-IN')}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
+      {/* --- INVOICE DRAWER --- */}
       {showModal && selectedInvoice && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent} className="custom-scroll" id="printable-area">
-            <div style={styles.modalHeader} className="no-print">
-              <div style={styles.modalHeaderLeft}>
-                <Hash size={20} color={PRIMARY} />
-                <h2 style={styles.modalTitle}>Invoice Details</h2>
+        <div className="fixed inset-0 z-[100] flex justify-end">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={() => setShowModal(false)} />
+          
+          <div className="relative w-full md:w-[600px] bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300" id="printable-area">
+            {/* Modal Header */}
+            <div className="p-6 border-b-2 border-slate-100 flex items-center justify-between bg-white shrink-0 no-print">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-50 rounded-xl border-2 border-slate-100">
+                    <Hash size={20} style={{ color: PRIMARY }} />
+                </div>
+                <div>
+                    <h2 className="text-lg font-black uppercase tracking-widest text-slate-800">Invoice Details</h2>
+                    <p className="text-[10px] font-bold text-slate-400">ID: {selectedInvoice.id}</p>
+                </div>
               </div>
-              <div style={{display: 'flex', gap: '10px'}}>
-                <button onClick={handlePrint} style={styles.printBtn}><Printer size={16}/> PRINT</button>
-                <button onClick={() => setShowModal(false)} style={styles.closeBtn}><X size={20}/></button>
+              <div className="flex gap-2">
+                <button onClick={handlePrint} className="hidden md:flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-colors">
+                    <Printer size={14}/> Print
+                </button>
+                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                    <X size={20} />
+                </button>
               </div>
             </div>
 
-            <div style={styles.invoiceMetaGrid}>
-              <div style={{...styles.metaCard, borderLeft: `4px solid ${PRIMARY}`}}>
-                <div style={styles.metaIcon}><Shield size={16} /></div>
-                <div>
-                  <p style={styles.metaLabel}>Origin Office</p>
-                  <p style={{...styles.metaValue, fontSize: '16px'}}>Franchise ID : {selectedInvoice.franchise_id}</p>
-                  <p style={styles.metaSubValue}>Location: {selectedInvoice.branch_location || 'Main Outlets'}</p>
-                </div>
-              </div>
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50">
+                {/* Meta Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                    <div className="bg-white p-5 rounded-2xl border-l-4 shadow-sm border border-slate-100" style={{ borderLeftColor: PRIMARY }}>
+                        <div className="flex items-center gap-3 mb-3">
+                            <Shield size={16} className="text-slate-400" />
+                            <span className="text-[10px] font-black uppercase text-slate-400">Origin Office</span>
+                        </div>
+                        <p className="text-base font-black text-slate-800">Franchise ID: {selectedInvoice.franchise_id}</p>
+                        <p className="text-xs font-bold text-slate-500 mt-1">{selectedInvoice.branch_location || 'Main Outlets'}</p>
+                    </div>
 
-              <div style={{...styles.metaCard, borderLeft: `4px solid ${getStatusStyle(selectedInvoice.status).border}`}}>
-                <div style={styles.metaIcon}><Activity size={16} /></div>
-                <div>
-                  <p style={styles.metaLabel}>Order Status</p>
-                  <p style={{...styles.metaValue, textTransform: 'uppercase'}}>{selectedInvoice.status || 'Incoming'}</p>
-                  <p style={styles.metaSubValue}>Last Updated: {formatDateTime(selectedInvoice.created_at)}</p>
-                </div>
-              </div>
+                    <div className="bg-white p-5 rounded-2xl border-l-4 shadow-sm border border-slate-100" style={{ borderLeftColor: '#3b82f6' }}>
+                        <div className="flex items-center gap-3 mb-3">
+                            <Activity size={16} className="text-slate-400" />
+                            <span className="text-[10px] font-black uppercase text-slate-400">Status</span>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${getStatusStyle(selectedInvoice.status)}`}>
+                            {selectedInvoice.status || 'Incoming'}
+                        </span>
+                        <p className="text-[10px] font-bold text-slate-400 mt-2">{formatDateTime(selectedInvoice.created_at)}</p>
+                    </div>
 
-              <div style={styles.metaCard}>
-                <div style={styles.metaIcon}><User size={16} /></div>
-                <div>
-                  <p style={styles.metaLabel}>Customer Details</p>
-                  <p style={styles.metaValue}>{selectedInvoice.customer_name}</p>
-                  <p style={styles.metaSubValue}><Phone size={10} /> {selectedInvoice.customer_phone}</p>
+                    <div className="md:col-span-2 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4">
+                        <div className="p-3 bg-slate-50 rounded-xl text-slate-400"><User size={20} /></div>
+                        <div>
+                            <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">Customer Details</span>
+                            <p className="text-sm font-black text-slate-800">{selectedInvoice.customer_name}</p>
+                            <div className="flex items-center gap-2 mt-1 text-slate-500 text-xs font-bold">
+                                <Phone size={12} /> {selectedInvoice.customer_phone}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-              </div>
+
+                {/* Items Table */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-8">
+                    <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                        <ShoppingBag size={16} className="text-slate-400"/>
+                        <span className="text-xs font-black uppercase text-slate-600">Order Items</span>
+                    </div>
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400">
+                            <tr>
+                                <th className="p-4">Item</th>
+                                <th className="p-4 text-center">Qty</th>
+                                <th className="p-4 text-right">Price</th>
+                                <th className="p-4 text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-sm font-bold text-slate-700">
+                            {itemsLoading ? (
+                                <tr><td colSpan="4" className="p-8 text-center text-slate-400 animate-pulse">Loading items...</td></tr>
+                            ) : items.map((item) => (
+                                <tr key={item.id}>
+                                    <td className="p-4">
+                                        <div className="font-black text-slate-800">{item.item_name}</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">SKU: {item.stock_id?.slice(0,8)}</div>
+                                    </td>
+                                    <td className="p-4 text-center">{item.quantity} {item.unit}</td>
+                                    <td className="p-4 text-right">₹{item.price}</td>
+                                    <td className="p-4 text-right font-black">₹{(item.quantity * item.price).toFixed(2)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <div style={styles.itemsSection}>
-              <h3 style={styles.sectionTitle}><ShoppingBag size={18} /> Order Items</h3>
-              <table style={styles.itemTable}>
-                <thead>
-                  <tr style={styles.itemThead}>
-                    <th style={styles.itemTh}>Item Name</th>
-                    <th style={styles.itemTh}>Qty</th>
-                    <th style={styles.itemTh}>Price</th>
-                    <th style={{...styles.itemTh, textAlign: 'right'}}>Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {itemsLoading ? (
-                    <tr><td colSpan="4" style={{padding: '40px', textAlign: 'center'}}>Loading items...</td></tr>
-                  ) : items.map((item) => (
-                    <tr key={item.id} style={styles.itemTr}>
-                      <td style={styles.itemTd}>
-                        <div style={{fontWeight: '700', fontSize: '13px'}}>{item.item_name}</div>
-                        <div style={{fontSize: '10px', color: '#9ca3af'}}>SKU: {item.stock_id?.slice(0,8)}</div>
-                      </td>
-                      <td style={styles.itemTd}>{item.quantity} {item.unit}</td>
-                      <td style={styles.itemTd}>₹{item.price}</td>
-                      <td style={{...styles.itemTd, textAlign: 'right', fontWeight: '700'}}>₹{(item.quantity * item.price).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div style={styles.modalFooter}>
-              <div style={styles.totalRow}>
-                <span>Total Amount Payable</span>
-                <span style={{fontSize: '24px', fontWeight: '900', color: PRIMARY}}>₹{Number(selectedInvoice.total_amount).toLocaleString('en-IN')}</span>
-              </div>
+            {/* Modal Footer */}
+            <div className="p-6 border-t-2 border-slate-100 bg-white shrink-0">
+                <div className="flex justify-between items-center bg-slate-900 text-white p-5 rounded-2xl shadow-lg">
+                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">Total Payable</span>
+                    <span className="text-2xl font-black">₹{Number(selectedInvoice.total_amount).toLocaleString('en-IN')}</span>
+                </div>
+                <button onClick={handlePrint} className="md:hidden w-full mt-4 py-4 bg-slate-100 text-slate-800 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 no-print active:scale-95 transition-all">
+                    <Printer size={16}/> Print Invoice
+                </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* --- STICKY HEADER --- */}
+      <nav className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b-2 border-slate-100 px-4 md:px-8 py-4 flex items-center justify-between shadow-sm no-print">
+        <div className="flex items-center gap-4">
+             <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-all">
+                <ArrowLeft size={18} /> <span className="hidden md:inline">BACK</span>
+            </button>
+        </div>
+        
+        <h1 className="text-sm md:text-xl font-black uppercase tracking-[0.2em] text-black text-center absolute left-1/2 -translate-x-1/2">
+            Ledger
+        </h1>
+        
+        <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">ID :</span>
+            {/* WHITE ID BOX */}
+            <span className="text-[10px] sm:text-xs font-black text-black bg-white border border-slate-200 px-3 py-1 rounded-lg shadow-sm">
+                {userProfile?.franchise_id || "HQ-01"}
+            </span>
+        </div>
+      </nav>
+
+      {/* --- MAIN CONTENT --- */}
+      <div className="max-w-[1400px] mx-auto px-4 md:px-8 mt-6 md:mt-8 no-print">
+        
+        {/* Stats Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="bg-white border-2 border-slate-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-all hover:border-black/10">
+                <div className="h-12 w-12 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100">
+                    <FileText size={24} />
+                </div>
+                <div>
+                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Total Records</p>
+                    <h2 className="text-2xl font-black text-slate-800">{stats.total}</h2>
+                </div>
+            </div>
+            <div className="bg-white border-2 border-slate-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-all hover:border-black/10">
+                <div className="h-12 w-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
+                    <IndianRupee size={24} />
+                </div>
+                <div>
+                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Total Billing</p>
+                    <h2 className="text-2xl font-black text-slate-800">₹{stats.revenue.toLocaleString('en-IN')}</h2>
+                </div>
+            </div>
+        </div>
+
+        {/* Toolbar & Filters */}
+        <div className="flex flex-col lg:flex-row gap-4 mb-6">
+            {/* Search */}
+            <div className="relative w-full lg:flex-1 h-12 md:h-14 group">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-black transition-colors" size={18} />
+                <input 
+                    placeholder="SEARCH NAME OR FRANCHISE ID..." 
+                    value={search} 
+                    onChange={(e) => setSearch(e.target.value)} 
+                    className="w-full h-full pl-14 pr-6 bg-white border-2 border-slate-100 focus:border-black rounded-2xl text-[10px] md:text-xs font-black outline-none transition-all uppercase placeholder:text-slate-300 shadow-sm" 
+                />
+            </div>
+
+            {/* Date Filters & Refresh - ROW LAYOUT ON MOBILE */}
+            <div className="flex items-center gap-2 w-full lg:w-auto h-12 md:h-14">
+                <div className="flex-1 flex items-center bg-white rounded-2xl border-2 border-slate-100 p-1 h-full min-w-0 shadow-sm">
+                    {/* Toggle Buttons */}
+                    <div className="flex bg-slate-50 p-1 rounded-xl shrink-0 mr-2">
+                        <button 
+                            onClick={() => setRangeMode(false)} 
+                            className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${!rangeMode ? "bg-white text-black shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                        >
+                            Single
+                        </button>
+                        <button 
+                            onClick={() => setRangeMode(true)} 
+                            className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${rangeMode ? "bg-white text-black shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                        >
+                            Range
+                        </button>
+                    </div>
+
+                    {/* Inputs */}
+                    <div className="flex-1 flex items-center justify-center min-w-0 px-2">
+                        {!rangeMode ? (
+                            <input 
+                                type="date" 
+                                value={singleDate} 
+                                onChange={(e) => setSingleDate(e.target.value)} 
+                                className="bg-transparent text-[10px] font-black outline-none uppercase w-full text-center tracking-wider cursor-pointer" 
+                            />
+                        ) : (
+                            <div className="flex items-center gap-1 w-full justify-center">
+                                <input 
+                                    type="date" 
+                                    value={dateRange.start} 
+                                    onChange={(e) => setDateRange({...dateRange, start: e.target.value})} 
+                                    className="bg-transparent text-[9px] font-black outline-none w-full min-w-0 uppercase text-center tracking-tighter cursor-pointer" 
+                                />
+                                <span className="text-[9px] text-slate-300 font-bold">-</span>
+                                <input 
+                                    type="date" 
+                                    value={dateRange.end} 
+                                    onChange={(e) => setDateRange({...dateRange, end: e.target.value})} 
+                                    className="bg-transparent text-[9px] font-black outline-none w-full min-w-0 uppercase text-center tracking-tighter cursor-pointer" 
+                                />
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <button onClick={resetFilters} className="h-full aspect-square flex items-center justify-center bg-black text-white rounded-2xl hover:bg-slate-800 transition-all active:scale-95 shadow-lg shadow-black/10 shrink-0">
+                    <RotateCcw size={18} />
+                </button>
+            </div>
+        </div>
+
+        {/* --- DESKTOP TABLE (Hidden on Mobile) --- */}
+        <div className="hidden md:block bg-white border-2 border-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm">
+            <table className="w-full text-left border-separate border-spacing-0">
+                <thead>
+                    <tr className="bg-slate-50 text-slate-400">
+                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100">Invoice</th>
+                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100">Franchise ID</th>
+                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100">Customer</th>
+                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100">Status</th>
+                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100">Date & Time</th>
+                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 text-right">Amount</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                    {loading && invoices.length === 0 ? (
+                        <tr><td colSpan="6" className="p-10 text-center font-bold text-slate-400">Loading Ledger...</td></tr>
+                    ) : filteredInvoices.length === 0 ? (
+                        <tr><td colSpan="6" className="p-10 text-center font-bold text-slate-400">No Invoices Found</td></tr>
+                    ) : filteredInvoices.map((inv) => (
+                        <tr key={inv.id} onClick={() => openInvoiceModal(inv)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
+                            <td className="p-6"><span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black">#{inv.id.toString().slice(-6).toUpperCase()}</span></td>
+                            <td className="p-6"><span className="text-xs font-black text-slate-700">{inv.franchise_id}</span></td>
+                            <td className="p-6">
+                                <div className="text-xs font-black text-slate-800">{inv.customer_name}</div>
+                                <div className="text-[10px] font-bold text-slate-400">{inv.customer_phone}</div>
+                            </td>
+                            <td className="p-6">
+                                <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase border ${getStatusStyle(inv.status)}`}>
+                                    {inv.status || 'Incoming'}
+                                </span>
+                            </td>
+                            <td className="p-6 text-xs font-bold text-slate-500 uppercase">{formatDateTime(inv.created_at)}</td>
+                            <td className="p-6 text-right text-sm font-black" style={{ color: PRIMARY }}>₹{Number(inv.total_amount).toLocaleString('en-IN')}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+
+        {/* --- MOBILE CARD LIST (Visible on Mobile) --- */}
+        <div className="md:hidden flex flex-col gap-4 pb-20">
+            {loading && invoices.length === 0 ? (
+                <div className="text-center p-10 text-slate-400 font-bold text-xs uppercase">Loading Ledger...</div>
+            ) : filteredInvoices.length === 0 ? (
+                <div className="flex flex-col items-center justify-center p-10 text-slate-400 border-2 border-dashed border-slate-200 rounded-3xl">
+                    <Inbox size={32} className="mb-2 opacity-50"/>
+                    <span className="font-bold text-xs uppercase tracking-widest">No Invoices Found</span>
+                </div>
+            ) : filteredInvoices.map((inv) => (
+                <div key={inv.id} onClick={() => openInvoiceModal(inv)} className="bg-white border-2 border-slate-100 rounded-[2rem] p-6 shadow-sm active:scale-95 transition-transform">
+                    <div className="flex justify-between items-start mb-4">
+                        <div>
+                            <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-lg text-[10px] font-black mb-2 inline-block">#{inv.id.toString().slice(-6).toUpperCase()}</span>
+                            <h3 className="text-sm font-black text-slate-800">{inv.customer_name}</h3>
+                            <p className="text-[10px] font-bold text-slate-400">ID: {inv.franchise_id}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-lg font-black" style={{ color: PRIMARY }}>₹{Number(inv.total_amount).toLocaleString('en-IN')}</p>
+                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase border inline-block mt-1 ${getStatusStyle(inv.status)}`}>
+                                {inv.status || 'Incoming'}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="pt-4 border-t-2 border-slate-50 flex justify-between items-center">
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase">
+                            <Calendar size={12} /> {formatDateTime(inv.created_at)}
+                        </div>
+                        <span className="text-[10px] font-black uppercase text-slate-300 tracking-widest">View Details &rarr;</span>
+                    </div>
+                </div>
+            ))}
+        </div>
+
+      </div>
     </div>
   );
 }
-
-const styles = {
-  page: { background: "#f8fafc", height: "100vh", width: "100vw", fontFamily: '"Inter", sans-serif', overflow: "hidden" },
-  container: { height: "100%", padding: "20px 40px", boxSizing: 'border-box', display: 'flex', flexDirection: 'column' },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px", flexShrink: 0 },
-  centerTitle: { fontSize: "20px", fontWeight: "900", letterSpacing: '2px', color: '#1e293b' },
-  backBtn: { display: "flex", alignItems: "center", gap: "8px", background: "#fff", border: `1px solid ${BORDER}`, padding: '8px 16px', borderRadius: '12px', color: "#6b7280", fontWeight: "700", cursor: "pointer", boxShadow: '0 2px 4px rgba(0,0,0,0.02)' },
-  topFranchiseBadge: { fontSize: '11px', fontWeight: '800', background: PRIMARY, color: '#fff', padding: '8px 16px', borderRadius: '8px', letterSpacing: '1px' },
-  statsRow: { display: 'flex', gap: '20px', marginBottom: '20px' },
-  statCard: { flex: 1, background: '#fff', border: `1px solid ${BORDER}`, borderRadius: '20px', padding: '20px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' },
-  statIcon: { width: '48px', height: '48px', borderRadius: '14px', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  statLabel: { fontSize: '11px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' },
-  statValue: { fontSize: '24px', fontWeight: '900', margin: 0, color: '#1e293b' },
-  filterBar: { display: "flex", gap: "15px", marginBottom: "20px", alignItems: "center" },
-  searchBox: { display: "flex", alignItems: "center", gap: "12px", background: "#fff", border: `1px solid ${BORDER}`, borderRadius: "14px", padding: "0 16px", flex: 1 },
-  input: { border: "none", background: "none", padding: "14px 0", outline: "none", fontSize: "14px", width: "100%", fontWeight: "600" },
-  dateSection: { display: 'flex', gap: '10px' },
-  dateInput: { border: `1px solid ${BORDER}`, borderRadius: '10px', padding: '10px', fontSize: '12px', fontWeight: '600' },
-  toggleBtn: { background: '#fff', border: `1px solid ${BORDER}`, padding: '0 15px', borderRadius: '10px', fontSize: '11px', fontWeight: '800', cursor: 'pointer' },
-  resetBtn: { background: '#fff', border: `1px solid ${BORDER}`, padding: '10px', borderRadius: '10px', cursor: 'pointer' },
-  tableWrapper: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: "20px", flexGrow: 1, overflowY: 'auto' },
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: { padding: "18px 24px", fontSize: "11px", fontWeight: "800", color: '#64748b', textTransform: 'uppercase', borderBottom: `2px solid ${BORDER}`, textAlign: 'left', background: '#fcfcfc' },
-  tr: { borderBottom: `1px solid ${BORDER}`, cursor: 'pointer' },
-  td: { padding: "18px 24px", fontSize: "13px", color: '#334155' },
-  idBadge: { background: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '6px', fontWeight: '800', fontSize: '11px' },
-  fIdBadge: { background: '#ecfdf5', color: PRIMARY, padding: '4px 10px', borderRadius: '6px', fontWeight: '800', fontSize: '11px' },
-  statusBadge: { padding: '4px 10px', borderRadius: '6px', fontWeight: '800', fontSize: '10px', textTransform: 'uppercase', border: '1px solid' },
-  
-  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropBlur: '4px', zIndex: 1000, display: 'flex', justifyContent: 'flex-end' },
-  modalContent: { width: '600px', background: '#fff', height: '100%', boxShadow: '-10px 0 30px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', padding: '40px' },
-  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', paddingBottom: '20px', borderBottom: `1px solid ${BORDER}` },
-  modalHeaderLeft: { display: 'flex', alignItems: 'center', gap: '12px' },
-  modalTitle: { fontSize: '20px', fontWeight: '900', color: '#1e293b' },
-  printBtn: { background: PRIMARY, color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', fontSize: '11px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' },
-  closeBtn: { background: '#f1f5f9', border: 'none', padding: '10px', borderRadius: '10px', cursor: 'pointer' },
-  invoiceMetaGrid: { display: 'grid', gridTemplateColumns: '1fr', gap: '20px', marginBottom: '40px' },
-  metaCard: { display: 'flex', gap: '15px', padding: '20px', background: '#f8fafc', borderRadius: '16px', border: '1px solid #f1f5f9' },
-  metaIcon: { width: '32px', height: '32px', borderRadius: '8px', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${BORDER}`, color: PRIMARY },
-  metaLabel: { fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', color: '#94a3b8', marginBottom: '4px' },
-  metaValue: { fontSize: '14px', fontWeight: '800', color: '#1e293b', marginBottom: '2px' },
-  metaSubValue: { fontSize: '12px', color: '#64748b' },
-  itemsSection: { flexGrow: 1 },
-  sectionTitle: { fontSize: '14px', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', color: '#1e293b' },
-  itemTable: { width: '100%', borderCollapse: 'collapse' },
-  itemThead: { borderBottom: `2px solid ${BORDER}` },
-  itemTh: { padding: '12px 0', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase' },
-  itemTr: { borderBottom: `1px solid #f1f5f9` },
-  itemTd: { padding: '15px 0', fontSize: '13px' },
-  modalFooter: { marginTop: '40px', paddingTop: '30px', borderTop: `2px solid ${PRIMARY}` },
-  totalRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '16px', fontWeight: '800' },
-  loader: { height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', color: PRIMARY, fontSize: '24px' }
-};
 
 export default CentralInvoices;
