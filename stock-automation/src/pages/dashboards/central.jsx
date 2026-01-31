@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import {
   FileText, Users, Settings, LayoutDashboard,
   BarChart3, ChevronRight, Package, ShoppingBag, 
-  Headphones, Calendar, Truck, UserCheck
+  Headphones, Calendar, Truck, UserCheck, Printer // Added Printer icon
 } from "lucide-react";
 
 const PRIMARY = "#065f46";
@@ -57,6 +57,7 @@ function CentralDashboard() {
     { title: "Staff Profiles", path: "/central/staff-profiles", icon: <UserCheck size={isMobile ? 20 : 24} />, desc: "Employee management" },
     { title: "Franchise Profiles", path: "/central/profiles", icon: <Users size={isMobile ? 20 : 24} />, desc: "User permissions" },
     { title: "Stock Requests", path: "/central/support", icon: <Headphones size={isMobile ? 20 : 24} />, desc: "Help desk tickets" }, 
+    { title: "Invoice Design", path: "/central/invoice-design", icon: <Printer size={isMobile ? 20 : 24} />, desc: "Print templates" }, // New Card Added
     { title: "Settings", path: "/central/settings", icon: <Settings size={isMobile ? 20 : 24} />, desc: "System configuration" },
   ];
 
@@ -183,12 +184,12 @@ const styles = {
   page: { 
     background: BACKGROUND, 
     minHeight: "100vh", 
-    width: '100%',  // Changed from 100vw to prevent horizontal scrollbars
+    width: '100%', 
     fontFamily: '"Inter", sans-serif', 
     color: "#111827", 
     display: 'flex', 
     flexDirection: 'column', 
-    overflowX: 'hidden' // Critical for preventing cut-off content
+    overflowX: 'hidden' 
   },
   container: { 
     maxWidth: "1400px", 

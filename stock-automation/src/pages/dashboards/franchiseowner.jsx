@@ -128,7 +128,7 @@ function FranchiseOwnerDashboard() {
             
             {/* UPDATED: Added margin top to greeting for spacing */}
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <h1 className="header-title">DASHBOARD</h1>
+                <h1 className="header-title">FRANCHISE DASHBOARD</h1>
                 <p style={{ margin: '6px 0 0 0', fontSize: '11px', fontWeight: '700', color: '#64748b', lineHeight: '1.2' }}>
                     Hello, <span style={{ color: PRIMARY, textTransform: 'uppercase' }}>{franchiseName || 'Owner'}</span>
                 </p>

@@ -1,5 +1,5 @@
 import { useEffect } from "react"; 
-import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom"; // Added useNavigate import
+import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom"; 
 
 /* LOGO IMPORT FROM SRC */
 import myLogo from "./assets/jksh_logo.jpeg"; 
@@ -45,7 +45,8 @@ import PosManagement from "./pages/central/posmanagement";
 import Reports from "./pages/central/reports";
 import FranchiseReplies from "./pages/central/FranchiseReplies";
 import CentralStockMaster from "./pages/central/CentralStockMaster";
-import InvoiceDesign from "./pages/invoiceDesign/InvoiceDesign"; 
+// Updated Import Path based on your file structure
+import InvoiceDesign from "./pages/central/InvoiceDesign"; 
 
 /* CONTEXTS */
 import { AuthProvider } from "./context/AuthContext";
@@ -156,6 +157,7 @@ function App() {
               }
             />
 
+            {/* New Route for Invoice Design */}
             <Route
               path="/central/invoice-design"
               element={
