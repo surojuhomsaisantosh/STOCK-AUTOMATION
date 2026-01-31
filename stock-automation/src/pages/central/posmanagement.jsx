@@ -245,7 +245,7 @@ function PosManagement() {
         {!isMobile && (
             <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', order: 2 }}>
                 <div style={styles.idDisplay}>
-                <span style={styles.idLabel}>Franchise ID :</span>
+                <span style={styles.idLabel}>ID :</span>
                 <span style={styles.idValue}>{myFranchiseId || "--"}</span>
                 </div>
             </div>
