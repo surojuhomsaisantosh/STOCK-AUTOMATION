@@ -11,13 +11,52 @@ import {
 import tvanammLogo from "../../assets/tvanamm_logo.jpeg";
 import tleafLogo from "../../assets/tleaf_logo.jpeg";
 
+// --- CONSTANTS ---
 const BRAND_COLOR = "rgb(0, 100, 55)";
 const ITEMS_PER_PAGE = 12; 
 
-// --- INTERNAL TOAST COMPONENT ---
+// --- UTILS ---
+
+/**
+ * Converts a number to Indian Currency Words
+ */
+const amountToWords = (price) => {
+  if (!price) return "";
+  const num = Math.round(price);
+  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  
+  const inWords = (n) => {
+    if ((n = n.toString()).length > 9) return 'overflow';
+    let n_array = ('000000000' + n).slice(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+    if (!n_array) return; 
+    let str = '';
+    str += (n_array[1] != 0) ? (a[Number(n_array[1])] || b[n_array[1][0]] + ' ' + a[n_array[1][1]]) + 'Crore ' : '';
+    str += (n_array[2] != 0) ? (a[Number(n_array[2])] || b[n_array[2][0]] + ' ' + a[n_array[2][1]]) + 'Lakh ' : '';
+    str += (n_array[3] != 0) ? (a[Number(n_array[3])] || b[n_array[3][0]] + ' ' + a[n_array[3][1]]) + 'Thousand ' : '';
+    str += (n_array[4] != 0) ? (a[Number(n_array[4])] || b[n_array[4][0]] + ' ' + a[n_array[4][1]]) + 'Hundred ' : '';
+    str += (n_array[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n_array[5])] || b[n_array[5][0]] + ' ' + a[n_array[5][1]]) : '';
+    return str;
+  }
+  return inWords(num) + "Rupees Only";
+};
+
+const getConversionFactor = (unit) => {
+  if (!unit) return 1;
+  const u = unit.toLowerCase().trim();
+  const gramVariants = ["g", "grams", "gram", "gm", "gms"];
+  const mlVariants = ["ml", "millilitre", "millilitres", "ml."];
+  if (gramVariants.includes(u)) return 0.001;
+  if (mlVariants.includes(u)) return 0.001;
+  return 1;
+};
+
+// --- COMPONENTS ---
+
+// Toast Notification - Hidden on Mobile, Visible on Desktop
 const ToastContainer = ({ toasts, removeToast }) => {
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:right-auto md:bottom-auto md:top-4 md:left-4 z-[100] flex flex-col gap-2 pointer-events-none items-center md:items-start print:hidden">
+    <div className="hidden md:flex fixed bottom-4 left-4 right-4 md:right-auto md:bottom-auto md:top-4 md:left-4 z-[100] flex-col gap-2 pointer-events-none items-center md:items-start print:hidden">
       {toasts.map((toast) => (
         <div 
           key={toast.id} 
@@ -43,7 +82,6 @@ const ToastContainer = ({ toasts, removeToast }) => {
   );
 };
 
-// --- SKELETON LOADER ---
 const StockSkeleton = () => (
   <div className="bg-white p-4 rounded-2xl border-2 border-slate-100 flex flex-col gap-3 animate-pulse">
     <div className="h-3 w-1/3 bg-slate-100 rounded-md"></div>
@@ -53,39 +91,7 @@ const StockSkeleton = () => (
   </div>
 );
 
-// --- HELPER: Unit Conversion ---
-const getConversionFactor = (unit) => {
-  if (!unit) return 1;
-  const u = unit.toLowerCase().trim();
-  const gramVariants = ["g", "grams", "gram", "gm", "gms"];
-  const mlVariants = ["ml", "millilitre", "millilitres", "ml."];
-  if (gramVariants.includes(u)) return 0.001;
-  if (mlVariants.includes(u)) return 0.001;
-  return 1;
-};
-
-// --- HELPER: Number to Words ---
-const amountToWords = (price) => {
-  if (!price) return "";
-  const num = Math.round(price);
-  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
-  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  const inWords = (n) => {
-    if ((n = n.toString()).length > 9) return 'overflow';
-    let n_array = ('000000000' + n).slice(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
-    if (!n_array) return; 
-    let str = '';
-    str += (n_array[1] != 0) ? (a[Number(n_array[1])] || b[n_array[1][0]] + ' ' + a[n_array[1][1]]) + 'Crore ' : '';
-    str += (n_array[2] != 0) ? (a[Number(n_array[2])] || b[n_array[2][0]] + ' ' + a[n_array[2][1]]) + 'Lakh ' : '';
-    str += (n_array[3] != 0) ? (a[Number(n_array[3])] || b[n_array[3][0]] + ' ' + a[n_array[3][1]]) + 'Thousand ' : '';
-    str += (n_array[4] != 0) ? (a[Number(n_array[4])] || b[n_array[4][0]] + ' ' + a[n_array[4][1]]) + 'Hundred ' : '';
-    str += (n_array[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n_array[5])] || b[n_array[5][0]] + ' ' + a[n_array[5][1]]) : '';
-    return str;
-  }
-  return inWords(num) + "Rupees Only";
-};
-
-// --- INVOICE COMPONENT ---
+// --- PRINT INVOICE COMPONENT ---
 const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, totalPages, itemsChunk }) => {
   if (!data) return null;
 
@@ -111,7 +117,7 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
   return (
     <div className="w-full bg-white text-black font-sans p-8 print:p-6 box-border text-xs leading-normal h-full relative print:break-after-page print:h-[297mm]">
       
-      {/* Outer Border for the Page */}
+      {/* Main Page Border */}
       <div className="w-full border-2 border-black flex flex-col relative h-full">
         
         {/* Header */}
@@ -119,7 +125,6 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
             <div className="absolute top-4 left-0 w-full text-center pointer-events-none">
                 <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4">TAX INVOICE</h1>
             </div>
-             {/* Page Number Indicator */}
              {totalPages > 1 && (
               <div className="absolute top-2 right-2 text-[10px] font-black uppercase">
                 Page {pageIndex + 1} of {totalPages}
@@ -127,7 +132,7 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
             )}
             
             <div className="flex justify-between items-center mt-6 pt-4">
-                {/* Left: Address */}
+                {/* Left Side: Address (Restricted Width) */}
                 <div className="text-left z-10 w-[55%]">
                     <div className="font-bold leading-relaxed text-[10px]">
                         <span className="uppercase underline mb-1 block text-slate-500 font-black">Registered Office:</span>
@@ -139,15 +144,15 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
                     </div>
                 </div>
 
-                {/* Right: Logo & Company Name (Centered) */}
+                {/* Right Side: Logo & Name (Centered Column) */}
                 <div className="z-10 flex flex-col items-center text-center max-w-[40%]">
                     <img src={currentLogo} alt="Logo" className="h-16 w-auto object-contain mb-1" />
-                    <h2 className="text-lg font-black uppercase text-[#006437] break-words">{companyName}</h2>
+                    <h2 className="text-lg font-black uppercase text-[#006437] break-words text-center">{companyName}</h2>
                 </div>
             </div>
         </div>
 
-        {/* Meta */}
+        {/* Meta Data */}
         <div className="flex border-b-2 border-black bg-slate-50 print:bg-transparent">
             <div className="w-1/2 border-r-2 border-black p-2">
                 <span className="font-bold text-slate-500 uppercase text-[9px] print:text-black">Invoice No:</span>
@@ -175,12 +180,11 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
             </div>
         </div>
 
-        {/* Table - Complete Grid */}
+        {/* Table - Complete Grid with Vertical and Horizontal Lines */}
         <div className="flex-1 border-b-2 border-black relative">
             <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-100 text-[10px] border-b-2 border-black print:bg-gray-100">
                     <tr>
-                        {/* Headers: Added border-r-2 to all except last */}
                         <th className="p-2 border-r-2 border-black w-10 text-center">S.No</th>
                         <th className="p-2 border-r-2 border-black">Item Description</th>
                         <th className="p-2 border-r-2 border-black w-20 text-center">HSN</th>
@@ -192,16 +196,16 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
                 </thead>
                 <tbody className="text-[10px] font-bold">
                     {itemsChunk.map((item, idx) => (
-                        <tr key={idx} className="border-b border-black last:border-b-0 h-[35px]">
-                            {/* Cells: Added border-r-2 to all except last */}
-                            <td className="p-2 border-r-2 border-black text-center">{(pageIndex * ITEMS_PER_PAGE) + idx + 1}</td>
-                            <td className="p-2 border-r-2 border-black uppercase truncate max-w-[200px]">{item.item_name}</td>
-                            <td className="p-2 border-r-2 border-black text-center">{item.hsn_code || '-'}</td> 
-                            <td className="p-2 border-r-2 border-black text-center">{item.displayQty} {item.cartUnit}</td>
-                            <td className="p-2 border-r-2 border-black text-right">₹{item.price}</td>
-                            <td className="p-2 border-r-2 border-black text-right">{item.gst_rate || 0}%</td>
-                            {/* Last column has no right border, relies on container border */}
-                            <td className="p-2 text-right">₹{item.preciseSubtotal.toFixed(2)}</td>
+                        <tr key={idx} className="h-[35px]">
+                            {/* Each cell has a bottom border and right border */}
+                            <td className="p-2 border-r-2 border-b border-black text-center">{(pageIndex * ITEMS_PER_PAGE) + idx + 1}</td>
+                            <td className="p-2 border-r-2 border-b border-black uppercase truncate max-w-[200px]">{item.item_name}</td>
+                            <td className="p-2 border-r-2 border-b border-black text-center">{item.hsn_code || '-'}</td> 
+                            <td className="p-2 border-r-2 border-b border-black text-center">{item.displayQty} {item.cartUnit}</td>
+                            <td className="p-2 border-r-2 border-b border-black text-right">₹{item.price}</td>
+                            <td className="p-2 border-r-2 border-b border-black text-right">{item.gst_rate || 0}%</td>
+                            {/* Last column: Only bottom border, right border provided by container */}
+                            <td className="p-2 border-b border-black text-right">₹{item.preciseSubtotal.toFixed(2)}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -250,7 +254,7 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
   );
 };
 
-// --- MAIN PAGE COMPONENT ---
+// --- MAIN PAGE ---
 function StockOrder() {
   const navigate = useNavigate();
   const [stocks, setStocks] = useState([]);
@@ -278,6 +282,16 @@ function StockOrder() {
   const today = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit', month: 'short', year: 'numeric'
   }).format(new Date());
+
+  // Prevent background scroll when cart is open (removes double scrollbar on mobile)
+  useEffect(() => {
+    if (isCartOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isCartOpen]);
 
   const addToast = (type, title, message) => {
     const id = Date.now();
@@ -401,7 +415,6 @@ function StockOrder() {
     const factor = getConversionFactor(unit);
     const finalBaseQty = numVal * factor;
 
-    // Check existing OUTSIDE of setCart to trigger toast only once
     const existingItem = cart.find(c => c.id === itemId);
 
     setCart(prev => {
@@ -437,14 +450,20 @@ function StockOrder() {
     });
     const totalSub = details.reduce((acc, c) => acc + c.preciseSubtotal, 0);
     const totalGst = details.reduce((acc, c) => acc + c.preciseGst, 0);
+    
+    // Exact calculation
     const exactBill = totalSub + totalGst;
-    const roundedBill = Math.round(exactBill);
+    // Fix floating point errors
+    const safeExactBill = parseFloat(exactBill.toFixed(2));
+    // Ceiling round off as requested
+    const roundedBill = Math.ceil(safeExactBill);
+
     return { 
       items: details, 
       subtotal: totalSub, 
       totalGst, 
       roundedBill, 
-      roundOff: roundedBill - exactBill 
+      roundOff: roundedBill - safeExactBill 
     };
   }, [cart]);
 
@@ -577,7 +596,7 @@ function StockOrder() {
                         <div className="space-y-3 mb-6 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100">
                             <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400"><span>Subtotal</span><span className="text-black">₹{calculations.subtotal.toFixed(2)}</span></div>
                             <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400"><span>GST</span><span className="text-black">+ ₹{calculations.totalGst.toFixed(2)}</span></div>
-                            <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400"><span>Round Off</span><span className="text-black">{calculations.roundOff >= 0 ? '+' : ''} ₹{calculations.roundOff.toFixed(2)}</span></div>
+                            <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400"><span>Round Off</span><span className="text-black">{calculations.roundOff >= 0 ? '+' : ''} ₹{Math.abs(calculations.roundOff).toFixed(2)}</span></div>
                             <div className="h-px bg-slate-200 my-2"></div>
                             <div className="flex justify-between items-center text-sm font-black uppercase"><span>Total Payable</span><span className="text-xl">₹{calculations.roundedBill}</span></div>
                         </div>
@@ -605,27 +624,30 @@ function StockOrder() {
             </div>
         )}
 
-        <nav className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b-2 border-slate-100 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between shadow-sm transition-all">
-            <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-all">
-                <FiArrowLeft size={18} /> <span>Back</span>
-            </button>
-            <h1 className="text-sm md:text-xl font-black uppercase tracking-[0.2em] text-black text-center absolute left-1/2 -translate-x-1/2">Inventory</h1>
-            <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID :</span>
-                    <span className="text-[10px] sm:text-xs font-black text-black bg-white border border-slate-200 px-2 sm:px-3 py-1 rounded-lg shadow-sm">{profile?.franchise_id || "..."}</span>
-                </div>
-                <button onClick={() => setIsCartOpen(true)} className="relative p-2 md:p-3 bg-white border-2 border-slate-100 rounded-xl hover:border-black transition-all shadow-sm text-black group active:scale-95">
-                    <FiShoppingCart size={20} className="md:w-5 md:h-5" />
-                    {cart.length > 0 && (
-                        <span className="absolute -top-2 -right-2 text-white text-[9px] font-black h-5 w-5 flex items-center justify-center rounded-full shadow-lg border-2 border-white animate-in zoom-in" style={{ backgroundColor: BRAND_COLOR }}>{cart.length}</span>
-                    )}
+        {/* COMBINED HEADER: Solves "Gap" issue by grouping Nav and Search into one sticky block */}
+        <header className="sticky top-0 z-50 bg-[#F8F9FA]">
+            {/* Navbar */}
+            <nav className="border-b-2 border-slate-100 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between shadow-sm">
+                <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-all">
+                    <FiArrowLeft size={18} /> <span>Back</span>
                 </button>
-            </div>
-        </nav>
+                <h1 className="text-sm md:text-xl font-black uppercase tracking-[0.2em] text-black text-center absolute left-1/2 -translate-x-1/2">Inventory</h1>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID :</span>
+                        <span className="text-[10px] sm:text-xs font-black text-black bg-white border border-slate-200 px-2 sm:px-3 py-1 rounded-lg shadow-sm">{profile?.franchise_id || "..."}</span>
+                    </div>
+                    <button onClick={() => setIsCartOpen(true)} className="relative p-2 md:p-3 bg-white border-2 border-slate-100 rounded-xl hover:border-black transition-all shadow-sm text-black group active:scale-95">
+                        <FiShoppingCart size={20} className="md:w-5 md:h-5" />
+                        {cart.length > 0 && (
+                            <span className="absolute -top-2 -right-2 text-white text-[9px] font-black h-5 w-5 flex items-center justify-center rounded-full shadow-lg border-2 border-white animate-in zoom-in" style={{ backgroundColor: BRAND_COLOR }}>{cart.length}</span>
+                        )}
+                    </button>
+                </div>
+            </nav>
 
-        <div className="max-w-[1400px] mx-auto px-4 md:px-6 mt-6 md:mt-8">
-            <div className="sticky top-16 md:top-20 z-30 bg-[#F8F9FA]/95 backdrop-blur-sm py-2 mb-4 -mx-4 px-4 md:mx-0 md:px-0">
+            {/* Search Bar & Categories - Now inside the same sticky header */}
+            <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-2 pb-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center">
                     <div className="relative w-full md:flex-1 group">
                         <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-black transition-colors" size={16} />
@@ -645,7 +667,10 @@ function StockOrder() {
                     ))}
                 </div>
             </div>
+        </header>
 
+        {/* Content Area */}
+        <div className="max-w-[1400px] mx-auto px-4 md:px-6">
             {fetchError && !loadingStocks && (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                     <div className="bg-red-50 p-6 rounded-full mb-4"><FiAlertTriangle size={48} className="text-red-500" /></div>
