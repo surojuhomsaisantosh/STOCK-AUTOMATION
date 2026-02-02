@@ -12,12 +12,12 @@ import tvanammLogo from "../../assets/tvanamm_logo.jpeg";
 import tleafLogo from "../../assets/tleaf_logo.jpeg";
 
 const BRAND_COLOR = "rgb(0, 100, 55)";
+const ITEMS_PER_PAGE = 12; 
 
-// --- INTERNAL TOAST COMPONENT (Updated Position: LEFT) ---
+// --- INTERNAL TOAST COMPONENT ---
 const ToastContainer = ({ toasts, removeToast }) => {
   return (
-    // POSITION: Fixed to LEFT side for all devices
-    <div className="fixed bottom-4 left-4 right-4 md:right-auto md:bottom-auto md:top-4 md:left-4 z-[100] flex flex-col gap-2 pointer-events-none items-center md:items-start">
+    <div className="fixed bottom-4 left-4 right-4 md:right-auto md:bottom-auto md:top-4 md:left-4 z-[100] flex flex-col gap-2 pointer-events-none items-center md:items-start print:hidden">
       {toasts.map((toast) => (
         <div 
           key={toast.id} 
@@ -86,17 +86,17 @@ const amountToWords = (price) => {
 };
 
 // --- INVOICE COMPONENT ---
-const FullPageInvoice = ({ data, profile, orderId, companyDetails }) => {
+const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, totalPages, itemsChunk }) => {
   if (!data) return null;
 
-  const companyName = companyDetails?.company_name || profile?.company || "TVANAMM";
-  const parentComp = companyDetails?.parent_company || companyName;
+  const companyName = companyDetails?.company_name || ""; 
+  const parentComp = companyDetails?.parent_company || "";
+  
   const isTLeaf = parentComp.toLowerCase().includes("leaf");
   const currentLogo = isTLeaf ? tleafLogo : tvanammLogo;
 
   const dateObj = new Date();
   const invDate = dateObj.toLocaleDateString('en-GB');
-  const dueDate = dateObj.toLocaleDateString('en-GB'); 
 
   const taxableAmount = data.subtotal || 0;
   const totalGst = data.totalGst || 0;
@@ -106,105 +106,132 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails }) => {
 
   const termsList = companyDetails?.terms 
     ? companyDetails.terms.split('\n').filter(t => t.trim() !== '')
-    : [
-        "Goods once sold will not be taken back or exchanged",
-        "Payments terms : 100% advance payments",
-        "Once placed order cannot be cancelled",
-        "All legal matters subject to Hyderabad jurisdiction",
-        "Delivery lead time 3-5 working days"
-      ];
+    : [];
 
   return (
-    <div className="w-full bg-white text-black font-sans p-8 print:p-0 box-border text-xs leading-normal h-full">
-      <div className="w-full border-2 border-black flex flex-col relative h-full print:h-[277mm] print:border-2">
+    <div className="w-full bg-white text-black font-sans p-8 print:p-6 box-border text-xs leading-normal h-full relative print:break-after-page print:h-[297mm]">
+      
+      {/* Outer Border for the Page */}
+      <div className="w-full border-2 border-black flex flex-col relative h-full">
+        
         {/* Header */}
         <div className="p-4 border-b-2 border-black relative">
             <div className="absolute top-4 left-0 w-full text-center pointer-events-none">
                 <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4">TAX INVOICE</h1>
             </div>
-            <div className="flex justify-between items-start mt-4">
-                <div className="z-10"><img src={currentLogo} alt="Logo" className="h-20 w-auto object-contain" /></div>
-                <div className="text-right z-10 max-w-[45%] mt-6">
-                    <h2 className="text-lg font-black uppercase text-[#006437]">{companyName}</h2>
-                    <p className="font-bold leading-tight mt-1 text-[10px] whitespace-pre-line">
-                        {companyDetails?.company_address || "Registered Office\nHyderabad, Telangana - 500081"}<br />
-                        GSTIN: <span className="font-black">{companyDetails?.company_gst || "36ABCDE1234F1Z5"}</span>
-                        {companyDetails?.company_email && <><br />Email: {companyDetails.company_email}</>}
-                    </p>
+             {/* Page Number Indicator */}
+             {totalPages > 1 && (
+              <div className="absolute top-2 right-2 text-[10px] font-black uppercase">
+                Page {pageIndex + 1} of {totalPages}
+              </div>
+            )}
+            
+            <div className="flex justify-between items-center mt-6 pt-4">
+                {/* Left: Address */}
+                <div className="text-left z-10 w-[55%]">
+                    <div className="font-bold leading-relaxed text-[10px]">
+                        <span className="uppercase underline mb-1 block text-slate-500 font-black">Registered Office:</span>
+                        <p className="whitespace-pre-wrap break-words">{companyDetails?.company_address || ""}</p>
+                        <div className="mt-2 space-y-0.5">
+                            {companyDetails?.company_gst && <p>GSTIN: <span className="font-black">{companyDetails.company_gst}</span></p>}
+                            {companyDetails?.company_email && <p>Email: {companyDetails.company_email}</p>}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right: Logo & Company Name (Centered) */}
+                <div className="z-10 flex flex-col items-center text-center max-w-[40%]">
+                    <img src={currentLogo} alt="Logo" className="h-16 w-auto object-contain mb-1" />
+                    <h2 className="text-lg font-black uppercase text-[#006437] break-words">{companyName}</h2>
                 </div>
             </div>
         </div>
+
         {/* Meta */}
         <div className="flex border-b-2 border-black bg-slate-50 print:bg-transparent">
-            <div className="flex-1 border-r-2 border-black p-2"><span className="font-bold text-slate-500 uppercase text-[9px] print:text-black">Invoice No:</span><p className="font-black text-sm">#{orderId || 'PENDING'}</p></div>
-            <div className="flex-1 border-r-2 border-black p-2"><span className="font-bold text-slate-500 uppercase text-[9px] print:text-black">Invoice Date:</span><p className="font-black text-sm">{invDate}</p></div>
-            <div className="flex-1 p-2"><span className="font-bold text-slate-500 uppercase text-[9px] print:text-black">Due Date:</span><p className="font-black text-sm">{dueDate}</p></div>
+            <div className="w-1/2 border-r-2 border-black p-2">
+                <span className="font-bold text-slate-500 uppercase text-[9px] print:text-black">Invoice No:</span>
+                <p className="font-black text-sm">#{orderId || 'PENDING'}</p>
+            </div>
+            <div className="w-1/2 p-2">
+                <span className="font-bold text-slate-500 uppercase text-[9px] print:text-black">Invoice Date:</span>
+                <p className="font-black text-sm">{invDate}</p>
+            </div>
         </div>
+
         {/* Bill To */}
         <div className="flex border-b-2 border-black">
             <div className="w-[70%] p-3 border-r-2 border-black">
                 <span className="font-black uppercase underline text-[10px] tracking-widest text-slate-500 mb-2 block print:text-black">Bill To:</span>
-                <h3 className="text-sm font-black uppercase text-black leading-tight">{profile?.name || "Franchise Store"}</h3>
-                <p className="font-bold text-[10px] mt-1 text-black uppercase leading-relaxed">
-                    {profile?.address || "Address Not Provided"}<br/>
+                <h3 className="text-sm font-black uppercase text-black leading-tight">{profile?.name || ""}</h3>
+                <p className="font-bold text-[10px] mt-1 text-black uppercase leading-relaxed whitespace-pre-wrap break-words">
+                    {profile?.address || ""}<br/>
                     {profile?.city ? `${profile.city}` : ''} {profile?.state ? `, ${profile.state}` : ''} {profile?.pincode ? ` - ${profile.pincode}` : ''}
                 </p>
             </div>
             <div className="w-[30%] p-3 flex flex-col justify-center pl-4">
-                <div className="mb-2"><span className="text-[10px] font-bold text-black uppercase block mb-1">ID: </span><span className="text-sm font-black text-black block">{profile?.franchise_id || "N/A"}</span></div>
+                <div className="mb-2"><span className="text-[10px] font-bold text-black uppercase block mb-1">ID: </span><span className="text-sm font-black text-black block">{profile?.franchise_id || ""}</span></div>
                 {profile?.phone && (<div><span className="text-[10px] font-bold text-black uppercase block mb-1">Ph: </span><span className="text-sm font-black text-black block">{profile.phone}</span></div>)}
             </div>
         </div>
-        {/* Table */}
-        <div className="flex-1 border-b-2 border-black">
+
+        {/* Table - Complete Grid */}
+        <div className="flex-1 border-b-2 border-black relative">
             <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-100 text-[10px] border-b-2 border-black print:bg-gray-100">
                     <tr>
-                        <th className="p-2 border-r-2 border-black w-12 text-center">S.No</th>
+                        {/* Headers: Added border-r-2 to all except last */}
+                        <th className="p-2 border-r-2 border-black w-10 text-center">S.No</th>
                         <th className="p-2 border-r-2 border-black">Item Description</th>
-                        <th className="p-2 border-r-2 border-black w-24 text-center">HSN/SAC</th>
-                        <th className="p-2 border-r-2 border-black w-16 text-center">Qty</th>
-                        <th className="p-2 border-r-2 border-black w-24 text-right">Rate</th>
-                        <th className="p-2 border-r-2 border-black w-16 text-right">Tax %</th>
-                        <th className="p-2 w-28 text-right">Amount</th>
+                        <th className="p-2 border-r-2 border-black w-20 text-center">HSN</th>
+                        <th className="p-2 border-r-2 border-black w-14 text-center">Qty</th>
+                        <th className="p-2 border-r-2 border-black w-20 text-right">Rate</th>
+                        <th className="p-2 border-r-2 border-black w-12 text-right">Tax</th>
+                        <th className="p-2 w-24 text-right">Amount</th>
                     </tr>
                 </thead>
                 <tbody className="text-[10px] font-bold">
-                    {data.items && data.items.map((item, idx) => (
-                        <tr key={idx} className="border-b border-black last:border-b-0">
-                            <td className="p-2 border-r-2 border-black text-center">{idx + 1}</td>
+                    {itemsChunk.map((item, idx) => (
+                        <tr key={idx} className="border-b border-black last:border-b-0 h-[35px]">
+                            {/* Cells: Added border-r-2 to all except last */}
+                            <td className="p-2 border-r-2 border-black text-center">{(pageIndex * ITEMS_PER_PAGE) + idx + 1}</td>
                             <td className="p-2 border-r-2 border-black uppercase truncate max-w-[200px]">{item.item_name}</td>
                             <td className="p-2 border-r-2 border-black text-center">{item.hsn_code || '-'}</td> 
                             <td className="p-2 border-r-2 border-black text-center">{item.displayQty} {item.cartUnit}</td>
                             <td className="p-2 border-r-2 border-black text-right">₹{item.price}</td>
                             <td className="p-2 border-r-2 border-black text-right">{item.gst_rate || 0}%</td>
+                            {/* Last column has no right border, relies on container border */}
                             <td className="p-2 text-right">₹{item.preciseSubtotal.toFixed(2)}</td>
                         </tr>
                     ))}
-                    <tr className="h-full"><td className="border-r-2 border-black"></td><td className="border-r-2 border-black"></td><td className="border-r-2 border-black"></td><td className="border-r-2 border-black"></td><td className="border-r-2 border-black"></td><td className="border-r-2 border-black"></td><td></td></tr>
                 </tbody>
             </table>
         </div>
+
         {/* Footer */}
-        <div className="flex border-t-2 border-black">
+        <div className="flex border-t-2 border-black mt-auto">
             <div className="w-[60%] border-r-2 border-black flex flex-col">
                 <div className="p-2 border-b-2 border-black min-h-[40px] flex flex-col justify-center bg-slate-50 print:bg-transparent">
                     <span className="font-bold text-[9px] text-slate-500 uppercase print:text-black">Total Amount in Words:</span>
-                    <p className="font-black italic capitalize text-xs mt-0.5">{amountToWords(grandTotal)}</p>
+                    <p className="font-black italic capitalize text-sm mt-0.5">{amountToWords(grandTotal)}</p>
                 </div>
-                <div className="p-2 border-b-2 border-black">
-                    <p className="font-black uppercase underline text-[9px] mb-1">Bank Details</p>
-                    <div className="grid grid-cols-[60px_1fr] gap-y-0.5 text-[9px] font-bold uppercase leading-tight">
-                        <span>Name:</span> <span>{companyDetails?.company_name || "JKSH FOOD ENTERPRISES"}</span>
-                        <span>Bank:</span> <span>{companyDetails?.bank_name || "AXIS BANK BASHEERBAGH"}</span>
-                        <span>A/c No:</span> <span>{companyDetails?.bank_acc_no || "920020057250778"}</span>
-                        <span>IFSC:</span> <span>{companyDetails?.bank_ifsc || "UTIB0001380"}</span>
+                <div className="p-3 border-b-2 border-black">
+                    <p className="font-black uppercase underline text-xs mb-2">Bank Details</p>
+                    <div className="grid grid-cols-[70px_1fr] gap-y-1 text-xs font-bold uppercase leading-tight">
+                        <span>Name:</span> <span>{companyDetails?.company_name || ""}</span>
+                        <span>Bank:</span> <span>{companyDetails?.bank_name || ""}</span>
+                        <span>A/c No:</span> <span>{companyDetails?.bank_acc_no || ""}</span>
+                        <span>IFSC:</span> <span>{companyDetails?.bank_ifsc || ""}</span>
                     </div>
                 </div>
-                <div className="p-2 flex-1">
-                    <p className="font-black uppercase underline text-[9px] mb-1">Terms & Conditions</p>
-                    <ol className="list-decimal list-inside text-[8px] font-bold leading-tight text-black uppercase print:text-black">
-                        {termsList.map((term, i) => (<li key={i}>{term.replace(/^\d+\)\s*/, '')}</li>))}
+                <div className="p-3 flex-1">
+                    <p className="font-black uppercase underline text-xs mb-2">Terms & Conditions</p>
+                    <ol className="list-decimal list-inside text-[10px] font-bold leading-tight text-black uppercase print:text-black space-y-0.5">
+                        {termsList.length > 0 ? (
+                            termsList.map((term, i) => (<li key={i}>{term.replace(/^\d+\)\s*/, '')}</li>))
+                        ) : (
+                            <li className="list-none"></li>
+                        )}
                     </ol>
                 </div>
             </div>
@@ -213,9 +240,9 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails }) => {
                 <div className="flex justify-between p-1.5 border-b border-black"><span className="font-bold text-slate-600 uppercase print:text-black">CGST</span><span className="font-bold">₹{cgst.toFixed(2)}</span></div>
                 <div className="flex justify-between p-1.5 border-b border-black"><span className="font-bold text-slate-600 uppercase print:text-black">SGST</span><span className="font-bold">₹{sgst.toFixed(2)}</span></div>
                 <div className="flex justify-between p-1.5 border-b-2 border-black"><span className="font-bold text-slate-600 uppercase print:text-black">Round Off</span><span className="font-bold">{data.roundOff >= 0 ? '+' : ''} ₹{data.roundOff?.toFixed(2) || "0.00"}</span></div>
-                <div className="flex justify-between p-3 border-b-2 border-black bg-slate-200 print:bg-gray-200"><span className="font-black uppercase text-sm">Total Amount</span><span className="font-black text-sm">₹{grandTotal}</span></div>
+                <div className="flex justify-between p-3 border-b-2 border-black bg-slate-200 print:bg-gray-200"><span className="font-black uppercase text-base">Total Amount</span><span className="font-black text-base">₹{grandTotal}</span></div>
                 <div className="flex justify-between p-2 border-b-2 border-black"><span className="font-bold uppercase text-slate-600 print:text-black">Received Amount</span><span className="font-bold">₹{grandTotal}</span></div>
-                <div className="flex-1 flex flex-col justify-end p-4 text-center min-h-[100px]"><p className="font-black border-t border-black pt-1 uppercase text-[9px]">Authorized Signature</p></div>
+                <div className="flex-1 flex flex-col justify-end p-4 text-center min-h-[80px]"><p className="font-black border-t border-black pt-1 uppercase text-[9px]">Authorized Signature</p></div>
             </div>
         </div>
       </div>
@@ -470,6 +497,15 @@ function StockOrder() {
     }
   };
 
+  const getPaginatedItems = () => {
+    if (!printData || !printData.items) return [];
+    const chunks = [];
+    for (let i = 0; i < printData.items.length; i += ITEMS_PER_PAGE) {
+      chunks.push(printData.items.slice(i, i + ITEMS_PER_PAGE));
+    }
+    return chunks;
+  };
+
   const dynamicCategories = useMemo(() => {
     const uniqueCats = [...new Set(stocks.map(s => s.category).filter(Boolean))];
     return ["All", ...uniqueCats.sort()];
@@ -485,15 +521,28 @@ function StockOrder() {
     });
   }, [stocks, search, selectedCategory, showOnlyAvailable]);
 
+  const paginatedChunks = getPaginatedItems();
+
   return (
     <>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       
       <div className="print-only hidden print:block">
-        <FullPageInvoice data={printData} profile={profile} orderId={lastOrderId} companyDetails={companyDetails} />
+        {paginatedChunks.map((chunk, index) => (
+          <FullPageInvoice 
+            key={index}
+            data={printData} 
+            profile={profile} 
+            orderId={lastOrderId} 
+            companyDetails={companyDetails}
+            itemsChunk={chunk}
+            pageIndex={index}
+            totalPages={paginatedChunks.length}
+          />
+        ))}
       </div>
 
-      <div className="min-h-screen bg-[#F8F9FA] pb-20 font-sans text-black relative">
+      <div className="min-h-screen bg-[#F8F9FA] pb-20 font-sans text-black relative print:hidden">
         {isCartOpen && (
             <>
                 <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm transition-opacity" onClick={() => setIsCartOpen(false)}></div>
@@ -673,15 +722,16 @@ function StockOrder() {
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         @media print {
-            body { overflow: hidden; height: 100%; }
+            body { overflow: hidden; background: white; }
             .min-h-screen { display: none !important; }
             .print-only { 
-                visibility: visible; position: fixed; left: 0; top: 0; 
-                width: 210mm; height: 297mm; padding: 10mm; 
-                box-sizing: border-box; display: block !important; 
-                background: white; z-index: 9999; overflow: hidden; 
+                visibility: visible; 
+                display: block !important; 
+                position: static;
+                width: 100%;
+                background: white; 
+                z-index: 9999;
             }
-            .print-only .h-full { height: 100% !important; max-height: 277mm; }
             @page { size: A4; margin: 0; }
         }
       `}</style>
