@@ -203,10 +203,18 @@ function BillingHistory() {
     <div style={styles.page}>
       {/* HEADER */}
       <div style={{ ...styles.topBar, padding: isMobile ? "10px 15px" : "15px 30px" }}>
+        {/* Left Spacer */}
         {!isMobile && <div style={{ flex: 1 }}></div>}
+        
+        {/* Title */}
         <h1 style={{ ...styles.centerTitle, fontSize: isMobile ? "18px" : "22px" }}>BILLING HISTORY</h1>
+        
+        {/* Right ID Box */}
         <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={styles.franchiseLabel}>{franchiseId}</div>
+          <div style={styles.franchiseIdBox}>
+            <span style={styles.idLabel}>ID :</span> 
+            <span style={styles.idValue}>{franchiseId || "..."}</span>
+          </div>
         </div>
       </div>
 
@@ -230,10 +238,12 @@ function BillingHistory() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '8px' : '15px', marginBottom: isMobile ? '15px' : '0' }}>
             {/* Row 1: Primary Stats */}
             <div style={{ display: 'flex', gap: isMobile ? '8px' : '15px', width: '100%' }}>
-              <div style={{ ...styles.statBox, flex: 1, padding: isMobile ? '15px' : '15px', textAlign: 'center', borderRadius: isMobile ? '16px' : '16px', background: BLACK, color: '#fff' }}>
-                <span style={{ ...styles.statLabel, fontSize: isMobile ? '10px' : '11px', color: '#94a3b8' }}>TOTAL REVENUE</span>
-                <span style={{ ...styles.statValue, fontSize: isMobile ? '20px' : '26px', color: '#fff' }}>₹{stats.totalSales.toFixed(0)}</span>
+              {/* UPDATED: Total Revenue is now white */}
+              <div style={{ ...styles.statBox, flex: 1, padding: isMobile ? '15px' : '15px', textAlign: 'center', borderRadius: isMobile ? '16px' : '16px' }}>
+                <span style={{ ...styles.statLabel, fontSize: isMobile ? '10px' : '11px' }}>TOTAL REVENUE</span>
+                <span style={{ ...styles.statValue, fontSize: isMobile ? '20px' : '26px' }}>₹{stats.totalSales.toFixed(0)}</span>
               </div>
+              
               <div style={{ ...styles.statBox, flex: 1, padding: isMobile ? '15px' : '15px', textAlign: 'center', borderRadius: isMobile ? '16px' : '16px' }}>
                 <span style={{ ...styles.statLabel, fontSize: isMobile ? '10px' : '11px' }}>TOTAL ORDERS</span>
                 <span style={{ ...styles.statValue, fontSize: isMobile ? '20px' : '26px' }}>{stats.orderCount}</span>
@@ -398,7 +408,12 @@ const styles = {
   page: { background: "#f9fafb", minHeight: "100vh", fontFamily: '"Inter", sans-serif' },
   topBar: { display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${BORDER}`, background: "#fff" },
   centerTitle: { fontWeight: "900", margin: 0, color: "#000" },
-  franchiseLabel: { fontSize: "14px", fontWeight: "800", color: PRIMARY, background: '#ecfdf5', padding: '6px 12px', borderRadius: '8px' },
+  
+  // NEW STYLES for ID Box
+  franchiseIdBox: { display: 'flex', alignItems: 'center', background: "white", padding: "8px 14px", borderRadius: "10px", border: `1px solid ${BORDER}`, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
+  idLabel: { fontSize: '12px', fontWeight: '600', color: '#64748b', marginRight: '6px' },
+  idValue: { fontSize: '14px', fontWeight: '800', color: PRIMARY },
+
   fullToggleBar: { display: "flex", width: "100%", padding: "8px", background: "#f3f4f6", borderBottom: `1px solid ${BORDER}` },
   toggleBtn: { flex: 1, padding: "16px", cursor: "pointer", fontWeight: "800", fontSize: "14px", border: "none", background: "#fff" },
   activeToggle: { color: PRIMARY, borderBottom: `4px solid ${PRIMARY}` },

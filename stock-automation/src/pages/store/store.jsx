@@ -218,9 +218,16 @@ function Store() {
     }}>
       {/* HEADER */}
       <div style={{ ...styles.topBar, padding: isMobile ? "10px 15px" : "15px 30px" }}>
+        {/* Left Spacer for desktop centering balance */}
         {!isMobile && <div style={{ width: '100px' }}></div>}
+        
         <h1 style={{ ...styles.centerTitle, fontSize: isMobile ? "18px" : "22px" }}>STORE DASHBOARD</h1>
-        <div style={{ ...styles.franchiseLabel, fontSize: isMobile ? "12px" : "16px" }}>{franchiseId}</div>
+        
+        {/* Right ID Box */}
+        <div style={styles.franchiseIdBox}>
+          <span style={styles.idLabel}>ID :</span> 
+          <span style={styles.idValue}>{franchiseId || "..."}</span>
+        </div>
       </div>
 
       {/* NAVIGATION */}
@@ -405,6 +412,8 @@ function Store() {
           <div style={{ ...styles.modalContent, width: isMobile ? '100%' : '90%', height: isMobile ? '100%' : 'auto', borderRadius: isMobile ? '0' : '24px' }}>
             <button style={styles.closeModalBtn} onClick={() => setShowPaymentModal(false)}><X size={24} color={BLACK} /></button>
             <div style={{ ...styles.modalBody, flexDirection: isMobile ? 'column' : 'row', height: isMobile ? '100%' : '500px' }}>
+              
+              {/* LEFT SIDE: BILL SUMMARY */}
               <div style={{ ...styles.modalLeft, padding: isMobile ? '15px' : '30px', flex: isMobile ? '1' : '1.2', overflow: 'hidden', borderRight: isMobile ? 'none' : `1px solid ${BORDER}`, borderBottom: isMobile ? `1px solid ${BORDER}` : 'none' }}>
                 <h3 style={styles.modalSectionTitle}>BILL SUMMARY</h3>
                 <div style={{ ...styles.receiptScrollArea, height: isMobile ? undefined : '300px', flex: isMobile ? 1 : 'none', minHeight: 0 }}>
@@ -425,7 +434,11 @@ function Store() {
                 </div>
               </div>
 
+              {/* RIGHT SIDE: DISCOUNT & PAYMENT */}
               <div style={{ ...styles.modalRight, padding: isMobile ? '10px' : '30px', flex: isMobile ? '0' : '0.8', background: isMobile ? '#fff' : 'transparent' }}>
+                {/* ADDED HEADING */}
+                <h3 style={styles.modalSectionTitle}>DISCOUNT</h3>
+                
                 <div style={{ ...styles.discountBox, padding: isMobile ? '10px' : '15px', marginBottom: isMobile ? '10px' : '20px' }}>
                   <div style={styles.discountToggleRow}>
                     <button style={{ ...styles.toggleSmall, background: discountType === 'fixed' ? PRIMARY : '#fff', color: discountType === 'fixed' ? '#fff' : BLACK }} onClick={() => setDiscountType('fixed')}>₹ Amt</button>
@@ -453,7 +466,12 @@ const styles = {
   page: { background: "#f9fafb", fontFamily: '"Inter", sans-serif', color: BLACK },
   topBar: { display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${BORDER}`, background: "#fff" },
   centerTitle: { fontWeight: "900", margin: 0, color: BLACK, letterSpacing: '-0.5px' },
-  franchiseLabel: { fontWeight: "900", color: PRIMARY, background: '#ecfdf5', padding: '6px 15px', borderRadius: '10px' },
+  
+  // NEW STYLES FOR ID BOX
+  franchiseIdBox: { display: 'flex', alignItems: 'center', background: "white", padding: "8px 14px", borderRadius: "10px", border: `1px solid ${BORDER}`, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
+  idLabel: { fontSize: '12px', fontWeight: '600', color: '#64748b', marginRight: '6px' },
+  idValue: { fontSize: '14px', fontWeight: '800', color: PRIMARY },
+
   fullToggleBar: { display: "flex", width: "100%", padding: "6px", background: "#f3f4f6", borderBottom: `1px solid ${BORDER}` },
   toggleBtn: { flex: 1, padding: "15px", cursor: "pointer", fontWeight: "900", fontSize: "13px", border: "none", background: "#fff" },
   activeToggle: { color: PRIMARY, borderBottom: `4px solid ${PRIMARY}` },
