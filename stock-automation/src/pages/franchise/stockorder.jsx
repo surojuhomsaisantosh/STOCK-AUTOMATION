@@ -8,7 +8,6 @@ import {
 } from "react-icons/fi";
 
 // --- ASSETS ---
-// Ensure these paths are correct in your project structure
 import tvanammLogo from "../../assets/tvanamm_logo.jpeg";
 import tleafLogo from "../../assets/tleaf_logo.jpeg";
 
@@ -19,7 +18,6 @@ const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID;
 
 // --- UTILS ---
 
-// Standardized Currency Formatter (INR)
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -466,17 +464,24 @@ function StockOrder() {
     } catch (error) { addToast('error', 'Request Failed', error.message); }
   };
 
+  // --- UPDATED HANDLER WITH EXTENSIVE LOGGING ---
   const handlePlaceOrder = async () => {
-    if (cart.length === 0) return;
+    console.group("🚀 INITIATING ORDER PROCESS"); // DEBUG GROUP START
+    if (cart.length === 0) return console.error("Cart is empty");
     setProcessingOrder(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      console.log("👤 User Object:", user);
+      console.log("📄 Profile Object:", profile);
+
       if(!user) throw new Error("Please log in to continue.");
       if (!profile) throw new Error("User profile not loaded. Please refresh.");
 
-      // Verify stock one last time
+      // Check stock one last time
       const itemIds = cart.map(i => i.id);
+      console.log("🔍 Checking stock for IDs:", itemIds);
+      
       const { data: liveStocks, error: fetchErr } = await supabase
         .from('stocks')
         .select('id, quantity, item_name')
@@ -492,16 +497,19 @@ function StockOrder() {
         }
       }
 
-      const isScriptLoaded = await loadRazorpayScript();
-      if (!isScriptLoaded) throw new Error("Payment gateway failed to load.");
-
+      // Create Order Items Array - LOG THIS SPECIFICALLY
       const orderItems = cart.map(i => ({
-        stock_id: i.id,
+        stock_id: i.id, // Ensure this matches DB type (UUID vs BigInt)
         item_name: i.item_name,
         quantity: i.qty,
         unit: i.cartUnit,
         price: i.price
       }));
+      console.log("📦 Constructed Order Items Payload:", JSON.stringify(orderItems, null, 2));
+      console.log("📦 Sample Item ID Type:", typeof orderItems[0]?.stock_id);
+
+      const isScriptLoaded = await loadRazorpayScript();
+      if (!isScriptLoaded) throw new Error("Payment gateway failed to load.");
 
       const options = {
         key: RAZORPAY_KEY_ID,
@@ -511,28 +519,40 @@ function StockOrder() {
         description: `Order for ${profile?.name || 'Franchise'}`,
         notes: {
           user_id: user.id,
-          customer_name: profile.name,
-          customer_email: profile.email,
-          customer_phone: profile.phone,
-          customer_address: profile.address || "",
           franchise_id: profile.franchise_id,
-          items: JSON.stringify(orderItems)
+          // Limit note size to avoid Razorpay header errors
+          items_count: orderItems.length
         },
         handler: async function (response) {
-          try {
-            const { data: result, error: rpcError } = await supabase.rpc('place_stock_order', {
-              p_created_by: user.id,
-              p_customer_name: profile.name,
-              p_customer_email: profile.email,
-              p_customer_phone: profile.phone,
-              p_customer_address: profile.address,
-              p_branch_location: profile.branch_location || "",
-              p_franchise_id: profile.franchise_id,
-              p_payment_id: response.razorpay_payment_id,
-              p_items: orderItems
-            });
+          console.group("💳 PAYMENT SUCCESSFUL - TRIGGERING DB WRITE");
+          console.log("Payment Response:", response);
 
-            if (rpcError) throw rpcError;
+          const rpcPayload = {
+            p_created_by: user.id,
+            p_customer_name: profile.name,
+            p_customer_email: profile.email,
+            p_customer_phone: profile.phone,
+            p_customer_address: profile.address,
+            p_branch_location: profile.branch_location || "",
+            p_franchise_id: profile.franchise_id,
+            p_payment_id: response.razorpay_payment_id,
+            p_items: orderItems
+          };
+
+          console.log("🔥 SENDING RPC PAYLOAD:", JSON.stringify(rpcPayload, null, 2));
+
+          try {
+            const { data: result, error: rpcError } = await supabase.rpc('place_stock_order', rpcPayload);
+
+            if (rpcError) {
+                console.error("❌ RPC ERROR DETAILED:", rpcError);
+                console.error("❌ RPC Error Message:", rpcError.message);
+                console.error("❌ RPC Error Hint:", rpcError.hint);
+                console.error("❌ RPC Error Details:", rpcError.details);
+                throw rpcError;
+            }
+
+            console.log("✅ RPC SUCCESS RESULT:", result);
 
             setLastOrderId(result.order_id);
             setPrintData({ ...calculations, roundedBill: result.real_amount });
@@ -541,22 +561,26 @@ function StockOrder() {
             addToast('success', 'Order Placed', 'Invoice generated successfully.');
             fetchData(); 
           } catch (err) {
-            console.error("Critical Failure:", err);
-            addToast('error', 'Database Error', `Payment ID: ${response.razorpay_payment_id}. Screenshot this.`);
+            console.error("Critical Failure inside Handler:", err);
+            addToast('error', 'Database Error', `Payment ID: ${response.razorpay_payment_id}. Check Console Logs.`);
             setProcessingOrder(false);
           }
+          console.groupEnd();
         },
         prefill: { name: profile?.name, email: profile?.email, contact: profile?.phone },
         theme: { color: BRAND_COLOR },
         modal: { ondismiss: () => setProcessingOrder(false) }
       };
 
+      console.log("🚀 Opening Razorpay with options:", options);
       const rzp = new window.Razorpay(options);
       rzp.open();
     } catch (error) {
+      console.error("⛔ ORDER PROCESS FAILED:", error);
       addToast('error', 'Order Blocked', error.message);
       setProcessingOrder(false);
     }
+    console.groupEnd();
   };
 
   const closeSuccessModal = () => {

@@ -4,7 +4,8 @@ import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { 
   ArrowLeft, Search, X, RotateCcw, User, 
-  FileText, IndianRupee, Printer, Phone, Hash, ShoppingBag, Shield, Activity, Calendar, Inbox
+  FileText, IndianRupee, Printer, Phone, Hash, ShoppingBag, Shield, Activity, Calendar, Inbox,
+  ArrowUp, ArrowDown, ArrowUpDown, MapPin
 } from "lucide-react";
 
 // --- ASSETS ---
@@ -40,30 +41,22 @@ const InvoiceTemplate = ({ invoice, items, companyDetails }) => {
 
   const companyName = companyDetails?.company_name || "TVANAMM";
   const currentLogo = companyDetails?.parent_company?.toLowerCase().includes("leaf") ? tleafLogo : tvanammLogo;
-  const invDate = new Date(invoice.created_at).toLocaleDateString('en-GB');
   
-  // --- CALCULATIONS ---
-  const safeItems = items || [];
-  const calculatedItems = safeItems.map(item => ({
-      ...item,
-      // Calculate total
-      total: (Number(item.quantity) || 0) * (Number(item.price) || 0),
-      // Get HSN from the joined table relation
-      hsn: item.stocks?.hsn_code || '-' 
-  }));
-
-  const subTotal = calculatedItems.reduce((acc, curr) => acc + curr.total, 0);
+  const formatInvoiceDate = (dateString) => {
+    if(!dateString) return new Date().toLocaleDateString('en-GB');
+    return new Date(dateString).toLocaleDateString('en-GB', {
+        day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata'
+    });
+  };
+  const invDate = formatInvoiceDate(invoice.created_at);
+  
+  const subTotal = Number(invoice.subtotal) || 0;
+  const totalTax = Number(invoice.tax_amount) || 0; 
+  const roundOff = Number(invoice.round_off) || 0;
   const totalAmount = Number(invoice.total_amount) || 0;
-  
-  // Tax Logic: Back-calculate tax from Total vs Subtotal
-  // Logic: Total = Subtotal + Tax. Therefore Tax = Total - Subtotal.
-  const totalTax = totalAmount - subTotal > 0 ? totalAmount - subTotal : 0;
+
   const cgst = totalTax / 2;
   const sgst = totalTax / 2;
-  
-  // Round off visual calculation
-  const exactTotal = subTotal + cgst + sgst;
-  const roundOff = totalAmount - exactTotal;
 
   const termsList = companyDetails?.terms 
     ? companyDetails.terms.split('\n').filter(t => t.trim() !== '')
@@ -74,12 +67,8 @@ const InvoiceTemplate = ({ invoice, items, companyDetails }) => {
       ];
 
   return (
-    // Outer Wrapper with Padding for Printer Margins
     <div className="w-full h-full bg-white text-black font-sans text-xs leading-normal p-[10mm]">
-      
-      {/* THE BORDER BOX */}
       <div className="w-full h-full border-2 border-black flex flex-col relative">
-        
         {/* Header */}
         <div className="p-4 border-b-2 border-black relative">
             <div className="absolute top-4 left-0 w-full text-center pointer-events-none">
@@ -136,46 +125,52 @@ const InvoiceTemplate = ({ invoice, items, companyDetails }) => {
             </div>
         </div>
 
-        {/* Table - FIXED LAYOUT TO PREVENT MISALIGNMENT */}
+        {/* Table */}
         <div className="flex-1 flex flex-col">
             <table className="w-full text-left border-collapse table-fixed">
-                {/* STRICT COLUMN WIDTHS: 
-                   Using <colgroup> guarantees alignment even if text is long.
-                   Total = 100%
-                */}
                 <colgroup>
                     <col style={{ width: '6%' }} />  {/* S.No */}
-                    <col style={{ width: '39%' }} /> {/* Item Description */}
-                    <col style={{ width: '12%' }} /> {/* HSN/SAC */}
+                    <col style={{ width: '30%' }} /> {/* Item */}
+                    <col style={{ width: '10%' }} /> {/* HSN */}
                     <col style={{ width: '10%' }} /> {/* Qty */}
-                    <col style={{ width: '13%' }} /> {/* Rate */}
-                    <col style={{ width: '20%' }} /> {/* Amount */}
+                    <col style={{ width: '12%' }} /> {/* Rate */}
+                    <col style={{ width: '8%' }} />  {/* GST% */}
+                    <col style={{ width: '12%' }} /> {/* Tax Amt */}
+                    <col style={{ width: '12%' }} /> {/* Amount */}
                 </colgroup>
 
                 <thead className="bg-gray-100 text-[10px] border-b-2 border-black">
                     <tr>
                         <th className="p-2 border-r-2 border-black text-center">S.No</th>
                         <th className="p-2 border-r-2 border-black">Item Description</th>
-                        <th className="p-2 border-r-2 border-black text-center">HSN/SAC</th>
+                        <th className="p-2 border-r-2 border-black text-center">HSN</th>
                         <th className="p-2 border-r-2 border-black text-center">Qty</th>
                         <th className="p-2 border-r-2 border-black text-right">Rate</th>
+                        <th className="p-2 border-r-2 border-black text-center">Tax %</th>
+                        <th className="p-2 border-r-2 border-black text-right">Tax Amt</th>
                         <th className="p-2 text-right">Amount</th>
                     </tr>
                 </thead>
                 <tbody className="text-[10px] font-bold">
-                    {calculatedItems.map((item, idx) => (
+                    {items && items.map((item, idx) => {
+                        const baseTotal = Number(item.total) || 0; 
+                        const gstRate = Number(item.gst_rate) || 0;
+                        const taxAmt = baseTotal * (gstRate / 100);
+                        return (
                         <tr key={idx} className="border-b border-black last:border-b-0">
                             <td className="p-2 border-r-2 border-black text-center align-top">{idx + 1}</td>
                             <td className="p-2 border-r-2 border-black uppercase align-top break-words">{item.item_name}</td>
-                            <td className="p-2 border-r-2 border-black text-center align-top">{item.hsn}</td>
+                            <td className="p-2 border-r-2 border-black text-center align-top">{item.stocks?.hsn_code || '-'}</td>
                             <td className="p-2 border-r-2 border-black text-center align-top">{item.quantity} {item.unit}</td>
-                            <td className="p-2 border-r-2 border-black text-right align-top">₹{item.price}</td>
-                            <td className="p-2 text-right align-top">₹{item.total.toFixed(2)}</td>
+                            <td className="p-2 border-r-2 border-black text-right align-top">₹{Number(item.price).toFixed(2)}</td>
+                            <td className="p-2 border-r-2 border-black text-center align-top">{gstRate}%</td>
+                            <td className="p-2 border-r-2 border-black text-right align-top">₹{taxAmt.toFixed(2)}</td>
+                            <td className="p-2 text-right align-top">₹{baseTotal.toFixed(2)}</td>
                         </tr>
-                    ))}
-                    
-                    {/* FILLER ROW - Must match column count and borders exactly */}
+                    )})}
                     <tr className="h-full">
+                        <td className="border-r-2 border-black"></td>
+                        <td className="border-r-2 border-black"></td>
                         <td className="border-r-2 border-black"></td>
                         <td className="border-r-2 border-black"></td>
                         <td className="border-r-2 border-black"></td>
@@ -189,7 +184,6 @@ const InvoiceTemplate = ({ invoice, items, companyDetails }) => {
 
         {/* Footer */}
         <div className="flex border-t-2 border-black">
-            {/* Left Footer */}
             <div className="w-[60%] border-r-2 border-black flex flex-col">
                 <div className="p-2 border-b-2 border-black min-h-[40px] flex flex-col justify-center">
                     <span className="font-bold text-[9px] text-black uppercase">Total Amount in Words:</span>
@@ -211,8 +205,6 @@ const InvoiceTemplate = ({ invoice, items, companyDetails }) => {
                     </ol>
                 </div>
             </div>
-
-            {/* Right Footer: Calculations */}
             <div className="w-[40%] flex flex-col text-[10px]">
                 <div className="flex justify-between p-1.5 border-b border-black">
                     <span className="font-bold uppercase">Taxable Amount</span>
@@ -263,6 +255,9 @@ function CentralInvoices() {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [items, setItems] = useState([]);
   const [itemsLoading, setItemsLoading] = useState(false);
+
+  // --- SORT STATE ---
+  const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'descending' });
 
   useEffect(() => { 
     if (!user) return; 
@@ -320,17 +315,10 @@ function CentralInvoices() {
     setItemsLoading(true);
     setItems([]); 
     try {
-      // UPDATED QUERY: JOIN stocks to get HSN Code
       const { data, error } = await supabase
         .from("invoice_items")
-        .select(`
-            *,
-            stocks (
-                hsn_code
-            )
-        `)
+        .select(`*, stocks (hsn_code)`)
         .eq("invoice_id", invoice.id);
-
       if (error) throw error;
       setItems(data || []);
     } catch (err) { console.error(err); } 
@@ -342,6 +330,7 @@ function CentralInvoices() {
     setRangeMode(false);
     setSingleDate(new Date().toISOString().split('T')[0]);
     setDateRange({ start: "", end: "" });
+    setSortConfig({ key: 'created_at', direction: 'descending' });
     fetchInvoices();
   };
 
@@ -349,8 +338,23 @@ function CentralInvoices() {
     window.print();
   };
 
+  const handleSort = (key) => {
+    let direction = 'ascending';
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+        direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const SortIcon = ({ columnKey }) => {
+    if (sortConfig.key !== columnKey) return <ArrowUpDown size={14} className="ml-2 text-slate-300 inline" />;
+    return sortConfig.direction === 'ascending' 
+        ? <ArrowUp size={14} className="ml-2 text-emerald-600 inline" /> 
+        : <ArrowDown size={14} className="ml-2 text-emerald-600 inline" />;
+  };
+
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
+    let data = invoices.filter((inv) => {
       const q = search.toLowerCase();
       const fId = (inv.franchise_id || "").toString().toLowerCase();
       const custName = (inv.customer_name || "").toLowerCase();
@@ -364,7 +368,29 @@ function CentralInvoices() {
       }
       return matchesSearch && matchesDate;
     });
-  }, [search, singleDate, dateRange, rangeMode, invoices]);
+
+    if (sortConfig.key) {
+        data.sort((a, b) => {
+            let aVal = a[sortConfig.key];
+            let bVal = b[sortConfig.key];
+            if (sortConfig.key === 'total_amount') {
+                aVal = Number(aVal);
+                bVal = Number(bVal);
+            }
+            if (sortConfig.key === 'created_at') {
+                aVal = new Date(aVal);
+                bVal = new Date(bVal);
+            }
+            if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+            if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+
+            if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
+            if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
+            return 0;
+        });
+    }
+    return data;
+  }, [search, singleDate, dateRange, rangeMode, invoices, sortConfig]);
 
   const stats = useMemo(() => {
     const revenue = filteredInvoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
@@ -401,7 +427,6 @@ function CentralInvoices() {
         .print-content { display: none; }
       `}</style>
 
-      {/* --- INVOICE PRINT CONTAINER --- */}
       <div className="print-content">
         {selectedInvoice && (
             <InvoiceTemplate 
@@ -412,134 +437,137 @@ function CentralInvoices() {
         )}
       </div>
 
-      {/* --- MAIN SCREEN CONTENT --- */}
       <div className="screen-content">
-        
-        {/* --- INVOICE DRAWER (Modal) --- */}
+        {/* --- INVOICE MODAL (CENTERED & FIXED SIZE) --- */}
         {showModal && selectedInvoice && (
-            <div className="fixed inset-0 z-[100] flex justify-end">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={() => setShowModal(false)} />
-            
-            <div className="relative w-full md:w-[600px] bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-                {/* Modal Header */}
-                <div className="p-6 border-b-2 border-slate-100 flex items-center justify-between bg-white shrink-0">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-50 rounded-xl border-2 border-slate-100">
-                        <Hash size={20} style={{ color: PRIMARY }} />
-                    </div>
-                    <div>
-                        <h2 className="text-lg font-black uppercase tracking-widest text-slate-800">Invoice Details</h2>
-                        <p className="text-[10px] font-bold text-slate-400">ID: {selectedInvoice.id}</p>
-                    </div>
-                </div>
-                <div className="flex gap-2">
-                    <button onClick={handlePrint} className="hidden md:flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-colors">
-                        <Printer size={14}/> Print
-                    </button>
-                    <button onClick={() => setShowModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                        <X size={20} />
-                    </button>
-                </div>
-                </div>
-
-                {/* Modal Content (Screen Version) */}
-                <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                        <div className="bg-white p-5 rounded-2xl border-l-4 shadow-sm border border-slate-100" style={{ borderLeftColor: PRIMARY }}>
-                            <div className="flex items-center gap-3 mb-3">
-                                <Shield size={16} className="text-slate-400" />
-                                <span className="text-[10px] font-black uppercase text-slate-400">Origin Office</span>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setShowModal(false)} />
+                
+                <div className="relative w-full max-w-[800px] h-[90vh] bg-white rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden">
+                    <div className="p-6 border-b-2 border-slate-100 flex items-center justify-between bg-white shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-50 rounded-xl border-2 border-slate-100">
+                                <Hash size={20} style={{ color: PRIMARY }} />
                             </div>
-                            <p className="text-base font-black text-slate-800">Franchise ID: {selectedInvoice.franchise_id}</p>
-                            <p className="text-xs font-bold text-slate-500 mt-1">{selectedInvoice.branch_location || 'Main Outlets'}</p>
-                        </div>
-                        <div className="bg-white p-5 rounded-2xl border-l-4 shadow-sm border border-slate-100" style={{ borderLeftColor: '#3b82f6' }}>
-                            <div className="flex items-center gap-3 mb-3">
-                                <Activity size={16} className="text-slate-400" />
-                                <span className="text-[10px] font-black uppercase text-slate-400">Status</span>
-                            </div>
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${getStatusStyle(selectedInvoice.status)}`}>
-                                {selectedInvoice.status || 'Incoming'}
-                            </span>
-                            <p className="text-[10px] font-bold text-slate-400 mt-2">{formatDateTime(selectedInvoice.created_at)}</p>
-                        </div>
-                        <div className="md:col-span-2 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4">
-                            <div className="p-3 bg-slate-50 rounded-xl text-slate-400"><User size={20} /></div>
                             <div>
-                                <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">Customer Details</span>
-                                <p className="text-sm font-black text-slate-800">{selectedInvoice.customer_name}</p>
-                                <div className="flex items-center gap-2 mt-1 text-slate-500 text-xs font-bold"><Phone size={12} /> {selectedInvoice.customer_phone}</div>
+                                <h2 className="text-lg font-black uppercase tracking-widest text-slate-800">Invoice Details</h2>
+                                <p className="text-[10px] font-bold text-slate-400">ID: {selectedInvoice.id}</p>
                             </div>
                         </div>
-                    </div>
-
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-8">
-                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-                            <ShoppingBag size={16} className="text-slate-400"/>
-                            <span className="text-xs font-black uppercase text-slate-600">Order Items</span>
+                        <div className="flex gap-2">
+                            <button onClick={handlePrint} className="hidden md:flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-colors">
+                                <Printer size={14}/> Print
+                            </button>
+                            <button onClick={() => setShowModal(false)} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors">
+                                <X size={20} />
+                            </button>
                         </div>
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400">
-                                <tr>
-                                    <th className="p-4">Item</th>
-                                    <th className="p-4 text-center">Qty</th>
-                                    <th className="p-4 text-right">Price</th>
-                                    <th className="p-4 text-right">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 text-sm font-bold text-slate-700">
-                                {itemsLoading ? (
-                                    <tr><td colSpan="4" className="p-8 text-center text-slate-400 animate-pulse">Loading items...</td></tr>
-                                ) : items.map((item) => (
-                                    <tr key={item.id}>
-                                        <td className="p-4">
-                                            <div className="font-black text-slate-800">{item.item_name}</div>
-                                            <div className="text-[10px] text-slate-400 mt-0.5">SKU: {item.stock_id?.slice(0,8)}</div>
-                                        </td>
-                                        <td className="p-4 text-center">{item.quantity} {item.unit}</td>
-                                        <td className="p-4 text-right">₹{item.price}</td>
-                                        <td className="p-4 text-right font-black">₹{(item.quantity * item.price).toFixed(2)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
                     </div>
-                </div>
 
-                {/* Modal Footer */}
-                <div className="p-6 border-t-2 border-slate-100 bg-white shrink-0">
-                    <div className="flex justify-between items-center bg-slate-900 text-white p-5 rounded-2xl shadow-lg">
-                        <span className="text-xs font-black uppercase tracking-widest text-slate-400">Total Payable</span>
-                        <span className="text-2xl font-black">₹{Number(selectedInvoice.total_amount).toLocaleString('en-IN')}</span>
+                    <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                            <div className="bg-white p-5 rounded-2xl border-l-4 shadow-sm border border-slate-100" style={{ borderLeftColor: PRIMARY }}>
+                                <div className="flex items-center gap-3 mb-3">
+                                    <Shield size={16} className="text-slate-400" />
+                                    <span className="text-[10px] font-black uppercase text-slate-400">Origin Office</span>
+                                </div>
+                                <p className="text-base font-black text-slate-800">Franchise ID: {selectedInvoice.franchise_id}</p>
+                                <p className="text-xs font-bold text-slate-500 mt-1">{selectedInvoice.branch_location || 'Main Outlets'}</p>
+                                {selectedInvoice.customer_address && (
+                                    <div className="flex items-start gap-2 mt-3 pt-3 border-t border-slate-100">
+                                        <MapPin size={12} className="text-slate-400 mt-0.5 shrink-0" />
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase leading-relaxed">{selectedInvoice.customer_address}</p>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="bg-white p-5 rounded-2xl border-l-4 shadow-sm border border-slate-100" style={{ borderLeftColor: '#3b82f6' }}>
+                                <div className="flex items-center gap-3 mb-3">
+                                    <Activity size={16} className="text-slate-400" />
+                                    <span className="text-[10px] font-black uppercase text-slate-400">Status</span>
+                                </div>
+                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${getStatusStyle(selectedInvoice.status)}`}>
+                                    {selectedInvoice.status || 'Incoming'}
+                                </span>
+                                <p className="text-[10px] font-bold text-slate-400 mt-2">{formatDateTime(selectedInvoice.created_at)}</p>
+                            </div>
+                        </div>
+
+                        {/* MODAL TABLE - WITH BORDERS AND HOVER EFFECT */}
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-8">
+                            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                                <ShoppingBag size={16} className="text-slate-400"/>
+                                <span className="text-xs font-black uppercase text-slate-600">Order Items</span>
+                            </div>
+                            <table className="w-full text-left border-separate border-spacing-y-2 px-4">
+                                <thead className="text-[10px] font-black uppercase text-slate-400">
+                                    <tr>
+                                        <th className="p-4">Item</th>
+                                        <th className="p-4 text-center">Qty</th>
+                                        <th className="p-4 text-right">Price</th>
+                                        <th className="p-4 text-center">Tax</th>
+                                        <th className="p-4 text-right">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="text-sm font-bold text-slate-700">
+                                    {itemsLoading ? (
+                                        <tr><td colSpan="5" className="p-8 text-center text-slate-400 animate-pulse">Loading items...</td></tr>
+                                    ) : items.map((item) => {
+                                        const basePrice = Number(item.total); 
+                                        const gstRate = Number(item.gst_rate) || 0;
+                                        const taxAmount = basePrice * (gstRate / 100);
+                                        const lineTotal = basePrice + taxAmount;
+                                        return (
+                                        <tr key={item.id} className="bg-white shadow-sm border border-slate-100 rounded-xl hover:bg-slate-50 hover:border-slate-300 hover:shadow-md transition-all cursor-default group">
+                                            <td className="p-4 rounded-l-xl border-y border-l border-slate-100 group-hover:border-slate-300">
+                                                <div className="font-black text-slate-800">{item.item_name}</div>
+                                                <div className="text-[10px] text-slate-400 mt-0.5">SKU: {item.stock_id?.slice(0,8)}</div>
+                                            </td>
+                                            <td className="p-4 text-center border-y border-slate-100 group-hover:border-slate-300">{item.quantity} {item.unit}</td>
+                                            <td className="p-4 text-right border-y border-slate-100 group-hover:border-slate-300">₹{Number(item.price).toFixed(2)}</td>
+                                            <td className="p-4 text-center text-xs border-y border-slate-100 group-hover:border-slate-300">
+                                                <div className="text-slate-500">{gstRate}%</div>
+                                                <div className="text-[10px] text-emerald-600">+₹{taxAmount.toFixed(2)}</div>
+                                            </td>
+                                            <td className="p-4 text-right font-black rounded-r-xl border-y border-r border-slate-100 group-hover:border-slate-300">₹{lineTotal.toFixed(2)}</td>
+                                        </tr>
+                                    )})}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                    <button onClick={handlePrint} className="md:hidden w-full mt-4 py-4 bg-slate-100 text-slate-800 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
-                        <Printer size={16}/> Print Invoice
-                    </button>
+
+                    <div className="p-6 border-t-2 border-slate-100 bg-white shrink-0">
+                        <div className="flex justify-between items-center bg-slate-900 text-white p-5 rounded-2xl shadow-lg">
+                            <span className="text-xs font-black uppercase tracking-widest text-slate-400">Total Payable</span>
+                            <span className="text-2xl font-black">₹{Number(selectedInvoice.total_amount).toLocaleString('en-IN')}</span>
+                        </div>
+                        <button onClick={handlePrint} className="md:hidden w-full mt-4 py-4 bg-slate-100 text-slate-800 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
+                            <Printer size={16}/> Print Invoice
+                        </button>
+                    </div>
                 </div>
-            </div>
             </div>
         )}
 
-        {/* --- STICKY HEADER --- */}
         <nav className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b-2 border-slate-100 px-4 md:px-8 py-4 flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-4">
                 <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-all">
                     <ArrowLeft size={18} /> <span className="hidden md:inline">BACK</span>
                 </button>
             </div>
-            <h1 className="text-sm md:text-xl font-black uppercase tracking-[0.2em] text-black text-center absolute left-1/2 -translate-x-1/2">Ledger</h1>
-            <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">ID :</span>
-                <span className="text-[10px] sm:text-xs font-black text-black bg-white border border-slate-200 px-3 py-1 rounded-lg shadow-sm">
-                    {userProfile?.franchise_id || "HQ-01"}
-                </span>
+            <h1 className="text-sm md:text-xl font-black uppercase tracking-[0.2em] text-black text-center absolute left-1/2 -translate-x-1/2">Invoices</h1>
+            
+            {/* --- UPDATED HEADER ID BOX --- */}
+            <div className="flex items-center">
+                <div className="flex items-center bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">ID :</span>
+                    <span className="text-xs font-black text-black">{userProfile?.franchise_id || "..."}</span>
+                </div>
             </div>
+            
         </nav>
 
-        {/* --- MAIN PAGE CONTENT --- */}
         <div className="max-w-[1400px] mx-auto px-4 md:px-8 mt-6 md:mt-8">
-            
-            {/* Stats Row */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div className="bg-white border-2 border-slate-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-all hover:border-black/10">
                     <div className="h-12 w-12 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100"><FileText size={24} /></div>
@@ -557,7 +585,6 @@ function CentralInvoices() {
                 </div>
             </div>
 
-            {/* Toolbar & Filters */}
             <div className="flex flex-col lg:flex-row gap-4 mb-6">
                 <div className="relative w-full lg:flex-1 h-12 md:h-14 group">
                     <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-black transition-colors" size={18} />
@@ -585,42 +612,56 @@ function CentralInvoices() {
                 </div>
             </div>
 
-            {/* --- DESKTOP TABLE --- */}
-            <div className="hidden md:block bg-white border-2 border-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm">
-                <table className="w-full text-left border-separate border-spacing-0">
-                    <thead>
-                        <tr className="bg-slate-50 text-slate-400">
-                            <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100">Invoice</th>
-                            <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100">Franchise ID</th>
-                            <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100">Customer</th>
-                            <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100">Status</th>
-                            <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100">Date & Time</th>
-                            <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 text-right">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {loading && invoices.length === 0 ? (
-                            <tr><td colSpan="6" className="p-10 text-center font-bold text-slate-400">Loading Ledger...</td></tr>
-                        ) : filteredInvoices.length === 0 ? (
-                            <tr><td colSpan="6" className="p-10 text-center font-bold text-slate-400">No Invoices Found</td></tr>
-                        ) : filteredInvoices.map((inv) => (
-                            <tr key={inv.id} onClick={() => openInvoiceModal(inv)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
-                                <td className="p-6"><span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black">#{inv.id.toString().slice(-6).toUpperCase()}</span></td>
-                                <td className="p-6"><span className="text-xs font-black text-slate-700">{inv.franchise_id}</span></td>
-                                <td className="p-6">
-                                    <div className="text-xs font-black text-slate-800">{inv.customer_name}</div>
-                                    <div className="text-[10px] font-bold text-slate-400">{inv.customer_phone}</div>
-                                </td>
-                                <td className="p-6"><span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase border ${getStatusStyle(inv.status)}`}>{inv.status || 'Incoming'}</span></td>
-                                <td className="p-6 text-xs font-bold text-slate-500 uppercase">{formatDateTime(inv.created_at)}</td>
-                                <td className="p-6 text-right text-sm font-black" style={{ color: PRIMARY }}>₹{Number(inv.total_amount).toLocaleString('en-IN')}</td>
+            <div className="hidden md:block bg-white border-2 border-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm h-[600px] relative">
+                <div className="overflow-y-auto h-full">
+                    <table className="w-full text-left border-separate border-spacing-0">
+                        <thead className="sticky top-0 z-10">
+                            <tr className="bg-slate-50 text-slate-400">
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 w-16 sticky top-0 bg-slate-50 z-20 shadow-sm">S.No</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('id')}>
+                                    Invoice <SortIcon columnKey="id" />
+                                </th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('franchise_id')}>
+                                    Franchise ID <SortIcon columnKey="franchise_id" />
+                                </th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('customer_name')}>
+                                    Customer <SortIcon columnKey="customer_name" />
+                                </th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('status')}>
+                                    Status <SortIcon columnKey="status" />
+                                </th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('created_at')}>
+                                    Date & Time <SortIcon columnKey="created_at" />
+                                </th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 text-right cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('total_amount')}>
+                                    Amount <SortIcon columnKey="total_amount" />
+                                </th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {loading && invoices.length === 0 ? (
+                                <tr><td colSpan="7" className="p-10 text-center font-bold text-slate-400">Loading Ledger...</td></tr>
+                            ) : filteredInvoices.length === 0 ? (
+                                <tr><td colSpan="7" className="p-10 text-center font-bold text-slate-400">No Invoices Found</td></tr>
+                            ) : filteredInvoices.map((inv, index) => (
+                                <tr key={inv.id} onClick={() => openInvoiceModal(inv)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
+                                    <td className="p-6 text-[10px] font-bold text-slate-400">{index + 1}.</td>
+                                    <td className="p-6"><span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black">#{inv.id.toString().slice(-6).toUpperCase()}</span></td>
+                                    <td className="p-6"><span className="text-xs font-black text-slate-700">{inv.franchise_id}</span></td>
+                                    <td className="p-6">
+                                        <div className="text-xs font-black text-slate-800">{inv.customer_name}</div>
+                                        <div className="text-[10px] font-bold text-slate-400">{inv.customer_phone}</div>
+                                    </td>
+                                    <td className="p-6"><span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase border ${getStatusStyle(inv.status)}`}>{inv.status || 'Incoming'}</span></td>
+                                    <td className="p-6 text-xs font-bold text-slate-500 uppercase">{formatDateTime(inv.created_at)}</td>
+                                    <td className="p-6 text-right text-sm font-black" style={{ color: PRIMARY }}>₹{Number(inv.total_amount).toLocaleString('en-IN')}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            {/* --- MOBILE CARDS --- */}
             <div className="md:hidden flex flex-col gap-4 pb-20">
                 {loading && invoices.length === 0 ? (
                     <div className="text-center p-10 text-slate-400 font-bold text-xs uppercase">Loading Ledger...</div>
@@ -648,7 +689,6 @@ function CentralInvoices() {
                     </div>
                 ))}
             </div>
-
         </div>
       </div>
     </div>

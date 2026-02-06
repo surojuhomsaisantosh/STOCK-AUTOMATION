@@ -130,9 +130,24 @@ const CentralVendors = () => {
     }
   };
 
+  // HANDLER FOR PHONE INPUT (Restricts to 10 digits)
+  const handlePhoneChange = (e) => {
+    const val = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    if (val.length <= 10) {
+      setFormData({ ...formData, phone: val });
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!franchiseId) return alert("System Error: Franchise ID missing.");
+    
+    // Validate Phone Length
+    if (formData.phone.length !== 10) {
+        alert("Please enter a valid 10-digit mobile number.");
+        return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -232,10 +247,10 @@ const CentralVendors = () => {
               Vendor <span style={{ color: BRAND_COLOR }}>List</span>
             </h1>
             
-            {/* UPDATED ID DISPLAY SECTION */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span className="text-[10px] md:text-xs text-slate-400 font-black uppercase tracking-wider">ID :</span>
-              <div className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+            {/* UPDATED ID DISPLAY BOX (WHOLE THING IN BOX) */}
+            <div className="flex items-center flex-shrink-0">
+              <div className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
+                <span className="text-[10px] md:text-xs text-slate-400 font-black uppercase tracking-wider">ID :</span>
                 <span className="text-[10px] md:text-sm font-bold text-slate-700 font-mono">
                   {franchiseId || "..."}
                 </span>
@@ -420,12 +435,14 @@ const CentralVendors = () => {
                       />
                     </div>
                     <div>
+                      {/* UPDATED PHONE INPUT */}
                       <input 
                         required 
                         type="tel" 
                         value={formData.phone} 
-                        onChange={e => setFormData({...formData, phone: e.target.value})} 
-                        placeholder="Phone Number*" 
+                        onChange={handlePhoneChange} 
+                        maxLength={10}
+                        placeholder="Mobile Number (10 digits)*" 
                         className="w-full bg-slate-50 rounded-xl border border-slate-200 p-4 outline-none focus:border-[#065f46] focus:ring-1 focus:ring-[#065f46] font-mono text-sm transition-all" 
                       />
                     </div>
