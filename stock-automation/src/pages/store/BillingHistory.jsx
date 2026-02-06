@@ -12,7 +12,10 @@ import {
   XCircle,
   AlertTriangle,
   X,
-  LogOut
+  LogOut,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown
 } from "lucide-react";
 
 import { useBluetoothPrinter } from "../printer/BluetoothPrinter";
@@ -177,16 +180,41 @@ function BillingHistory() {
     if (!error) window.location.reload();
   };
 
+  const handleSort = (key) => {
+    let direction = "ascending";
+    if (sortConfig.key === key && sortConfig.direction === "ascending") {
+      direction = "descending";
+    }
+    setSortConfig({ key, direction });
+  };
+
   const sortedHistory = useMemo(() => {
     let items = [...history];
     items.sort((a, b) => {
-      let aVal = a[sortConfig.key]; let bVal = b[sortConfig.key];
+      let aVal = a[sortConfig.key];
+      let bVal = b[sortConfig.key];
+      
+      if (sortConfig.key === 'id') {
+        aVal = Number(aVal);
+        bVal = Number(bVal);
+      }
+
       if (aVal < bVal) return sortConfig.direction === "ascending" ? -1 : 1;
       if (aVal > bVal) return sortConfig.direction === "ascending" ? 1 : -1;
       return 0;
     });
     return items;
   }, [history, sortConfig]);
+
+  const SortIcon = ({ columnKey }) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown size={14} color="#9ca3af" />;
+    }
+    if (sortConfig.direction === "ascending") {
+      return <ArrowUp size={14} color={PRIMARY} />;
+    }
+    return <ArrowDown size={14} color={PRIMARY} />;
+  };
 
   const stats = useMemo(() => {
     const totalSales = history.reduce((sum, b) => sum + b.total, 0);
@@ -201,15 +229,9 @@ function BillingHistory() {
 
   return (
     <div style={styles.page}>
-      {/* HEADER */}
       <div style={{ ...styles.topBar, padding: isMobile ? "10px 15px" : "15px 30px" }}>
-        {/* Left Spacer */}
         {!isMobile && <div style={{ flex: 1 }}></div>}
-        
-        {/* Title */}
         <h1 style={{ ...styles.centerTitle, fontSize: isMobile ? "18px" : "22px" }}>BILLING HISTORY</h1>
-        
-        {/* Right ID Box */}
         <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
           <div style={styles.franchiseIdBox}>
             <span style={styles.idLabel}>ID :</span> 
@@ -224,8 +246,6 @@ function BillingHistory() {
       </div>
 
       <div style={{ ...styles.historyContainer, padding: isMobile ? "15px" : "40px" }}>
-
-        {/* SUMMARY SECTION */}
         <div style={styles.historyHeader}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div>
@@ -236,21 +256,17 @@ function BillingHistory() {
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '8px' : '15px', marginBottom: isMobile ? '15px' : '0' }}>
-            {/* Row 1: Primary Stats */}
             <div style={{ display: 'flex', gap: isMobile ? '8px' : '15px', width: '100%' }}>
-              {/* UPDATED: Total Revenue is now white */}
               <div style={{ ...styles.statBox, flex: 1, padding: isMobile ? '15px' : '15px', textAlign: 'center', borderRadius: isMobile ? '16px' : '16px' }}>
                 <span style={{ ...styles.statLabel, fontSize: isMobile ? '10px' : '11px' }}>TOTAL REVENUE</span>
                 <span style={{ ...styles.statValue, fontSize: isMobile ? '20px' : '26px' }}>₹{stats.totalSales.toFixed(0)}</span>
               </div>
-              
               <div style={{ ...styles.statBox, flex: 1, padding: isMobile ? '15px' : '15px', textAlign: 'center', borderRadius: isMobile ? '16px' : '16px' }}>
                 <span style={{ ...styles.statLabel, fontSize: isMobile ? '10px' : '11px' }}>TOTAL ORDERS</span>
                 <span style={{ ...styles.statValue, fontSize: isMobile ? '20px' : '26px' }}>{stats.orderCount}</span>
               </div>
             </div>
 
-            {/* Row 2: Breakdown Stats */}
             <div style={{ display: 'flex', gap: isMobile ? '8px' : '15px', width: '100%' }}>
               <div style={{ ...styles.statBox, flex: 1, padding: isMobile ? '10px' : '15px', textAlign: 'center', borderRadius: isMobile ? '12px' : '16px', border: `1px solid ${BORDER}` }}>
                 <span style={{ ...styles.statLabel, fontSize: isMobile ? '9px' : '11px' }}>UPI</span>
@@ -267,28 +283,33 @@ function BillingHistory() {
             </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: '10px' }}>
-            <div style={styles.printerBar}>
+          <div style={styles.actionRow}>
+            <div style={styles.flexButtonWrapper}>
               {isConnected ? (
-                <div style={{ display: 'flex', gap: '5px' }}>
-                  <button style={styles.connectedBadge}><Printer size={16} /> {isMobile ? "" : "CONNECTED"}</button>
-                  <button onClick={disconnectPrinter} style={styles.disconnectBtn}><Unplug size={18} /></button>
+                <div style={{ display: 'flex', gap: '8px', width: '100%', height: '100%' }}>
+                  <button style={{ ...styles.connectedBadge, flex: 1, height: '100%' }}>
+                    <Printer size={16} /> {isMobile ? "ON" : "CONNECTED"}
+                  </button>
+                  <button onClick={disconnectPrinter} style={{ ...styles.disconnectBtn, height: '100%' }}>
+                    <Unplug size={18} />
+                  </button>
                 </div>
               ) : (
-                <button onClick={connectPrinter} disabled={isConnecting} style={styles.connectBtn}>
+                <button onClick={connectPrinter} disabled={isConnecting} style={{ ...styles.connectBtn, width: '100%', height: '100%' }}>
                   {isConnecting ? <Loader2 className="animate-spin" size={16} /> : <Printer size={16} />}
                   {isMobile ? " CONNECT" : " CONNECT PRINTER"}
                 </button>
               )}
             </div>
-            <button onClick={() => canCheckout && setShowCheckoutModal(true)} disabled={!canCheckout}
-              style={{ ...styles.checkoutTodayBtn, width: '100%', background: canCheckout ? PRIMARY : '#94a3b8', opacity: canCheckout ? 1 : 0.7 }}>
-              {canCheckout ? "CHECKOUT FOR TODAY" : `SHIFT CLOSED (Next in ${timeLeft})`}
-            </button>
+            <div style={styles.flexButtonWrapper}>
+              <button onClick={() => canCheckout && setShowCheckoutModal(true)} disabled={!canCheckout}
+                style={{ ...styles.checkoutTodayBtn, width: '100%', height: '100%', background: canCheckout ? PRIMARY : '#94a3b8', opacity: canCheckout ? 1 : 0.7 }}>
+                {canCheckout ? "CHECKOUT" : `CLOSED (${timeLeft})`}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* LIST SECTION */}
         <div style={{ ...styles.tableWrapper, background: isMobile ? 'transparent' : '#fff' }}>
           {isMobile ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -300,7 +321,7 @@ function BillingHistory() {
                       <div style={{ flex: 1 }}>
                         <div style={styles.idHash}>#{bill.id.toString().slice(-6).toUpperCase()}</div>
                         <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-                          {new Date(bill.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {new Date(bill.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
@@ -311,18 +332,21 @@ function BillingHistory() {
                         {isSelected ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                       </div>
                     </div>
-
                     {isSelected && (
                       <div style={styles.mobileExpanded}>
-                        <div style={{ padding: '15px 0', borderTop: '1px dashed #ddd' }}>
+                        {/* WRAPPED ITEMS IN SCROLLABLE BOX */}
+                        <div style={{ ...styles.scrollableItemsBox, borderTop: '1px dashed #ddd', padding: '15px 0' }}>
                           {bill.bills_items_generated?.map((item, idx) => (
                             <div key={idx} style={styles.mobileItemRow}>
-                              <span>{item.qty} x {item.item_name}</span>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <span style={{ color: '#94a3b8' }}>{idx + 1}.</span>
+                                <span>{item.qty} x {item.item_name}</span>
+                              </div>
                               <span>₹{item.total.toFixed(2)}</span>
                             </div>
                           ))}
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
                           <button style={styles.bigPrintBtn} onClick={(e) => handleReprint(e, bill)}><Receipt size={18} /> REPRINT</button>
                           <CancelTimerButton createdAt={bill.created_at} onCancel={() => setBillToDelete(bill.id)} />
                         </div>
@@ -336,11 +360,37 @@ function BillingHistory() {
             <table style={styles.table}>
               <thead>
                 <tr style={styles.thRow}>
-                  <th style={styles.th}>S.NO</th>
-                  <th style={styles.th}>BILL ID</th>
-                  <th style={styles.th}>MODE</th>
-                  <th style={styles.th}>AMOUNT</th>
-                  <th style={styles.th}>TIME</th>
+                  <th style={styles.clickableTh} onClick={() => handleSort('created_at')}>
+                    <div style={styles.thContent}>
+                      S.NO <SortIcon columnKey="created_at" />
+                    </div>
+                  </th>
+                  <th style={styles.clickableTh} onClick={() => handleSort('id')}>
+                    <div style={styles.thContent}>
+                      BILL ID <SortIcon columnKey="id" />
+                    </div>
+                  </th>
+                  <th style={styles.clickableTh} onClick={() => handleSort('payment_mode')}>
+                    <div style={styles.thContent}>
+                      MODE <SortIcon columnKey="payment_mode" />
+                    </div>
+                  </th>
+                  {/* NEW DISCOUNT COLUMN */}
+                  <th style={styles.clickableTh} onClick={() => handleSort('discount')}>
+                    <div style={styles.thContent}>
+                      DISCOUNT <SortIcon columnKey="discount" />
+                    </div>
+                  </th>
+                  <th style={styles.clickableTh} onClick={() => handleSort('total')}>
+                    <div style={styles.thContent}>
+                      AMOUNT <SortIcon columnKey="total" />
+                    </div>
+                  </th>
+                  <th style={styles.clickableTh} onClick={() => handleSort('created_at')}>
+                    <div style={styles.thContent}>
+                      TIME <SortIcon columnKey="created_at" />
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -350,17 +400,27 @@ function BillingHistory() {
                       <td style={styles.td}>{index + 1}</td>
                       <td style={styles.td}><span style={styles.idHash}>#{bill.id.toString().slice(-6).toUpperCase()}</span></td>
                       <td style={styles.td}>{bill.payment_mode}</td>
+                      {/* NEW DISCOUNT DATA */}
+                      <td style={{ ...styles.td, color: bill.discount > 0 ? DANGER : '#94a3b8', fontWeight: bill.discount > 0 ? '700' : '400' }}>
+                        {bill.discount > 0 ? `-₹${bill.discount.toFixed(2)}` : '-'}
+                      </td>
                       <td style={{ ...styles.td, fontWeight: "900" }}>₹{bill.total.toFixed(2)}</td>
-                      <td style={styles.td}>{new Date(bill.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
+                      <td style={styles.td}>
+                        {new Date(bill.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                      </td>
                     </tr>
                     {expandedBill === bill.id && (
                       <tr>
-                        <td colSpan="5" style={{ background: '#f8fafc', padding: '20px' }}>
+                        {/* INCREASED COLSPAN TO 6 TO ACCOMMODATE NEW COLUMN */}
+                        <td colSpan="6" style={{ background: '#f8fafc', padding: '20px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <div style={{ flex: 1 }}>
+                            <div style={{ flex: 1, ...styles.scrollableItemsBox }}>
                               {bill.bills_items_generated.map((item, i) => (
                                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                                  <span>{item.item_name} (x{item.qty})</span>
+                                  <div style={{ display: 'flex', gap: '10px' }}>
+                                    <span style={{ color: '#94a3b8', fontWeight: '800' }}>{i + 1}.</span>
+                                    <span>{item.item_name} (x{item.qty})</span>
+                                  </div>
                                   <span>₹{item.total.toFixed(2)}</span>
                                 </div>
                               ))}
@@ -383,7 +443,6 @@ function BillingHistory() {
         </div>
       </div>
 
-      {/* MODALS */}
       {(billToDelete || showCheckoutModal) && (
         <div style={styles.modalOverlay}>
           <div style={{ ...styles.modalContent, width: isMobile ? '90%' : '400px' }}>
@@ -408,12 +467,9 @@ const styles = {
   page: { background: "#f9fafb", minHeight: "100vh", fontFamily: '"Inter", sans-serif' },
   topBar: { display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${BORDER}`, background: "#fff" },
   centerTitle: { fontWeight: "900", margin: 0, color: "#000" },
-  
-  // NEW STYLES for ID Box
   franchiseIdBox: { display: 'flex', alignItems: 'center', background: "white", padding: "8px 14px", borderRadius: "10px", border: `1px solid ${BORDER}`, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
   idLabel: { fontSize: '12px', fontWeight: '600', color: '#64748b', marginRight: '6px' },
   idValue: { fontSize: '14px', fontWeight: '800', color: PRIMARY },
-
   fullToggleBar: { display: "flex", width: "100%", padding: "8px", background: "#f3f4f6", borderBottom: `1px solid ${BORDER}` },
   toggleBtn: { flex: 1, padding: "16px", cursor: "pointer", fontWeight: "800", fontSize: "14px", border: "none", background: "#fff" },
   activeToggle: { color: PRIMARY, borderBottom: `4px solid ${PRIMARY}` },
@@ -426,7 +482,25 @@ const styles = {
   statBox: { background: "#fff", border: `1px solid ${BORDER}`, padding: "15px", borderRadius: "16px" },
   statLabel: { display: "block", fontSize: "11px", fontWeight: "900", color: "#94a3b8", textTransform: "uppercase" },
   statValue: { fontWeight: "900", color: PRIMARY },
-  tableWrapper: { borderRadius: "24px", overflow: "hidden" },
+  
+  tableWrapper: { 
+    borderRadius: "24px", 
+    overflow: "hidden", 
+    background: '#fff',
+    maxHeight: "600px",
+    overflowY: "auto",
+    border: `1px solid ${BORDER}`, 
+    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+    position: "relative" 
+  },
+  
+  // --- NEW STYLE FOR ITEM SCROLLING ---
+  scrollableItemsBox: {
+    maxHeight: "180px", // Sets fixed height for item list
+    overflowY: "auto",  // Enables vertical scroll
+    paddingRight: "5px" // Prevents scrollbar from covering text
+  },
+
   mobileCard: { background: '#fff', borderRadius: '18px', border: `1px solid ${BORDER}`, overflow: 'hidden' },
   mobileCardHeader: { padding: '15px', display: 'flex', alignItems: 'center', cursor: 'pointer' },
   mobileExpanded: { padding: '0 15px 15px 15px' },
@@ -435,7 +509,24 @@ const styles = {
   modeBadge: { padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase' },
   table: { width: "100%", borderCollapse: "collapse", background: '#fff' },
   thRow: { background: "#f8fafc", borderBottom: `2px solid ${BORDER}` },
-  th: { padding: "15px 20px", textAlign: "left", fontSize: "12px", fontWeight: "900", color: "#64748b" },
+  
+  clickableTh: { 
+    padding: "15px 20px", 
+    textAlign: "left", 
+    fontSize: "12px", 
+    fontWeight: "900", 
+    color: "#000", 
+    cursor: "pointer", 
+    userSelect: "none", 
+    borderBottom: `2px solid ${BORDER}`,
+    position: "sticky",
+    top: 0,
+    background: "#f8fafc",
+    zIndex: 10 
+  },
+
+  thContent: { display: "flex", alignItems: "center", gap: "6px" },
+  
   tr: { borderBottom: `1px solid ${BORDER}`, cursor: "pointer" },
   td: { padding: "15px 20px", fontSize: "14px", fontWeight: "700" },
   cancelBtn: { background: "#fee2e2", color: DANGER, border: "none", padding: "12px", borderRadius: "12px", fontSize: "12px", fontWeight: "800", display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" },
@@ -450,12 +541,13 @@ const styles = {
   modalActions: { display: 'flex', gap: '10px' },
   btnCancel: { flex: 1, padding: '12px', border: `1px solid ${BORDER}`, background: '#fff', borderRadius: '12px', fontWeight: '800' },
   btnConfirmDelete: { flex: 1, padding: '12px', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: '800' },
-  printerBar: { display: 'flex', gap: '10px' },
-  connectBtn: { background: PRIMARY, color: "#fff", border: "none", padding: "8px 15px", borderRadius: "10px", fontWeight: "800", fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' },
-  connectedBadge: { background: "#10b981", color: "#fff", border: "none", padding: "8px 15px", borderRadius: "10px", fontWeight: "800", fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' },
-  disconnectBtn: { background: "#fee2e2", color: DANGER, border: "none", padding: '8px 12px', borderRadius: "10px" },
+  actionRow: { display: 'flex', gap: '10px', width: '100%', height: '48px', marginTop: '10px' },
+  flexButtonWrapper: { flex: 1, display: 'flex', height: '100%' },
+  connectBtn: { background: PRIMARY, color: "#fff", border: "none", borderRadius: "12px", fontWeight: "800", fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' },
+  connectedBadge: { background: "#10b981", color: "#fff", border: "none", borderRadius: "12px", fontWeight: "800", fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' },
+  checkoutTodayBtn: { color: "#fff", border: "none", borderRadius: "12px", fontWeight: "800", fontSize: "12px", display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  disconnectBtn: { background: "#fee2e2", color: DANGER, border: "none", padding: '0 14px', borderRadius: "12px" },
   logoutBtn: { color: DANGER, border: `1.5px solid ${DANGER}`, background: 'none', borderRadius: "10px", fontWeight: "800", fontSize: "12px" },
-  checkoutTodayBtn: { color: "#fff", border: "none", padding: "12px", borderRadius: "12px", fontWeight: "800", fontSize: "13px" },
   loader: { height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: PRIMARY, fontWeight: '800' }
 };
 

@@ -419,11 +419,18 @@ function Store() {
                 <div style={{ ...styles.receiptScrollArea, height: isMobile ? undefined : '300px', flex: isMobile ? 1 : 'none', minHeight: 0 }}>
                   <table style={styles.receiptTable}>
                     <thead>
-                      <tr><th style={styles.receiptTh}>Item</th><th style={styles.receiptTh}>Qty</th><th style={{ ...styles.receiptTh, textAlign: 'right' }}>Total</th></tr>
+                      <tr>
+                        {/* UPDATED: Added S.No column and sticky styles */}
+                        <th style={{ ...styles.receiptTh, width: '40px' }}>S.No</th>
+                        <th style={styles.receiptTh}>Item</th>
+                        <th style={{ ...styles.receiptTh, textAlign: 'center' }}>Qty</th>
+                        <th style={{ ...styles.receiptTh, textAlign: 'right' }}>Total</th>
+                      </tr>
                     </thead>
                     <tbody>
-                      {cart.map(i => (
+                      {cart.map((i, index) => (
                         <tr key={i.id} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ ...styles.receiptTd, color: '#64748b' }}>{index + 1}.</td>
                           <td style={styles.receiptTd}>{i.item_name}</td>
                           <td style={{ ...styles.receiptTd, textAlign: 'center' }}>{i.qty}</td>
                           <td style={{ ...styles.receiptTd, textAlign: 'right' }}>₹{(i.price * i.qty).toFixed(2)}</td>
@@ -436,7 +443,6 @@ function Store() {
 
               {/* RIGHT SIDE: DISCOUNT & PAYMENT */}
               <div style={{ ...styles.modalRight, padding: isMobile ? '10px' : '30px', flex: isMobile ? '0' : '0.8', background: isMobile ? '#fff' : 'transparent' }}>
-                {/* ADDED HEADING */}
                 <h3 style={styles.modalSectionTitle}>DISCOUNT</h3>
                 
                 <div style={{ ...styles.discountBox, padding: isMobile ? '10px' : '15px', marginBottom: isMobile ? '10px' : '20px' }}>
@@ -467,7 +473,6 @@ const styles = {
   topBar: { display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${BORDER}`, background: "#fff" },
   centerTitle: { fontWeight: "900", margin: 0, color: BLACK, letterSpacing: '-0.5px' },
   
-  // NEW STYLES FOR ID BOX
   franchiseIdBox: { display: 'flex', alignItems: 'center', background: "white", padding: "8px 14px", borderRadius: "10px", border: `1px solid ${BORDER}`, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
   idLabel: { fontSize: '12px', fontWeight: '600', color: '#64748b', marginRight: '6px' },
   idValue: { fontSize: '14px', fontWeight: '800', color: PRIMARY },
@@ -520,7 +525,20 @@ const styles = {
   modalSectionTitle: { fontSize: '16px', fontWeight: '900', marginBottom: '20px', color: BLACK },
   receiptScrollArea: { overflowY: 'auto', marginBottom: '15px' },
   receiptTable: { width: '100%', borderCollapse: 'collapse' },
-  receiptTh: { textAlign: 'left', paddingBottom: '10px', fontSize: '11px', fontWeight: '900', color: BLACK },
+  
+  // UPDATED: Added sticky positioning
+  receiptTh: { 
+    textAlign: 'left', 
+    paddingBottom: '10px', 
+    fontSize: '11px', 
+    fontWeight: '900', 
+    color: BLACK,
+    position: 'sticky', // Makes header sticky
+    top: 0,             // Sticks to the top of the scroll area
+    background: '#f8f9fa', // Background needed so text doesn't show behind it
+    zIndex: 1
+  },
+  
   receiptTd: { padding: '8px 0', fontSize: '13px', fontWeight: '700', color: BLACK },
   discountBox: { background: '#f3f4f6', padding: '15px', borderRadius: '15px', marginBottom: '20px' },
   discountToggleRow: { display: 'flex', gap: '6px', marginBottom: '10px' },
