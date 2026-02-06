@@ -47,6 +47,16 @@ function Store() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  /* BODY SCROLL LOCK */
+  useEffect(() => {
+    if (isMobile && (showMobileCart || showPaymentModal)) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "auto";
+    }
+    return () => { document.body.style.overflow = "auto"; };
+  }, [isMobile, showMobileCart, showPaymentModal]);
+
   /* 1. FETCH STORE PROFILE */
   useEffect(() => {
     const fetchProfile = async () => {
@@ -395,9 +405,9 @@ function Store() {
           <div style={{ ...styles.modalContent, width: isMobile ? '100%' : '90%', height: isMobile ? '100%' : 'auto', borderRadius: isMobile ? '0' : '24px' }}>
             <button style={styles.closeModalBtn} onClick={() => setShowPaymentModal(false)}><X size={24} color={BLACK} /></button>
             <div style={{ ...styles.modalBody, flexDirection: isMobile ? 'column' : 'row', height: isMobile ? '100%' : '500px' }}>
-              <div style={{ ...styles.modalLeft, padding: isMobile ? '15px' : '30px', flex: isMobile ? '1' : '1.2', borderRight: isMobile ? 'none' : `1px solid ${BORDER}`, borderBottom: isMobile ? `1px solid ${BORDER}` : 'none' }}>
+              <div style={{ ...styles.modalLeft, padding: isMobile ? '15px' : '30px', flex: isMobile ? '1' : '1.2', overflow: 'hidden', borderRight: isMobile ? 'none' : `1px solid ${BORDER}`, borderBottom: isMobile ? `1px solid ${BORDER}` : 'none' }}>
                 <h3 style={styles.modalSectionTitle}>BILL SUMMARY</h3>
-                <div style={{ ...styles.receiptScrollArea, height: isMobile ? 'auto' : '300px', flex: isMobile ? 1 : 'none' }}>
+                <div style={{ ...styles.receiptScrollArea, height: isMobile ? undefined : '300px', flex: isMobile ? 1 : 'none', minHeight: 0 }}>
                   <table style={styles.receiptTable}>
                     <thead>
                       <tr><th style={styles.receiptTh}>Item</th><th style={styles.receiptTh}>Qty</th><th style={{ ...styles.receiptTh, textAlign: 'right' }}>Total</th></tr>
@@ -415,20 +425,20 @@ function Store() {
                 </div>
               </div>
 
-              <div style={{ ...styles.modalRight, padding: isMobile ? '15px' : '30px', flex: isMobile ? '0' : '0.8', background: isMobile ? '#fff' : 'transparent' }}>
-                <div style={styles.discountBox}>
+              <div style={{ ...styles.modalRight, padding: isMobile ? '10px' : '30px', flex: isMobile ? '0' : '0.8', background: isMobile ? '#fff' : 'transparent' }}>
+                <div style={{ ...styles.discountBox, padding: isMobile ? '10px' : '15px', marginBottom: isMobile ? '10px' : '20px' }}>
                   <div style={styles.discountToggleRow}>
                     <button style={{ ...styles.toggleSmall, background: discountType === 'fixed' ? PRIMARY : '#fff', color: discountType === 'fixed' ? '#fff' : BLACK }} onClick={() => setDiscountType('fixed')}>₹ Amt</button>
                     <button style={{ ...styles.toggleSmall, background: discountType === 'percent' ? PRIMARY : '#fff', color: discountType === 'percent' ? '#fff' : BLACK }} onClick={() => setDiscountType('percent')}>% Off</button>
                   </div>
                   <input type="number" placeholder="Value..." value={discountValue || ""} onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)} style={styles.modalDiscountInput} />
                 </div>
-                <div style={styles.finalAmountDisplay}>
-                  <div style={{ fontSize: isMobile ? '32px' : '42px', fontWeight: '900', color: PRIMARY }}>₹{totals.total.toFixed(2)}</div>
+                <div style={{ ...styles.finalAmountDisplay, marginBottom: isMobile ? '10px' : '25px', padding: isMobile ? '10px' : '15px' }}>
+                  <div style={{ fontSize: isMobile ? '28px' : '42px', fontWeight: '900', color: PRIMARY }}>₹{totals.total.toFixed(2)}</div>
                 </div>
-                <div style={{ ...styles.paymentButtonRow, flexDirection: isMobile ? 'column' : 'row' }}>
-                  <button style={{ ...styles.payMethodBtn, padding: '20px' }} onClick={() => handleCompleteTransaction("CASH")}>CASH</button>
-                  <button style={{ ...styles.payMethodBtn, padding: '20px', background: '#2563eb' }} onClick={() => handleCompleteTransaction("UPI")}>UPI / ONLINE</button>
+                <div style={{ ...styles.paymentButtonRow, flexDirection: 'row' }}>
+                  <button style={{ ...styles.payMethodBtn, padding: isMobile ? '15px' : '20px' }} onClick={() => handleCompleteTransaction("CASH")}>CASH</button>
+                  <button style={{ ...styles.payMethodBtn, padding: isMobile ? '15px' : '20px', background: '#2563eb' }} onClick={() => handleCompleteTransaction("UPI")}>UPI</button>
                 </div>
               </div>
             </div>
