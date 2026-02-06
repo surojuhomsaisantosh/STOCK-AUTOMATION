@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Search, Plus, Calendar, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight, User, Phone, ChevronDown, Mail, CreditCard, MapPin
+  ArrowLeft, Search, Plus, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight, User, Phone, ChevronDown, Mail, CreditCard, MapPin
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "../../supabase/supabaseClient";
@@ -29,8 +29,9 @@ const CentralStaffProfiles = () => {
   const [editingId, setEditingId] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Removed aadhar_card from state
   const [formData, setFormData] = useState({
-    name: "", staff_id: "", password: "", phone: "", email: "", address: "", aadhar_card: ""
+    name: "", staff_id: "", password: "", phone: "", email: "", address: ""
   });
 
   useEffect(() => {
@@ -81,9 +82,10 @@ const CentralStaffProfiles = () => {
 
     setCompanyName(franchiseData ? franchiseData.company : "Unknown Franchise");
 
+    // Removed aadhar_card from select query (optional, but cleaner)
     const { data, error } = await supabase
       .from('staff_profiles')
-      .select('id, name, staff_id, phone, email, address, aadhar_card, created_at')
+      .select('id, name, staff_id, phone, email, address, created_at')
       .eq('franchise_id', fid)
       .order('created_at', { ascending: false });
 
@@ -100,8 +102,7 @@ const CentralStaffProfiles = () => {
       password: "",
       phone: profile.phone,
       email: profile.email || "",
-      address: profile.address || "",
-      aadhar_card: profile.aadhar_card || ""
+      address: profile.address || ""
     });
     setIsModalOpen(true);
   };
@@ -109,7 +110,7 @@ const CentralStaffProfiles = () => {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingId(null);
-    setFormData({ name: "", staff_id: "", password: "", phone: "", email: "", address: "", aadhar_card: "" });
+    setFormData({ name: "", staff_id: "", password: "", phone: "", email: "", address: "" });
   };
 
   const handleSubmit = async (e) => {
@@ -133,6 +134,7 @@ const CentralStaffProfiles = () => {
 
     try {
       if (editingId) {
+        // Removed aadhar_card from update payload
         const { error: profileError } = await supabase
           .from('staff_profiles')
           .update({
@@ -140,8 +142,7 @@ const CentralStaffProfiles = () => {
             staff_id: formData.staff_id,
             phone: formData.phone,
             email: formData.email,
-            address: formData.address,
-            aadhar_card: formData.aadhar_card
+            address: formData.address
           })
           .eq('id', editingId);
 
@@ -189,25 +190,36 @@ const CentralStaffProfiles = () => {
   );
 
   return (
-    <div style={{ ...styles.page, padding: isMobile ? "15px 15px 80px 15px" : "40px" }}>
+    <div style={{ ...styles.page, padding: isMobile ? "15px" : "30px 40px" }}>
 
-      {/* HEADER SECTION */}
-      <div style={{ ...styles.headerRow, flexDirection: isMobile ? "column" : "row", gap: isMobile ? "12px" : "0" }}>
-        <div style={{ display: 'flex', width: isMobile ? '100%' : 'auto', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* --- HEADER SECTION --- */}
+      <div style={styles.headerRow}>
+        
+        {/* LEFT: BACK BUTTON */}
+        <div style={styles.headerLeft}>
           <button onClick={() => navigate(-1)} style={styles.backBtn}>
-            <ArrowLeft size={20} /> {!isMobile && "Back"}
+            <ArrowLeft size={20} /> 
+            <span>Back</span>
           </button>
-          {isMobile && <div style={styles.mobileBadge}>{loggedInFranchiseId}</div>}
         </div>
 
-        <h1 style={{ ...styles.mainHeading, fontSize: isMobile ? "24px" : "28px", textAlign: isMobile ? 'left' : 'center' }}>Staff Profiles</h1>
+        {/* CENTER: HEADING */}
+        <div style={styles.headerCenter}>
+          <h1 style={{ ...styles.mainHeading, fontSize: isMobile ? "18px" : "24px" }}>
+            STAFF PROFILES
+          </h1>
+        </div>
 
-        {!isMobile && (
-          <div style={styles.franchiseIdLabel}>
-            Franchise : <span style={{ color: PRIMARY }}>{loggedInFranchiseId}</span>
+        {/* RIGHT: FRANCHISE ID BOX */}
+        <div style={styles.headerRight}>
+          <div style={styles.franchiseIdBox}>
+            <span style={styles.idLabel}>ID :</span> 
+            <span style={styles.idValue}>{loggedInFranchiseId || "..."}</span>
           </div>
-        )}
+        </div>
+
       </div>
+      {/* --------------------------- */}
 
       {/* SEARCH FRANCHISE CARD */}
       <div style={{ ...styles.filterCard, padding: isMobile ? '12px' : '15px' }}>
@@ -278,7 +290,6 @@ const CentralStaffProfiles = () => {
                     <div style={styles.cardDetailGrid}>
                       <div style={styles.cardInfoRow}><Phone size={14} color={PRIMARY} /> {p.phone}</div>
                       <div style={styles.cardInfoRow}><Mail size={14} color={PRIMARY} /> {p.email || 'No Email'}</div>
-                      <div style={styles.cardInfoRow}><CreditCard size={14} color={PRIMARY} /> {p.aadhar_card || 'No Aadhar'}</div>
                       <div style={styles.cardInfoRow}><MapPin size={14} color={PRIMARY} /> {p.address || 'No Address'}</div>
                     </div>
 
@@ -333,7 +344,7 @@ const CentralStaffProfiles = () => {
       {/* RESPONSIVE MODAL */}
       {isModalOpen && (
         <div style={styles.modalOverlay} onClick={closeModal}>
-          <div style={{ ...styles.modalContent, width: isMobile ? "100%" : "550px", height: isMobile ? "100%" : "auto", borderRadius: isMobile ? "0" : "24px" }} onClick={e => e.stopPropagation()}>
+          <div style={{ ...styles.modalContent, width: isMobile ? "95%" : "550px", borderRadius: "18px" }} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={styles.modalIconBox}><UserPlus size={20} color={PRIMARY} /></div>
@@ -351,18 +362,22 @@ const CentralStaffProfiles = () => {
               <div style={styles.inputGroup}>
                 <label style={styles.label}>Password {!editingId && "*"}</label>
                 <div style={{ position: 'relative' }}>
-                  <input style={{ ...styles.input, width: '100%' }} type={showPassword ? "text" : "password"} placeholder={editingId ? "Leave blank to keep same" : "Min 8 characters"} value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
+                  <input style={{ ...styles.input, width: '100%' }} type={showPassword ? "text" : "password"} placeholder={editingId ? "Blank to keep" : "Min 8 chars"} value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
                 </div>
               </div>
 
               <div style={styles.inputGroup}><label style={styles.label}>Phone Number *</label><input required style={styles.input} type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} /></div>
-              <div style={styles.inputGroup}><label style={styles.label}>Email Address</label><input style={styles.input} type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} /></div>
-              <div style={styles.inputGroup}><label style={styles.label}>Aadhar Card No.</label><input style={styles.input} type="text" value={formData.aadhar_card} onChange={e => setFormData({ ...formData, aadhar_card: e.target.value })} /></div>
+              
+              {/* Email takes full width on mobile, span 2 on desktop if needed, or stick to 1/1 logic. Here I'll make it span full for cleanliness or slot it in.*/}
+              <div style={{...styles.inputGroup, gridColumn: isMobile ? 'span 1' : 'span 2'}}><label style={styles.label}>Email Address</label><input style={styles.input} type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} /></div>
+              
+              {/* Removed Aadhar Card Field */}
 
               <div style={{ ...styles.inputGroup, gridColumn: isMobile ? 'span 1' : 'span 2' }}>
                 <label style={styles.label}>Residential Address</label>
-                <textarea style={{ ...styles.input, height: '70px', resize: 'none' }} value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
+                {/* Reduced height to prevent scrolling */}
+                <textarea style={{ ...styles.input, height: '50px', resize: 'none' }} value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
               </div>
 
               <div style={{ ...styles.modalFooter, gridColumn: isMobile ? "span 1" : "span 2" }}>
@@ -379,11 +394,34 @@ const CentralStaffProfiles = () => {
 
 const styles = {
   page: { background: "#f8fafc", minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: BLACK },
-  headerRow: { display: 'flex', justifyContent: 'space-between', marginBottom: '20px' },
-  backBtn: { display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: `1px solid ${BORDER}`, color: BLACK, fontWeight: '700', cursor: 'pointer', padding: '10px', borderRadius: '12px' },
-  mobileBadge: { background: `${PRIMARY}10`, color: PRIMARY, padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '800', border: `1px solid ${PRIMARY}30` },
-  mainHeading: { fontWeight: "900", margin: 0, letterSpacing: '-0.8px' },
-  franchiseIdLabel: { fontWeight: '800', background: "#fff", padding: "10px 18px", borderRadius: "12px", border: `1px solid ${BORDER}`, fontSize: '14px' },
+  
+  // --- REVISED HEADER STYLES ---
+  headerRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '25px', width: '100%' },
+  headerLeft: { flex: 1, display: 'flex', justifyContent: 'flex-start' },
+  headerCenter: { flex: 2, display: 'flex', justifyContent: 'center' }, 
+  headerRight: { flex: 1, display: 'flex', justifyContent: 'flex-end' },
+  
+  // UPDATED BACK BUTTON (No Box)
+  backBtn: { 
+    display: 'flex', 
+    alignItems: 'center', 
+    gap: '8px', 
+    background: 'transparent', // No background
+    border: 'none',            // No border
+    color: BLACK, 
+    fontWeight: '800', 
+    cursor: 'pointer', 
+    padding: '0',              // No padding
+    fontSize: '15px'
+  },
+  
+  mainHeading: { fontWeight: "900", margin: 0, letterSpacing: '-0.5px', textAlign: 'center', color: '#0f172a', textTransform: 'uppercase' },
+  
+  franchiseIdBox: { display: 'flex', alignItems: 'center', background: "white", padding: "8px 14px", borderRadius: "10px", border: `1px solid ${BORDER}`, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
+  idLabel: { fontSize: '12px', fontWeight: '600', color: '#64748b', marginRight: '6px' },
+  idValue: { fontSize: '14px', fontWeight: '800', color: PRIMARY },
+  // -----------------------------
+
   filterCard: { background: 'white', borderRadius: '16px', border: `1px solid ${BORDER}`, marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' },
   filterForm: { display: 'flex', alignItems: 'center', gap: '12px' },
   filterLabel: { fontWeight: '700', fontSize: '13px', color: '#64748b' },
@@ -416,18 +454,26 @@ const styles = {
   editBtn: { padding: '8px', borderRadius: '8px', background: '#f0fdf4', color: PRIMARY, border: 'none', cursor: 'pointer' },
   deleteBtn: { padding: '8px', borderRadius: '8px', background: '#fef2f2', color: '#ef4444', border: 'none', cursor: 'pointer' },
 
-  // MODAL
+  // MODAL (COMPACTED)
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
-  modalContent: { background: 'white', padding: '24px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflowY: 'auto' },
-  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' },
+  // Reduced padding from 24px to 20px, removed overflowY auto
+  modalContent: { background: 'white', padding: '20px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', maxHeight: '95vh' },
+  
+  // Reduced marginBottom from 24px to 15px
+  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' },
   modalIconBox: { width: '40px', height: '40px', background: `${PRIMARY}10`, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   closeBtn: { background: '#f1f5f9', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  formGrid: { display: 'grid', gap: '16px' },
+  
+  // Reduced gap from 16px to 12px
+  formGrid: { display: 'grid', gap: '12px' },
   inputGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
   label: { fontSize: '12px', fontWeight: '800', color: '#475569' },
-  input: { padding: '12px 14px', borderRadius: '12px', border: `1.5px solid ${BORDER}`, outline: 'none', fontSize: '14px', fontWeight: '600' },
+  
+  // Reduced padding from 12px 14px to 10px 12px
+  input: { padding: '10px 12px', borderRadius: '12px', border: `1.5px solid ${BORDER}`, outline: 'none', fontSize: '14px', fontWeight: '600' },
   eyeBtn: { position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: '#64748b' },
-  modalFooter: { display: 'flex', gap: '12px', marginTop: '14px' },
+  
+  modalFooter: { display: 'flex', gap: '12px', marginTop: '15px' },
   cancelBtn: { flex: 1, padding: '14px', borderRadius: '12px', border: `1.5px solid ${BORDER}`, background: 'white', fontWeight: '700', cursor: 'pointer' },
   submitBtn: { flex: 1.5, padding: '14px', borderRadius: '12px', border: 'none', background: PRIMARY, color: 'white', fontWeight: '800', cursor: 'pointer' },
 
