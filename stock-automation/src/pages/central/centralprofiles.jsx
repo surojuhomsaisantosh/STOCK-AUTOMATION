@@ -157,44 +157,57 @@ function CentralProfiles() {
       <div style={{ ...styles.container, padding: isMobile ? "20px 15px" : "40px 20px" }}>
 
         {/* HEADER SECTION */}
+        {/* HEADER SECTION */}
         <header style={{
           ...styles.header,
-          flexDirection: isMobile ? 'column' : 'row',
-          alignItems: isMobile ? 'flex-start' : 'center',
-          gap: isMobile ? '12px' : '0'
+          marginBottom: isMobile ? '20px' : '40px',
+          alignItems: 'flex-start' // Ensure top alignment for all children
         }}>
-          <div style={{ display: 'flex', width: isMobile ? '100%' : 'auto', justifyContent: 'space-between', alignItems: 'center' }}>
-            <button onClick={() => navigate(-1)} style={styles.backBtn}>
-              <ArrowLeft size={20} />
-              <span>Back</span>
-            </button>
-            {isMobile && (
-              <button onClick={() => navigate("/register")} style={styles.registerBtn}>
-                <UserPlus size={18} />
-                <span>REGISTER</span>
-              </button>
-            )}
-          </div>
+          {/* Left: Back Button */}
+          <button onClick={() => navigate(-1)} style={{
+            ...styles.backBtn,
+            marginTop: isMobile ? '4px' : '0' // Visually align with Title/ID
+          }}>
+            <ArrowLeft size={isMobile ? 18 : 20} />
+            <span style={{ fontSize: isMobile ? '13px' : '14px' }}>Back</span>
+          </button>
 
+          {/* Center: Title (Absolute) */}
           <h1 style={{
             ...styles.centerTitle,
-            position: isMobile ? 'static' : 'absolute',
-            transform: isMobile ? 'none' : 'translateX(-50%)',
-            fontSize: isMobile ? '20px' : '24px'
+            fontSize: isMobile ? '18px' : '24px',
+            top: isMobile ? '2px' : '0' // Minor adjustment for alignment
           }}>PROFILES</h1>
 
-          {!isMobile && (
-            <div style={styles.topRightActions}>
-              <div style={styles.franchiseDisplay}>
-                <span style={styles.franchiseLabel}>Franchise ID :</span>
-                <span style={styles.franchiseValue}>{userFranchiseId}</span>
-              </div>
-              <button onClick={() => navigate("/register")} style={styles.registerBtn}>
-                <UserPlus size={18} />
-                <span>REGISTER</span>
-              </button>
+          {/* Right: ID & Register */}
+          <div style={{
+            ...styles.topRightActions,
+            gap: isMobile ? '4px' : '25px',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'flex-end' : 'center'
+          }}>
+            <div style={styles.franchiseDisplay}>
+              {!isMobile && <span style={styles.franchiseLabel}>Franchise ID :</span>}
+              <span style={{
+                ...styles.franchiseValue,
+                fontSize: isMobile ? '11px' : '13px',
+                padding: isMobile ? '4px 8px' : '4px 10px'
+              }}>{userFranchiseId}</span>
             </div>
-          )}
+
+            <button onClick={() => navigate("/register")} style={{
+              ...styles.registerBtn,
+              padding: isMobile ? '8px 16px' : '10px 20px',
+              borderRadius: isMobile ? '10px' : '12px',
+              marginTop: isMobile ? '12px' : '0',
+              // improved mobile styling for "better" look
+              boxShadow: isMobile ? '0 4px 10px rgba(6, 95, 70, 0.2)' : 'none',
+              width: isMobile ? 'auto' : 'auto'
+            }}>
+              <UserPlus size={isMobile ? 16 : 18} />
+              <span style={{ fontSize: isMobile ? '11px' : '11px', fontWeight: '800' }}>REGISTER</span>
+            </button>
+          </div>
         </header>
 
         {/* SEARCH & STATS BAR */}
