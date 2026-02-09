@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import {
   FileText, Users, Settings, LayoutDashboard,
   BarChart3, ChevronRight, Package, ShoppingBag, 
-  Headphones, Calendar, Truck, UserCheck, Printer // Added Printer icon
+  Headphones, Calendar, Truck, UserCheck, Printer
 } from "lucide-react";
 
 const PRIMARY = "#065f46";
@@ -23,7 +23,6 @@ function CentralDashboard() {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
   });
 
-  // --- FIX: SCROLL TO TOP ON MOUNT ---
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -57,13 +56,12 @@ function CentralDashboard() {
     { title: "Staff Profiles", path: "/central/staff-profiles", icon: <UserCheck size={isMobile ? 20 : 24} />, desc: "Employee management" },
     { title: "Franchise Profiles", path: "/central/profiles", icon: <Users size={isMobile ? 20 : 24} />, desc: "User permissions" },
     { title: "Stock Requests", path: "/central/support", icon: <Headphones size={isMobile ? 20 : 24} />, desc: "Help desk tickets" }, 
-    { title: "Invoice Design", path: "/central/invoice-design", icon: <Printer size={isMobile ? 20 : 24} />, desc: "Print templates" }, // New Card Added
+    { title: "Invoice Design", path: "/central/invoice-design", icon: <Printer size={isMobile ? 20 : 24} />, desc: "Print templates" },
     { title: "Settings", path: "/central/settings", icon: <Settings size={isMobile ? 20 : 24} />, desc: "System configuration" },
   ];
 
   return (
     <div style={styles.page}>
-      {/* Global Style Reset for this Component */}
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         .dashboard-card { transition: all 0.2s ease-in-out; }
@@ -76,13 +74,11 @@ function CentralDashboard() {
             box-shadow: 0 12px 20px -5px rgba(0,0,0,0.05) !important;
           }
         }
-        /* Hide scrollbar but keep functionality */
         .grid-scroll-area::-webkit-scrollbar { width: 0px; background: transparent; }
       `}</style>
 
       <div style={{
           ...styles.container,
-          // Adjusted padding to be safer on mobile devices
           padding: isMobile ? "32px 20px" : "50px 40px"
       }}>
         <header style={{
@@ -97,13 +93,21 @@ function CentralDashboard() {
               <h1 style={{ 
                   ...styles.mainTitle, 
                   fontSize: isMobile ? '22px' : '48px',
-                  // Added Left Margin for Mobile Breathing Room
                   marginLeft: isMobile ? '4px' : '0' 
               }}>
                 Central <span style={{ color: PRIMARY }}>Dashboard</span>
               </h1>
             </div>
-            {!isMobile && <p style={styles.greeting}>Welcome back, {profile.name}</p>}
+            
+            {/* UPDATED: Greeting is now visible on mobile, with adjusted font size */}
+            <p style={{
+                ...styles.greeting,
+                fontSize: isMobile ? '14px' : '18px', // Smaller font for mobile
+                marginTop: isMobile ? '4px' : '8px',   // Tighter spacing for mobile
+                marginLeft: isMobile ? '4px' : '0'     // Align with title
+            }}>
+              Welcome back, {profile.name}
+            </p>
           </div>
 
           {/* RIGHT SIDE: Badge + Date */}
@@ -210,7 +214,7 @@ const styles = {
   headerRight: { display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end', justifyContent: 'center' },
   
   mainTitle: { fontWeight: "800", letterSpacing: "-0.04em", margin: 0, lineHeight: 1.1, color: "#111827" },
-  greeting: { fontSize: '18px', fontWeight: "400", margin: '8px 0 0 0', color: "#4b5563" },
+  greeting: { fontWeight: "400", margin: '8px 0 0 0', color: "#4b5563" },
   dateRow: { display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' },
   dateText: { fontWeight: '500', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.02em' },
   
