@@ -55,17 +55,22 @@ function Settings() {
 
         <h1 className="text-xl font-black uppercase tracking-[0.2em] text-black ml-12">Settings</h1>
 
-        <div className="flex items-center gap-2">
-           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Franchise ID:</span>
-           <span className="text-xs font-black text-black uppercase bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
-             {user?.franchise_id || "TV-HQ-01"}
-           </span>
+        {/* UPDATED ID BOX - Better Styling */}
+        <div className="flex items-center">
+            <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                   ID : 
+                 </span>
+                 <span className="text-sm font-black text-black uppercase tracking-wide leading-none">
+                   {user?.franchise_id || "TV-HQ-01"}
+                 </span>
+            </div>
         </div>
       </nav>
 
       <div className="max-w-7xl mx-auto px-6 mt-16">
         
-        {/* THE GRID: items-stretch ensures all cards in a row have equal height */}
+        {/* THE GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
           
           {/* CARD 1: CHANGE PASSWORD */}
@@ -117,22 +122,18 @@ function Settings() {
               <h3 className="text-sm font-black uppercase tracking-widest">Account</h3>
             </div>
 
-            <div className="flex-1 flex flex-col justify-center">
-              <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                <p className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Active User</p>
-                <p className="text-xs font-black text-black truncate">{user?.email || "Signed In"}</p>
-              </div>
-            </div>
+            {/* Spacer to push button to the bottom to align with the first card */}
+            <div className="flex-1"></div>
             
             <button
               onClick={handleLogout}
-              className="mt-8 w-full py-4 rounded-2xl border border-red-100 bg-red-50 text-red-600 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-red-600 hover:text-white active:scale-[0.98] transition-all"
+              className="w-full py-4 rounded-2xl border border-red-100 bg-red-50 text-red-600 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-red-600 hover:text-white active:scale-[0.98] transition-all"
             >
               Logout
             </button>
           </div>
 
-          {/* SLOT 3: Invisible card to maintain grid width for first two cards */}
+          {/* SLOT 3: Invisible card to maintain grid width */}
           <div className="hidden lg:block h-full opacity-0 pointer-events-none">
              <div className="p-10 rounded-[2.5rem] border border-transparent">Grid Filler</div>
           </div>
