@@ -6,16 +6,13 @@ import {
   FiAlertTriangle, FiX, FiCheck, FiFilter, FiBell,
   FiMinus, FiPlus, FiTrash2, FiRefreshCw, FiDownload
 } from "react-icons/fi";
-
 // --- ASSETS ---
 import tvanammLogo from "../../assets/tvanamm_logo.jpeg";
 import tleafLogo from "../../assets/tleaf_logo.jpeg";
-
 // --- CONSTANTS ---
 const BRAND_COLOR = "rgb(0, 100, 55)";
 const ITEMS_PER_INVOICE_PAGE = 12;
 const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID;
-
 // --- UTILS ---
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -53,7 +50,6 @@ const amountToWords = (price) => {
   const num = Math.round(price);
   const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
   const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-
   const inWords = (n) => {
     if ((n = n.toString()).length > 9) return 'overflow';
     let n_array = ('000000000' + n).slice(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
@@ -68,7 +64,6 @@ const amountToWords = (price) => {
   }
   return inWords(num) + "Rupees Only";
 };
-
 // --- SUB-COMPONENTS ---
 const ToastContainer = ({ toasts, removeToast }) => (
   <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 w-full max-w-xs pointer-events-none print:hidden">
@@ -103,7 +98,6 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
   const taxableAmount = data.subtotal || 0;
   const cgst = (data.totalGst || 0) / 2;
   const sgst = (data.totalGst || 0) / 2;
-
   return (
     <div className="w-full bg-white text-black font-sans p-8 print:p-6 box-border text-xs leading-normal h-full relative print:break-after-page print:h-[297mm]">
       <div className="w-full border-2 border-black flex flex-col relative h-full">
@@ -203,7 +197,6 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
     </div>
   );
 };
-
 // --- MAIN PAGE ---
 function StockOrder() {
   const navigate = useNavigate();
@@ -224,14 +217,12 @@ function StockOrder() {
   const [printData, setPrintData] = useState(null);
   const [lastOrderId, setLastOrderId] = useState(null);
   const [orderSuccess, setOrderSuccess] = useState(false);
-
   const [cart, setCart] = useState(() => {
     try {
       const savedCart = localStorage.getItem("stockOrderCart");
       return savedCart ? JSON.parse(savedCart) : [];
     } catch (e) { return []; }
   });
-
   const [notifiedItems, setNotifiedItems] = useState(() => {
     try {
       const saved = localStorage.getItem("notifiedStockItems");
@@ -248,15 +239,19 @@ function StockOrder() {
 
   useEffect(() => { localStorage.setItem("stockOrderCart", JSON.stringify(cart)); }, [cart]);
   useEffect(() => { localStorage.setItem("notifiedStockItems", JSON.stringify([...notifiedItems])); }, [notifiedItems]);
+
   useEffect(() => {
     document.body.style.overflow = (isCartOpen || orderSuccess) ? 'hidden' : 'unset';
     return () => { document.body.style.overflow = 'unset'; };
   }, [isCartOpen, orderSuccess]);
 
-  const addToast = useCallback((type, title, message) => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, type, title, message }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+  const addToast = useCallback((type, title, message, duration = 4000, customId = null) => {
+    const id = customId || Date.now();
+    setToasts(prev => {
+      const others = prev.filter(t => t.id !== id);
+      return [...others, { id, type, title, message }];
+    });
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration);
   }, []);
 
   const removeToast = useCallback((id) => setToasts(prev => prev.filter(t => t.id !== id)), []);
@@ -309,7 +304,6 @@ function StockOrder() {
       const matchesAvailability = showOnlyAvailable ? item.quantity > 0 : true;
       return matchesSearch && matchesCategory && matchesAvailability;
     });
-
     return baseList.sort((a, b) => {
       if (a.quantity > 0 && b.quantity <= 0) return -1;
       if (a.quantity <= 0 && b.quantity > 0) return 1;
@@ -326,9 +320,8 @@ function StockOrder() {
     let numVal = isStepButton ? (isGrams ? (direction === 1 ? currentVal + 50 : Math.max(0, currentVal - 50)) : (direction === 1 ? currentVal + 1 : Math.max(0, currentVal - 1))) : (val === "" ? 0 : Math.max(0, Number(val)));
     const factor = getConversionFactor(unit);
     const requestedBaseQty = parseFloat((numVal * factor).toFixed(3));
-
     if (requestedBaseQty > item.quantity) {
-      addToast('error', 'Low Stock', `Only ${item.quantity} ${item.unit} available.`);
+      addToast('error', 'Limit Reached', `Only ${item.quantity} ${item.unit} available.`, 1000, `limit-${itemId}`);
       numVal = Math.floor((item.quantity / factor) * 1000) / 1000;
     }
     setQtyInput(prev => ({ ...prev, [itemId]: numVal }));
@@ -342,13 +335,25 @@ function StockOrder() {
 
   const handleAddToCart = (itemId) => {
     const item = stocks.find(s => s.id === itemId);
-    if (!item || !qtyInput[itemId] || qtyInput[itemId] <= 0) return addToast('error', 'Invalid Qty', 'Enter quantity.');
+    const qty = qtyInput[itemId];
+    const isInCart = cart.some(c => c.id === itemId);
+
+    if (!qty || qty <= 0) {
+      if (isInCart) {
+        removeFromCart(itemId);
+        addToast('success', 'Removed', 'Item removed from cart.');
+        return;
+      }
+      return addToast('error', 'Invalid Qty', 'Enter quantity.');
+    }
+
     const unit = selectedUnit[itemId] || item.unit;
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id);
-      const entry = { ...item, qty: qtyInput[itemId], displayQty: qtyInput[itemId], cartUnit: unit };
+      const entry = { ...item, qty: qty, displayQty: qty, cartUnit: unit };
       return existing ? prev.map(i => i.id === item.id ? entry : i) : [...prev, entry];
     });
+    // addToast('success', isInCart ? 'Updated' : 'Added', `${item.item_name} ${isInCart ? 'updated' : 'added to cart'}.`);
   };
 
   const removeFromCart = (id) => {
@@ -382,7 +387,6 @@ function StockOrder() {
       const orderItems = cart.map(i => ({ stock_id: i.id, item_name: i.item_name, quantity: i.qty, unit: i.cartUnit, price: i.price }));
       const isScriptLoaded = await loadRazorpayScript();
       if (!isScriptLoaded) throw new Error("Gateway error.");
-
       const options = {
         key: RAZORPAY_KEY_ID,
         amount: Math.round(calculations.roundedBill * 100),
@@ -417,6 +421,17 @@ function StockOrder() {
       if (item.id === itemId) {
         const newQty = item.qty + delta;
         if (newQty <= 0) return null;
+
+        // Check availability
+        const stockItem = stocks.find(s => s.id === itemId);
+        if (stockItem) {
+          const factor = getConversionFactor(item.cartUnit);
+          const requestedBase = newQty * factor;
+          if (requestedBase > stockItem.quantity) {
+            addToast('error', 'Limit Reached', `Only ${stockItem.quantity} ${stockItem.unit} available.`, 1000, `limit-${itemId}`);
+            return item;
+          }
+        }
         return { ...item, qty: newQty, displayQty: newQty };
       }
       return item;
@@ -428,7 +443,17 @@ function StockOrder() {
       <ToastContainer toasts={toasts} removeToast={removeToast} />
 
       <div className="print-only hidden print:block">
-        {orderSuccess && printData && <FullPageInvoice data={printData} profile={profile} orderId={lastOrderId} companyDetails={companyDetails} itemsChunk={printData.items} pageIndex={0} totalPages={1} />}
+        {orderSuccess && printData && (
+          <FullPageInvoice
+            data={printData}
+            profile={profile}
+            orderId={lastOrderId}
+            companyDetails={companyDetails}
+            itemsChunk={printData.items}
+            pageIndex={0}
+            totalPages={1}
+          />
+        )}
       </div>
 
       <div className="min-h-[100dvh] bg-[#F3F4F6] pb-24 font-sans text-black relative print:hidden">
@@ -447,15 +472,19 @@ function StockOrder() {
           </div>
         )}
 
-        {/* Mobile Floating Cart Button */}
-        <button
-          onClick={() => setIsCartOpen(true)}
-          className="sm:hidden fixed bottom-6 right-6 z-[45] w-16 h-16 rounded-full shadow-2xl flex items-center justify-center text-white transition-transform active:scale-90"
-          style={{ backgroundColor: BRAND_COLOR }}
-        >
-          <FiShoppingCart size={24} />
-          {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-white text-black text-[10px] font-black h-6 w-6 rounded-full flex items-center justify-center shadow-md">{cart.length}</span>}
-        </button>
+        {/* Mobile Floating Cart Button - only shown when cart has items */}
+        {cart.length > 0 && (
+          <button
+            onClick={() => setIsCartOpen(true)}
+            className="sm:hidden fixed bottom-6 right-6 z-[45] w-14 h-14 rounded-full shadow-2xl flex items-center justify-center text-white transition-all active:scale-90 hover:scale-105"
+            style={{ backgroundColor: BRAND_COLOR }}
+          >
+            <FiShoppingCart size={24} />
+            <span className="absolute -top-1 -right-1 bg-white text-black text-xs font-black h-6 w-6 rounded-full flex items-center justify-center shadow-md border border-white">
+              {cart.length}
+            </span>
+          </button>
+        )}
 
         {/* Cart Drawer */}
         {isCartOpen && (
@@ -506,65 +535,95 @@ function StockOrder() {
           </>
         )}
 
-        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-all shadow-sm">
-          <nav className="max-w-7xl mx-auto px-4 py-3 flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-4">
-              <button onClick={() => navigate(-1)} className="flex items-center gap-2 font-black uppercase text-[11px] hover:text-slate-500 transition-colors shrink-0">
-                <FiArrowLeft size={18} /> <span className="hidden sm:inline">Back</span>
+        {/* Sticky Top Header (only Back, Title, Franchise ID, Cart) */}
+        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+          <nav className="max-w-7xl mx-auto px-4 py-2 sm:py-3 flex items-center justify-between relative">
+            <button onClick={() => navigate(-1)} className="flex items-center gap-2 font-black uppercase text-sm sm:text-base hover:text-slate-500 transition-colors shrink-0 z-30">
+              <FiArrowLeft size={20} /> <span className="hidden sm:inline">Back</span>
+            </button>
+
+            <h1 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-lg sm:text-3xl font-black text-black tracking-wider text-center w-full pointer-events-none z-10">
+              INVENTORY
+            </h1>
+
+            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-3 shrink-0 z-30">
+              <span className="text-[10px] sm:text-sm font-black uppercase bg-slate-100 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-slate-700 border border-slate-200 whitespace-nowrap">
+                ID: {profile?.franchise_id || '---'}
+              </span>
+              <button onClick={() => setIsCartOpen(true)} className="hidden sm:block relative p-1.5 sm:p-2.5 bg-white border border-slate-200 rounded-xl hover:border-black transition-all shadow-sm group">
+                <FiShoppingCart size={18} className="sm:w-5 sm:h-5 group-hover:scale-110 transition-transform" />
+                {cart.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 text-white text-[10px] font-black h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center rounded-full shadow-lg border-2 border-white" style={{ backgroundColor: BRAND_COLOR }}>
+                    {cart.length}
+                  </span>
+                )}
               </button>
-
-              <div className="flex-1 flex justify-center sm:justify-center">
-                <h1 className="text-[11px] font-black uppercase tracking-[0.15em] sm:tracking-[0.3em] text-slate-400">Inventory</h1>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[10px] font-black uppercase bg-slate-100 px-3 py-1.5 rounded-full text-slate-600 border border-slate-200 whitespace-nowrap">ID: {profile?.franchise_id || '---'}</span>
-                <button onClick={() => setIsCartOpen(true)} className="relative p-2.5 bg-white border border-slate-200 rounded-xl hover:border-black transition-all shadow-sm group">
-                  <FiShoppingCart size={18} className="group-hover:scale-110 transition-transform" />
-                  {cart.length > 0 && <span className="absolute -top-1.5 -right-1.5 text-white text-[9px] font-black h-5 w-5 flex items-center justify-center rounded-full shadow-lg border-2 border-white" style={{ backgroundColor: BRAND_COLOR }}>{cart.length}</span>}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="relative flex-1">
-                <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input placeholder="SEARCH ITEMS..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full h-11 sm:h-12 pl-12 pr-4 bg-slate-50 border border-slate-200 rounded-2xl text-[10px] sm:text-[11px] font-black uppercase outline-none focus:border-black focus:bg-white transition-all shadow-sm" />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setShowOnlyAvailable(!showOnlyAvailable)} className={`flex-1 sm:flex-none px-4 sm:px-5 h-11 sm:h-12 rounded-2xl border font-black text-[9px] sm:text-[10px] uppercase flex items-center justify-center gap-2 transition-all shadow-sm ${showOnlyAvailable ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"}`}>
-                  <FiFilter /> {showOnlyAvailable ? "Available" : "All"}
-                </button>
-                <button onClick={fetchData} className="w-11 sm:w-12 h-11 sm:h-12 rounded-2xl border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 shadow-sm transition-all"><FiRefreshCw size={18} /></button>
-                <div className="hidden lg:flex items-center gap-2 bg-slate-50 px-5 h-12 rounded-2xl border border-slate-200 text-[10px] font-black uppercase shadow-sm"><FiCalendar size={16} /> {today}</div>
-              </div>
-            </div>
-
-            <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 sticky top-0 bg-white/95">
-              {sortedCategories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`flex-shrink-0 px-5 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[9px] sm:text-[10px] font-black uppercase border-2 transition-all active:scale-95 ${selectedCategory === cat ? "text-white border-transparent shadow-lg" : "bg-white text-black border-slate-200 hover:border-black"}`}
-                  style={selectedCategory === cat ? { backgroundColor: BRAND_COLOR } : {}}
-                >
-                  {cat}
-                </button>
-              ))}
             </div>
           </nav>
         </header>
 
-        <main className="max-w-7xl mx-auto px-3 sm:px-4 mt-4 sm:mt-6">
+        {/* Scrollable Filters + Categories */}
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 pt-4">
+          <div className="flex flex-col gap-4">
+            {/* Search + Controls */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  placeholder="SEARCH ITEMS..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full h-11 sm:h-12 pl-12 pr-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-black uppercase outline-none focus:border-black focus:bg-white transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowOnlyAvailable(!showOnlyAvailable)}
+                  className={`flex-1 sm:flex-none px-4 sm:px-5 h-11 sm:h-12 rounded-2xl border font-black text-xs sm:text-sm uppercase flex items-center justify-center gap-2 transition-all shadow-sm ${showOnlyAvailable ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"}`}
+                >
+                  <FiFilter /> {showOnlyAvailable ? "Available" : "All"}
+                </button>
+                <button onClick={fetchData} className="w-11 sm:w-12 h-11 sm:h-12 rounded-2xl border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 shadow-sm transition-all">
+                  <FiRefreshCw size={20} />
+                </button>
+                <div className="hidden lg:flex items-center gap-2 bg-slate-50 px-5 h-12 rounded-2xl border border-slate-200 text-sm font-black uppercase shadow-sm">
+                  <FiCalendar size={16} /> {today}
+                </div>
+              </div>
+            </div>
+
+            {/* Categories - with visible scrollbar */}
+            <div className="overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+              <div className="flex gap-2 min-w-max py-1">
+                {sortedCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`flex-shrink-0 px-5 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-black uppercase border-2 transition-all active:scale-95 ${selectedCategory === cat ? "text-white border-transparent shadow-lg" : "bg-white text-black border-slate-200 hover:border-black"}`}
+                    style={selectedCategory === cat ? { backgroundColor: BRAND_COLOR } : {}}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto px-3 sm:px-4 mt-5 sm:mt-6 pb-20">
           {loadingStocks ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4"><StockSkeleton /><StockSkeleton /><StockSkeleton /><StockSkeleton /><StockSkeleton /></div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
+              <StockSkeleton /><StockSkeleton /><StockSkeleton /><StockSkeleton /><StockSkeleton />
+            </div>
           ) : filteredStocks.length === 0 ? (
             <div className="text-center py-24 sm:py-32 bg-white rounded-[2rem] sm:rounded-[3rem] border-2 border-dashed border-slate-200">
               <FiSearch size={48} className="mx-auto text-slate-200 mb-4" />
-              <p className="uppercase font-black text-[11px] text-slate-400 tracking-widest">No matching items found</p>
+              <p className="uppercase font-black text-sm text-slate-400 tracking-widest">No matching items found</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6 pb-20">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
               {filteredStocks.map((item) => {
                 const isOutOfStock = item.quantity <= 0;
                 const unit = selectedUnit[item.id] ?? item.unit ?? "pcs";
@@ -572,8 +631,10 @@ function StockOrder() {
                 const isNotified = notifiedItems.has(item.id);
 
                 return (
-                  <div key={item.id} className={`group bg-white rounded-2xl sm:rounded-3xl border-2 p-3 sm:p-5 transition-all duration-300 flex flex-col relative min-h-[240px] sm:min-h-[280px] hover:shadow-2xl hover:-translate-y-1 ${isInCart ? 'border-emerald-500 ring-4 ring-emerald-500/10' : 'border-slate-100'} ${isOutOfStock ? 'bg-slate-50/50' : ''}`}>
-
+                  <div
+                    key={item.id}
+                    className={`group bg-white rounded-2xl sm:rounded-3xl border-2 p-3 sm:p-5 transition-all duration-300 flex flex-col relative min-h-[240px] sm:min-h-[280px] hover:shadow-2xl hover:-translate-y-1 ${isInCart ? 'border-emerald-500 ring-4 ring-emerald-500/10' : 'border-slate-100'} ${isOutOfStock ? 'bg-slate-50/50' : ''}`}
+                  >
                     {isInCart && (
                       <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-3 py-1 text-[8px] font-black uppercase rounded-full shadow-lg flex items-center gap-1 z-10">
                         <FiCheck size={10} /> In Cart
@@ -581,7 +642,6 @@ function StockOrder() {
                     )}
 
                     <div className="flex justify-between items-start mb-2">
-                      {/* Item Code: Enhanced visibility with slate-500 */}
                       <span className="text-[9px] sm:text-[10px] font-black text-slate-500 tracking-tight">{item.item_code || '---'}</span>
                       {isCentral && (
                         <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md ${item.quantity > 5 ? 'bg-slate-100 text-slate-500' : 'bg-red-50 text-red-600'}`}>
@@ -590,7 +650,9 @@ function StockOrder() {
                       )}
                     </div>
 
-                    <h3 className="font-black text-[11px] sm:text-[13px] uppercase leading-tight sm:leading-snug mb-1 sm:mb-2 group-hover:text-emerald-900 transition-colors line-clamp-2 h-8 sm:h-10">{item.item_name}</h3>
+                    <h3 className="font-black text-[11px] sm:text-[13px] uppercase leading-tight sm:leading-snug mb-1 sm:mb-2 group-hover:text-emerald-900 transition-colors line-clamp-2 h-8 sm:h-10">
+                      {item.item_name}
+                    </h3>
 
                     <div className="mb-4 sm:mb-6">
                       <p className="text-base sm:text-lg font-black tracking-tighter">{formatCurrency(item.price)}</p>
@@ -602,15 +664,26 @@ function StockOrder() {
                         <>
                           <div className="flex gap-1.5">
                             <div className="flex-1 flex items-center border border-slate-100 rounded-xl sm:rounded-2xl bg-slate-50 overflow-hidden focus-within:border-black transition-all">
-                              <button onClick={() => handleQtyInputChange(item.id, null, item.quantity, true, -1)} className="px-2 sm:px-3 h-9 sm:h-10 hover:bg-slate-200"><FiMinus size={10} /></button>
-                              <input type="number" value={qtyInput[item.id] || ""} onChange={(e) => handleQtyInputChange(item.id, e.target.value, item.quantity)} className="w-full text-center font-black text-[11px] sm:text-[12px] bg-transparent outline-none p-0" placeholder="0" />
-                              <button onClick={() => handleQtyInputChange(item.id, null, item.quantity, true, 1)} className="px-2 sm:px-3 h-9 sm:h-10 hover:bg-slate-200"><FiPlus size={10} /></button>
+                              <button onClick={() => handleQtyInputChange(item.id, null, item.quantity, true, -1)} className="px-2 sm:px-3 h-10 sm:h-10 hover:bg-slate-200"><FiMinus size={12} /></button>
+                              <input
+                                type="number"
+                                value={qtyInput[item.id] || ""}
+                                onChange={(e) => handleQtyInputChange(item.id, e.target.value, item.quantity)}
+                                className="w-full text-center font-black text-xs sm:text-[12px] bg-transparent outline-none p-0"
+                                placeholder="0"
+                              />
+                              <button onClick={() => handleQtyInputChange(item.id, null, item.quantity, true, 1)} className="px-2 sm:px-3 h-10 sm:h-10 hover:bg-slate-200"><FiPlus size={12} /></button>
                             </div>
-                            <select value={unit} onChange={(e) => handleUnitChange(item.id, e.target.value)} className="w-12 sm:w-16 bg-white border border-slate-100 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase px-0.5 outline-none hover:border-slate-300 cursor-pointer">
+                            <select
+                              value={unit}
+                              onChange={(e) => handleUnitChange(item.id, e.target.value)}
+                              className="w-12 sm:w-16 bg-white border border-slate-100 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase px-0.5 outline-none hover:border-slate-300 cursor-pointer"
+                            >
                               <option value={item.unit}>{item.unit}</option>
                               {item.alt_unit && item.alt_unit !== item.unit && <option value={item.alt_unit}>{item.alt_unit}</option>}
                             </select>
                           </div>
+
                           <button
                             onClick={() => handleAddToCart(item.id)}
                             className="w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] text-white transition-all shadow-md active:scale-95"
@@ -620,7 +693,10 @@ function StockOrder() {
                           </button>
                         </>
                       ) : (
-                        <button onClick={() => !isNotified && handleNotifyMe(item)} className={`w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-all ${isNotified ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}>
+                        <button
+                          onClick={() => !isNotified && handleNotifyMe(item)}
+                          className={`w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-all ${isNotified ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                        >
                           {isNotified ? <FiCheck size={12} /> : <FiBell size={12} />}
                           {isNotified ? "Sent" : "Notify"}
                         </button>
@@ -641,10 +717,32 @@ function StockOrder() {
           .print-only { display: block !important; width: 100%; }
           @page { size: A4; margin: 0; }
         }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        input[type="number"]::-webkit-inner-spin-button, 
-        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+        /* Visible horizontal scrollbar for categories */
+        .scrollbar-thin {
+          scrollbar-width: thin;
+          scrollbar-color: #cbd5e1 #f1f5f9;
+        }
+        .scrollbar-thin::-webkit-scrollbar {
+          height: 6px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 10px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 10px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
       `}</style>
     </>
   );
