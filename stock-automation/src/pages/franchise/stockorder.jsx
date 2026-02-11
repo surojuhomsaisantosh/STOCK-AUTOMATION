@@ -394,9 +394,20 @@ function StockOrder() {
         name: companyDetails?.company_name || "Tvanamm",
         handler: async (response) => {
           const { data: result, error: rpcError } = await supabase.rpc('place_stock_order', {
-            p_created_by: user.id, p_customer_name: profile.name, p_customer_email: profile.email,
-            p_customer_phone: profile.phone, p_customer_address: profile.address, p_branch_location: profile.branch_location || "",
-            p_franchise_id: profile.franchise_id, p_payment_id: response.razorpay_payment_id, p_items: orderItems
+            p_created_by: user.id,
+            p_customer_name: profile.name,
+            p_customer_email: profile.email,
+            p_customer_phone: profile.phone,
+            p_customer_address: profile.address,
+            p_branch_location: profile.branch_location || "",
+            p_franchise_id: profile.franchise_id,
+            p_payment_id: response.razorpay_payment_id,
+            p_items: orderItems,
+            // --- UPDATED: Passing Financial Data ---
+            p_subtotal: calculations.subtotal,
+            p_tax_amount: calculations.totalGst,
+            p_round_off: calculations.roundOff,
+            p_total_amount: calculations.roundedBill
           });
           if (rpcError) throw rpcError;
           setLastOrderId(result.order_id);
