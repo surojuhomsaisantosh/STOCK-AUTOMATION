@@ -256,8 +256,8 @@ function StockOrder() {
 
   const removeToast = useCallback((id) => setToasts(prev => prev.filter(t => t.id !== id)), []);
 
-  const fetchData = useCallback(async () => {
-    setLoadingStocks(true);
+  const fetchData = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoadingStocks(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -277,6 +277,10 @@ function StockOrder() {
   }, [addToast]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    loadRazorpayScript();
+  }, []);
 
   const sortedCategories = useMemo(() => {
     const uniqueCats = [...new Set(stocks.map(s => s.category).filter(Boolean))].sort();
@@ -376,8 +380,9 @@ function StockOrder() {
     if (cart.length === 0) return;
     setProcessingOrder(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !profile) throw new Error("Authentication failed.");
+      if (!profile) throw new Error("Authentication failed.");
+      const user = { id: profile.id }; // Use existing profile ID
+
       const itemIds = cart.map(i => i.id);
       const { data: liveStocks } = await supabase.from('stocks').select('id, quantity').in('id', itemIds);
       for (const item of cart) {
@@ -393,17 +398,31 @@ function StockOrder() {
         currency: "INR",
         name: companyDetails?.company_name || "Tvanamm",
         handler: async (response) => {
-          const { data: result, error: rpcError } = await supabase.rpc('place_stock_order', {
-            p_created_by: user.id, p_customer_name: profile.name, p_customer_email: profile.email,
-            p_customer_phone: profile.phone, p_customer_address: profile.address, p_branch_location: profile.branch_location || "",
-            p_franchise_id: profile.franchise_id, p_payment_id: response.razorpay_payment_id, p_items: orderItems
-          });
-          if (rpcError) throw rpcError;
-          setLastOrderId(result.order_id);
-          setPrintData({ ...calculations, roundedBill: result.real_amount });
-          setOrderSuccess(true);
-          setProcessingOrder(false);
-          fetchData();
+          try {
+            const { data: result, error: rpcError } = await supabase.rpc('place_stock_order', {
+              p_created_by: user.id, p_customer_name: profile.name, p_customer_email: profile.email,
+              p_customer_phone: profile.phone, p_customer_address: profile.address, p_branch_location: profile.branch_location || "",
+              p_franchise_id: profile.franchise_id, p_payment_id: response.razorpay_payment_id,
+              p_items: orderItems.map(i => ({ ...i, price: Number(i.price), quantity: Number(i.quantity) }))
+            });
+
+            if (rpcError) throw rpcError;
+
+            setLastOrderId(result?.order_id || "ORD-" + Date.now());
+            setPrintData({ ...calculations, roundedBill: result?.real_amount || calculations.roundedBill });
+
+            // Clear Cart & Success
+            setCart([]);
+            setQtyInput({});
+            setIsCartOpen(false);
+            setOrderSuccess(true);
+            fetchData(true); // Silent refresh
+          } catch (error) {
+            console.error("Order Error:", error);
+            addToast('error', 'Order Failed', error.message || 'Payment successful but order saving failed.');
+          } finally {
+            setProcessingOrder(false);
+          }
         },
         prefill: { name: profile.name, email: profile.email, contact: profile.phone },
         theme: { color: BRAND_COLOR },
@@ -466,7 +485,7 @@ function StockOrder() {
               <p className="text-slate-500 font-bold text-xs mb-8">Your order #{lastOrderId} has been placed.</p>
               <div className="space-y-3">
                 <button onClick={() => window.print()} className="w-full py-4 bg-black text-white rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center justify-center gap-2"><FiDownload /> Print Invoice</button>
-                <button onClick={() => { setOrderSuccess(false); setCart([]); setQtyInput({}); setIsCartOpen(false); fetchData(); }} className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase text-[11px]">Continue Shopping</button>
+                <button onClick={() => setOrderSuccess(false)} className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase text-[11px]">Continue Shopping</button>
               </div>
             </div>
           </div>
