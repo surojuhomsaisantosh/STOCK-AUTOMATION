@@ -3,22 +3,26 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import {
   ArrowLeft, Calendar, ChevronRight, ChevronDown,
-  Hash, Clock, Store
+  Hash, Clock
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from "recharts";
 
+// --- CONSTANTS ---
 const PRIMARY = "#065f46";
 const COLORS = ["#065f46", "#0ea5e9", "#f59e0b", "#be185d", "#8b5cf6", "#10b981", "#f43f5e", "#6366f1", "#d946ef", "#047857"];
 
 function FranchiseAnalytics() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("store");
+  
+  // --- STATE ---
+  const [activeTab, setActiveTab] = useState("store"); 
   const [dateRangeMode, setDateRangeMode] = useState("single");
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
-  const [endDate, setEndDate] = useState(startDate);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
+  
   const [graphData, setGraphData] = useState([]);
   const [topItems, setTopItems] = useState([]);
   const [bills, setBills] = useState([]);
@@ -26,11 +30,16 @@ function FranchiseAnalytics() {
   const [loading, setLoading] = useState(false);
   const [franchiseId, setFranchiseId] = useState("...");
 
+  // --- EFFECTS ---
   useEffect(() => {
     fetchFranchiseProfile();
+  }, []);
+
+  useEffect(() => {
     fetchData();
   }, [activeTab, startDate, endDate, dateRangeMode]);
 
+  // --- DATA FETCHING ---
   const fetchFranchiseProfile = async () => {
     try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -38,7 +47,7 @@ function FranchiseAnalytics() {
             const { data } = await supabase.from("profiles").select("franchise_id").eq("id", user.id).single();
             if (data) setFranchiseId(data.franchise_id);
         }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Profile Fetch Error", e); }
   };
 
   const fetchData = async () => {
@@ -46,28 +55,38 @@ function FranchiseAnalytics() {
     try {
       const isStore = activeTab === "store";
       const table = isStore ? "bills_generated" : "invoices";
+      
+      // If activeTab is store, we don't need created_by link usually, 
+      // but if you have a relation there, keep it. 
+      // For invoices, we use the foreign key relation.
       let query = isStore 
         ? supabase.from(table).select("*")
         : supabase.from(table).select("*, profiles:created_by(franchise_id)");
 
-      query = query.order("created_at", { ascending: false });
+      // --- DATE LOGIC FIXED ---
       if (dateRangeMode === "single") {
-        query = query.gte("created_at", `${startDate}T00:00:00`).lte("created_at", `${startDate}T23:59:59`);
+        query = query
+          .gte("created_at", `${startDate}T00:00:00`)
+          .lte("created_at", `${startDate}T23:59:59`);
       } else {
-        query = query.gte("created_at", `${startDate}T00:00:00`).lte("created_at", `${endDate}T23:59:59`);
+        // Range Mode: Ensure we use start of StartDate and end of EndDate
+        // If user hasn't selected an end date yet, default to start date
+        const finalEndDate = endDate || startDate;
+        query = query
+          .gte("created_at", `${startDate}T00:00:00`)
+          .lte("created_at", `${finalEndDate}T23:59:59`);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await query.order("created_at", { ascending: false });
       if (error) throw error;
+      
       setBills(data || []);
+      processChartData(data || []);
+      
+      const ids = (data || []).map(d => d.id);
+      if(ids.length > 0) fetchTopItems(ids);
+      else setTopItems([]);
 
-      const map = {};
-      (data || []).forEach(r => {
-        const dateKey = new Date(r.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-        map[dateKey] = (map[dateKey] || 0) + Number(r.total ?? r.total_amount ?? 0);
-      });
-      setGraphData(Object.entries(map).map(([date, sales]) => ({ date, sales })).reverse());
-      fetchTopItems((data || []).map(d => d.id));
     } catch (err) {
       console.error("Fetch Error:", err.message);
     } finally {
@@ -75,164 +94,205 @@ function FranchiseAnalytics() {
     }
   };
 
+  const processChartData = (data) => {
+    const map = {};
+    data.forEach(r => {
+      // Handle both table column names for total amount
+      const amt = Number(r.total ?? r.total_amount ?? 0);
+      const dateKey = new Date(r.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+      map[dateKey] = (map[dateKey] || 0) + amt;
+    });
+    setGraphData(Object.entries(map).map(([date, sales]) => ({ date, sales })).reverse());
+  };
+
   const fetchTopItems = async (ids) => {
-    if (!ids.length) { setTopItems([]); return; }
     const table = activeTab === "store" ? "bills_items_generated" : "invoice_items";
     const key = activeTab === "store" ? "bill_id" : "invoice_id";
+    
     const { data } = await supabase.from(table).select("*").in(key, ids);
+    
     const agg = {};
     (data || []).forEach(i => {
       const q = Number(i.qty ?? i.quantity ?? 0);
-      agg[i.item_name] = (agg[i.item_name] || 0) + q;
+      const name = i.item_name || "Unknown Item";
+      agg[name] = (agg[name] || 0) + q;
     });
-    setTopItems(Object.entries(agg).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10));
+
+    setTopItems(Object.entries(agg)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5)); 
   };
 
   return (
     <div className="analytics-page">
+      
       {/* HEADER */}
       <nav className="nav-bar">
         {/* Left: Back Button */}
         <div className="nav-left">
           <button onClick={() => navigate(-1)} className="back-btn">
-            <ArrowLeft size={18} /> <span>Back</span>
+            <ArrowLeft size={18} /> <span className="back-text">Back</span>
           </button>
         </div>
 
-        {/* Center: Title (Absolutely Centered) */}
+        {/* Center: Title */}
         <div className="nav-center">
-          <h1 className="header-title">Analysis</h1>
+          <h1 className="header-title">Analytics</h1>
         </div>
 
-        {/* Right: ID Box */}
+        {/* Right: ID Box (FIXED: ID Label is INSIDE the box) */}
         <div className="nav-right">
-          <div className="id-container">
-            <span className="id-label">ID:</span>
-            <span className="id-box">{franchiseId}</span>
+          <div className="id-box-styled">
+            <span className="id-label-text">ID :</span>
+            <span className="id-value-text">{franchiseId}</span>
           </div>
         </div>
       </nav>
 
       <div className="main-container">
         
-        {/* TABS */}
-        <div className="tab-container">
-          <div className="toggle-bar">
+        {/* CONTROLS SECTION */}
+        <div className="controls-wrapper">
+          {/* Tabs */}
+          <div className="tab-group">
             <button onClick={() => setActiveTab("store")} className={`tab-btn ${activeTab === "store" ? "active" : ""}`}>Store Sales</button>
             <button onClick={() => setActiveTab("invoice")} className={`tab-btn ${activeTab === "invoice" ? "active" : ""}`}>Orders</button>
           </div>
-        </div>
 
-        {/* FILTERS */}
-        <div className="filter-row">
-          <div className="date-controls">
-            <div className="mini-toggle">
-              <button onClick={() => setDateRangeMode("single")} className={`mini-btn ${dateRangeMode === "single" ? "active" : ""}`}>Single</button>
-              <button onClick={() => setDateRangeMode("range")} className={`mini-btn ${dateRangeMode === "range" ? "active" : ""}`}>Range</button>
-            </div>
-            <div className="date-inputs">
-              <Calendar size={14} color="#6b7280" />
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="date-input" />
-              {dateRangeMode === "range" && (
-                <>
-                  <span className="date-separator">—</span>
-                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="date-input" />
-                </>
-              )}
-            </div>
+          {/* Date Picker */}
+          <div className="date-group">
+             <div className="range-toggle">
+                <button onClick={() => setDateRangeMode("single")} className={dateRangeMode === "single" ? "active" : ""}>Day</button>
+                <button onClick={() => setDateRangeMode("range")} className={dateRangeMode === "range" ? "active" : ""}>Range</button>
+             </div>
+             <div className="date-picker-box">
+                <Calendar size={14} className="cal-icon" />
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                {dateRangeMode === "range" && (
+                  <>
+                    <span className="sep">-</span>
+                    <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                  </>
+                )}
+             </div>
           </div>
         </div>
 
-        {/* CONTENT GRID */}
+        {/* DASHBOARD CONTENT */}
         {loading ? (
-          <div className="loader">Synchronizing Data...</div>
+          <div className="loader-container">
+            <div className="spinner"></div>
+            <p>Syncing Data...</p>
+          </div>
         ) : (
           <div className="dashboard-grid">
             
-            {/* Chart 1: Revenue */}
-            <div className="chart-card">
-              <h3 className="chart-title">Revenue Trend</h3>
-              <div style={{ height: "300px", width: "100%" }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={graphData}>
-                    <defs>
-                      <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={PRIMARY} stopOpacity={0.2}/>
-                        <stop offset="95%" stopColor={PRIMARY} stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                    <XAxis dataKey="date" fontSize={11} tickLine={false} axisLine={false} />
-                    <YAxis fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="sales" stroke={PRIMARY} strokeWidth={3} fill="url(#colorSales)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+            {/* 1. Revenue Chart */}
+            <div className="card chart-card revenue-area">
+              <div className="card-header">
+                <h3>Revenue Trend</h3>
+                <span className="badge">₹{graphData.reduce((a, b) => a + b.sales, 0).toLocaleString('en-IN')} Total</span>
+              </div>
+              <div className="chart-wrapper">
+                {graphData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={graphData}>
+                      <defs>
+                        <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={PRIMARY} stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor={PRIMARY} stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} tickMargin={10} />
+                      <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} width={40} />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                      <Area type="monotone" dataKey="sales" stroke={PRIMARY} strokeWidth={2} fill="url(#colorSales)" animationDuration={1000} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="no-data">No sales data for selected period</div>
+                )}
               </div>
             </div>
 
-            {/* Chart 2: Top Items */}
-            <div className="chart-card">
-              <h3 className="chart-title">Top 10 Items</h3>
-              <div style={{ height: "180px", width: "100%", marginBottom: '20px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={topItems} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={5}>
-                      {topItems.map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+            {/* 2. Top Items Pie Chart */}
+            <div className="card chart-card pie-area">
+              <div className="card-header">
+                <h3>Top Items</h3>
               </div>
-              <div className="top-items-list">
-                {topItems.map((item, index) => (
-                  <div key={index} className="top-item-row">
-                    <span className="rank-num" style={{ color: COLORS[index % COLORS.length] }}>{index + 1}</span>
-                    <span className="item-name">{item.name}</span>
-                    <span className="item-value">{item.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* List: Bills/Invoices */}
-            <div className="chart-card full-width">
-              <h3 className="chart-title">{activeTab === "store" ? "Generated Bills" : "Stock Invoices"}</h3>
-              <div className="list-container">
-                <div className="table-head">
-                  <span className="col-id">ID</span>
-                  <span className="col-time">Time</span>
-                  <span className="col-amt">Amt</span>
-                  <span style={{ width: 18 }} />
+              <div className="pie-content">
+                <div className="pie-wrapper">
+                  {topItems.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={topItems} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={5}>
+                          {topItems.map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="no-data small">No Items</div>
+                  )}
                 </div>
-                
+                <div className="legend-list">
+                  {topItems.map((item, index) => (
+                    <div key={index} className="legend-item">
+                      <div className="dot" style={{ background: COLORS[index % COLORS.length] }}></div>
+                      <span className="l-name">{item.name}</span>
+                      <span className="l-val">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Detailed List */}
+            <div className="card list-area">
+              <div className="card-header">
+                <h3>{activeTab === "store" ? "Transactions" : "Invoices"}</h3>
+                <span className="count-badge">{bills.length} Records</span>
+              </div>
+              
+              <div className="table-header-row">
+                 <span className="th-id">ID</span>
+                 <span className="th-date">Date & Time</span>
+                 <span className="th-amt">Amount</span>
+                 <span className="th-icon"></span>
+              </div>
+
+              <div className="list-scroll">
+                {bills.length === 0 && <div className="no-data">No records found.</div>}
                 {bills.map(bill => (
-                  <div key={bill.id} className="bill-row" onClick={() => setExpandedBill(expandedBill === bill.id ? null : bill.id)}>
-                    <div className="bill-main">
-                      <span className="col-id cell-id">
-                        <Hash size={12} color={PRIMARY} /> 
-                        {bill.profiles?.franchise_id || bill.franchise_id || "N/A"}
-                      </span>
-
-                      <div className="col-time cell-time">
-                        <span className="date-txt">
-                          {new Date(bill.created_at).toLocaleDateString("en-IN", { day: '2-digit', month: 'short' })}
-                        </span>
-                        <span className="time-txt">
-                          <Clock size={10} style={{marginRight: 4}} />
-                          {new Date(bill.created_at).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', hour12: true })}
+                  <div key={bill.id} className={`list-item ${expandedBill === bill.id ? 'expanded' : ''}`}>
+                    <div className="item-summary" onClick={() => setExpandedBill(expandedBill === bill.id ? null : bill.id)}>
+                      
+                      <div className="col id-col">
+                        <div className="icon-box"><Hash size={12} /></div>
+                        {/* Display Franchise ID from profile relation OR the invoice field directly if available */}
+                        <span className="id-text">
+                           {bill.profiles?.franchise_id || bill.franchise_id || "..."}
                         </span>
                       </div>
 
-                      <div className="col-amt cell-amt">
-                        <span className="amt-txt">₹{Number(bill.total ?? bill.total_amount ?? 0).toLocaleString('en-IN')}</span>
+                      <div className="col date-col">
+                        <span className="d-date">{new Date(bill.created_at).toLocaleDateString("en-IN", { day: '2-digit', month: 'short' })}</span>
+                        <span className="d-time"><Clock size={10}/> {new Date(bill.created_at).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
                       </div>
-                      {expandedBill === bill.id ? <ChevronDown size={18} color={PRIMARY} /> : <ChevronRight size={18} color="#d1d5db" />}
+
+                      <div className="col amt-col">
+                        ₹{Number(bill.total ?? bill.total_amount ?? 0).toLocaleString('en-IN')}
+                      </div>
+
+                      <div className="col arrow-col">
+                        {expandedBill === bill.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      </div>
                     </div>
 
                     {expandedBill === bill.id && (
-                      <div className="popup-inner">
-                        <div className="popup-header">Breakdown</div>
+                      <div className="item-details">
                         <BillItems billId={bill.id} type={activeTab} />
                       </div>
                     )}
@@ -246,230 +306,202 @@ function FranchiseAnalytics() {
       </div>
 
       <style>{`
-        /* --- GLOBAL & RESET --- */
-        .analytics-page {
-          background: #f8fafc;
-          min-height: 100vh;
-          font-family: 'Inter', sans-serif;
-          color: #1e293b;
+        :root {
+          --primary: ${PRIMARY};
+          --bg: #f8fafc;
+          --card-bg: #ffffff;
+          --text-main: #0f172a;
+          --text-sub: #64748b;
+          --border: #e2e8f0;
         }
 
-        /* --- NAVIGATION --- */
+        .analytics-page { background: var(--bg); min-height: 100vh; font-family: 'Inter', sans-serif; color: var(--text-main); padding-bottom: 40px; }
+
+        /* HEADER */
         .nav-bar {
-          padding: 0 16px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          background: #fff;
-          border-bottom: 1px solid #e2e8f0;
-          position: sticky;
-          top: 0;
-          z-index: 10;
-          height: 64px;
+          background: var(--card-bg); height: 60px; padding: 0 16px;
+          display: flex; align-items: center; justify-content: space-between;
+          position: sticky; top: 0; z-index: 50; border-bottom: 1px solid var(--border);
         }
+        .nav-left, .nav-right { flex: 1; display: flex; align-items: center; }
+        .nav-right { justify-content: flex-end; }
         
-        .nav-left { flex: 1; display: flex; justify-content: flex-start; }
-        .nav-right { flex: 1; display: flex; justify-content: flex-end; }
+        .nav-center { position: absolute; left: 50%; transform: translateX(-50%); text-align: center; }
+        .header-title { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
+
+        .back-btn { background: none; border: none; display: flex; align-items: center; gap: 4px; color: var(--text-sub); font-weight: 600; cursor: pointer; padding: 8px 0; }
+        .back-text { display: inline; font-size: 14px; } 
+
+        /* --- FIXED ID BOX STYLING --- */
+        .id-box-styled {
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 6px 12px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .id-label-text {
+            font-size: 11px;
+            font-weight: 800;
+            color: #64748b; /* slate-500 */
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .id-value-text {
+            font-size: 13px;
+            font-weight: 700;
+            color: #0f172a; /* slate-900 */
+        }
+
+        /* CONTROLS */
+        .main-container { max-width: 1200px; margin: 0 auto; padding: 16px; }
+        .controls-wrapper { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
         
-        /* Absolute Centering for Title */
-        .nav-center {
-          position: absolute;
-          left: 50%;
-          transform: translateX(-50%);
-          text-align: center;
-        }
+        .tab-group { background: #e2e8f0; padding: 4px; border-radius: 10px; display: flex; }
+        .tab-btn { flex: 1; border: none; background: none; padding: 8px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-sub); cursor: pointer; transition: 0.2s; }
+        .tab-btn.active { background: #fff; color: var(--primary); shadow: 0 2px 4px rgba(0,0,0,0.05); font-weight: 700; }
 
-        .back-btn {
-          border: none;
-          background: none;
-          cursor: pointer;
-          color: ${PRIMARY};
-          font-weight: 700;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 13px;
-          padding: 0;
-        }
+        .date-group { display: flex; gap: 10px; align-items: center; }
+        .range-toggle { display: flex; background: #e2e8f0; padding: 2px; border-radius: 8px; }
+        .range-toggle button { border: none; background: none; padding: 6px 12px; font-size: 11px; font-weight: 600; color: var(--text-sub); border-radius: 6px; cursor: pointer; }
+        .range-toggle button.active { background: #fff; color: var(--text-main); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
 
-        .header-title {
-          font-weight: 900;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          font-size: 16px;
-          margin: 0;
-          white-space: nowrap;
-        }
+        .date-picker-box { flex: 1; display: flex; align-items: center; background: #fff; border: 1px solid var(--border); padding: 0 10px; border-radius: 8px; height: 36px; }
+        .date-picker-box input { border: none; background: transparent; font-size: 12px; font-weight: 600; outline: none; width: 100%; color: var(--text-main); }
+        .cal-icon { margin-right: 8px; color: var(--text-sub); }
+        .sep { margin: 0 8px; font-weight: 700; color: var(--border); }
 
-        /* --- ID BOX STYLING --- */
-        .id-container {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .id-label {
-          font-size: 10px;
-          font-weight: 900;
-          color: #94a3b8;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          display: none; /* Hide label on very small screens if needed, usually fine to keep */
-        }
-        @media (min-width: 350px) { .id-label { display: block; } }
-
-        .id-box {
-          font-size: 11px;
-          font-weight: 800;
-          color: #000;
-          background: #fff;
-          border: 1px solid #e2e8f0;
-          padding: 4px 8px;
-          border-radius: 8px;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        }
-
-        /* --- CONTAINER --- */
-        .main-container {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: 20px;
-        }
-
-        /* --- TABS --- */
-        .tab-container { display: flex; justify-content: center; margin-bottom: 24px; }
-        .toggle-bar { background: #f1f5f9; padding: 4px; border-radius: 12px; display: flex; width: 100%; max-width: 400px; }
-        .tab-btn {
-          flex: 1;
-          padding: 10px;
-          border: none;
-          background: none;
-          cursor: pointer;
-          border-radius: 8px;
-          font-weight: 600;
-          color: #64748b;
-          font-size: 12px;
-          transition: 0.2s;
-        }
-        .tab-btn.active { background: #fff; color: ${PRIMARY}; box-shadow: 0 2px 8px rgba(0,0,0,0.05); font-weight: 800; }
-
-        /* --- FILTERS --- */
-        .filter-row { margin-bottom: 24px; }
-        .date-controls { display: flex; flex-direction: column; gap: 12px; }
-        .mini-toggle { display: flex; background: #f1f5f9; border-radius: 8px; padding: 2px; align-self: flex-start; }
-        .mini-btn { border: none; background: none; fontSize: 11px; fontWeight: 600; color: #64748b; padding: 6px 16px; cursor: pointer; }
-        .mini-btn.active { background: #fff; color: ${PRIMARY}; font-weight: 800; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        /* GRID LAYOUT - MOBILE FIRST */
+        .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
         
-        .date-inputs {
-          display: flex;
-          align-items: center;
-          background: #fff;
-          border: 1px solid #e2e8f0;
-          padding: 8px 12px;
-          border-radius: 10px;
-          width: 100%;
-          gap: 10px;
-        }
-        .date-input { border: none; outline: none; font-size: 12px; font-weight: 600; color: #1e293b; background: transparent; flex: 1; }
-        .date-separator { color: #d1d5db; font-weight: 700; }
+        .card { background: var(--card-bg); border-radius: 16px; border: 1px solid var(--border); overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .card-header { padding: 16px; border-bottom: 1px solid #f8fafc; display: flex; justify-content: space-between; align-items: center; }
+        .card-header h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--text-main); }
+        .badge { font-size: 12px; font-weight: 700; color: var(--primary); background: #ecfdf5; padding: 4px 8px; border-radius: 20px; }
+        .count-badge { font-size: 10px; font-weight: 600; color: var(--text-sub); background: #f1f5f9; padding: 3px 8px; border-radius: 4px; }
 
-        /* --- GRID LAYOUT --- */
-        .dashboard-grid {
-          display: grid;
-          gap: 20px;
-          grid-template-columns: 1fr; /* Default Mobile: 1 Column */
-        }
+        /* CHARTS */
+        .chart-wrapper { height: 250px; padding: 10px; }
+        .pie-content { display: flex; flex-direction: column; padding: 16px; }
+        .pie-wrapper { height: 180px; width: 100%; }
+        .legend-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        .legend-item { display: flex; align-items: center; font-size: 12px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+        .l-name { flex: 1; color: var(--text-sub); font-weight: 500; }
+        .l-val { font-weight: 700; color: var(--text-main); }
 
-        .chart-card {
-          background: #fff;
-          padding: 20px;
-          border-radius: 20px;
-          border: 1px solid #e2e8f0;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
-        }
-        .chart-title { font-weight: 800; margin-bottom: 16px; font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; }
+        /* LIST */
+        .list-area { display: flex; flex-direction: column; height: 100%; min-height: 400px; }
+        .table-header-row { display: flex; padding: 10px 16px; background: #f8fafc; border-bottom: 1px solid var(--border); }
+        .table-header-row span { font-size: 10px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; }
+        .th-id { width: 60px; }
+        .th-date { flex: 1; text-align: center; }
+        .th-amt { width: 80px; text-align: right; }
+        .th-icon { width: 24px; }
 
-        /* --- TOP ITEMS LIST --- */
-        .top-items-list { display: flex; flex-direction: column; gap: 10px; }
-        .top-item-row { display: flex; align-items: center; font-size: 12px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
-        .rank-num { width: 24px; font-weight: 900; }
-        .item-name { flex: 1; font-weight: 600; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .item-value { font-weight: 800; }
-
-        /* --- LIST TABLE --- */
-        .list-container { display: flex; flex-direction: column; gap: 10px; }
-        .table-head { display: flex; padding: 0 16px 8px 16px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; }
-        .bill-row { border: 1px solid #f1f5f9; border-radius: 12px; overflow: hidden; cursor: pointer; background: #fff; transition: 0.2s; }
-        .bill-main { padding: 14px 16px; display: flex; align-items: center; }
+        .list-scroll { overflow-y: auto; max-height: 600px; } /* Main list scroll */
+        .list-item { border-bottom: 1px solid var(--border); transition: background 0.2s; }
+        .list-item:active { background: #f8fafc; }
+        .item-summary { display: flex; padding: 14px 16px; align-items: center; cursor: pointer; }
         
-        .col-id { flex: 1.2; }
-        .col-time { flex: 1.5; text-align: center; }
-        .col-amt { flex: 1; text-align: right; padding-right: 10px; }
+        .id-col { width: 60px; display: flex; gap: 6px; align-items: center; }
+        .icon-box { display: none; } /* hidden on mobile */
+        .id-text { font-size: 12px; font-weight: 700; color: var(--text-main); }
+        
+        .date-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .d-date { font-size: 12px; font-weight: 600; color: var(--text-main); }
+        .d-time { font-size: 10px; color: var(--text-sub); display: flex; align-items: center; gap: 3px; }
 
-        .cell-id { font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; color: #334155; }
-        .cell-time { display: flex; flex-direction: column; gap: 2px; }
-        .date-txt { font-size: 11px; font-weight: 600; color: #1e293b; }
-        .time-txt { font-size: 10px; font-weight: 500; color: #94a3b8; display: flex; align-items: center; justify-content: center; }
-        .cell-amt .amt-txt { font-weight: 800; color: ${PRIMARY}; font-size: 14px; }
+        .amt-col { width: 80px; text-align: right; font-size: 13px; font-weight: 700; color: var(--primary); }
+        .arrow-col { width: 24px; display: flex; justify-content: flex-end; color: #cbd5e1; }
 
-        .popup-inner { padding: 16px; border-top: 1px solid #f1f5f9; background: #f8fafc; }
-        .popup-header { font-weight: 800; margin-bottom: 10px; color: #64748b; font-size: 10px; text-transform: uppercase; }
-        .items-table { display: flex; flex-direction: column; gap: 6px; }
-        .item-line-header { display: flex; padding: 0 8px 6px 8px; font-size: 10px; font-weight: 700; color: #cbd5e1; text-transform: uppercase; }
-        .item-line { display: flex; align-items: center; font-size: 11px; background: #fff; padding: 10px 12px; border-radius: 8px; border: 1px solid #f1f5f9; }
+        .item-details { background: #f8fafc; padding: 12px 16px; border-top: 1px solid var(--border); }
+        .no-data { text-align: center; padding: 20px; font-size: 12px; color: var(--text-sub); font-style: italic; }
 
-        .loader { text-align: center; padding: 100px 0; font-weight: 700; color: ${PRIMARY}; }
+        .loader-container { padding: 40px; text-align: center; color: var(--text-sub); font-weight: 500; font-size: 14px; }
+        .spinner { width: 24px; height: 24px; border: 3px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; margin: 0 auto 10px; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* --- MEDIA QUERIES --- */
+        /* --- TABLET & DESKTOP --- */
         @media (min-width: 768px) {
-          .nav-bar { padding: 0 40px; }
-          .date-controls { flex-direction: row; }
-          .date-inputs { width: auto; }
-          .dashboard-grid { grid-template-columns: 1fr 1fr; } /* Tablet 2 col */
-          .full-width { grid-column: span 2; }
+          .nav-bar { padding: 0 32px; height: 70px; }
+          .controls-wrapper { flex-direction: row; justify-content: space-between; align-items: center; }
+          .tab-group, .date-group { width: auto; }
+          .tab-btn { padding: 8px 24px; }
+          
+          .id-box-styled {
+             border: 2px solid #e2e8f0;
+             padding: 8px 16px;
+          }
+          .id-label-text { font-size: 11px; margin-right: 0; }
+          .id-value-text { font-size: 14px; }
+
+          /* Grid: 2 Columns */
+          .dashboard-grid { grid-template-columns: 2fr 1fr; grid-template-rows: auto auto; }
+          .revenue-area { grid-column: 1 / 2; }
+          .pie-area { grid-column: 2 / 3; }
+          .list-area { grid-column: 1 / -1; } /* Full width bottom */
+          
+          .icon-box { display: flex; align-items: center; justify-content: center; background: #e0f2fe; color: #0284c7; width: 24px; height: 24px; border-radius: 6px; }
+          .id-col { width: 120px; }
+          .date-col { flex-direction: row; gap: 10px; }
         }
 
         @media (min-width: 1024px) {
-          .dashboard-grid { grid-template-columns: 1.6fr 1fr; } /* Laptop Ratio */
-          .full-width { grid-column: span 2; }
-          .bill-main { padding: 14px 24px; }
-          .table-head { padding: 0 24px 12px 24px; }
+           .main-container { padding: 24px; }
+           .dashboard-grid { grid-template-columns: 3fr 1.5fr; gap: 24px; }
+           .chart-wrapper { height: 300px; }
+           .pie-wrapper { height: 200px; }
         }
       `}</style>
     </div>
   );
 }
 
-// Sub-component for bill items
+// --- FIXED Sub-component for bill items ---
 function BillItems({ billId, type }) {
   const [items, setItems] = useState([]);
+  
   useEffect(() => {
+    let mounted = true;
     const fetch = async () => {
       const table = type === "store" ? "bills_items_generated" : "invoice_items";
       const key = type === "store" ? "bill_id" : "invoice_id";
+      
+      // Select * so we get 'total' from the DB directly
       const { data } = await supabase.from(table).select("*").eq(key, billId);
-      setItems(data || []);
+      if(mounted) setItems(data || []);
     };
     fetch();
+    return () => { mounted = false; };
   }, [billId, type]);
 
   return (
-    <div className="items-table">
-       <div className="item-line-header">
-          <span style={{ flex: 2 }}>Item</span>
-          <span style={{ flex: 1, textAlign: 'center' }}>Qty</span>
-          <span style={{ flex: 1, textAlign: 'right' }}>Total</span>
+    // Added MAX-HEIGHT and OVERFLOW for scrollbar
+    <div style={{display:'flex', flexDirection:'column', gap:'8px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px'}}>
+       <div style={{display:'flex', fontSize:'10px', color:'#94a3b8', textTransform:'uppercase', fontWeight:700, paddingBottom:4, borderBottom:'1px solid #e2e8f0', position: 'sticky', top: 0, background: '#f8fafc'}}>
+          <span style={{flex:2}}>Item Name</span>
+          <span style={{flex:1, textAlign:'center'}}>Qty</span>
+          <span style={{flex:1, textAlign:'right'}}>Subtotal</span>
        </div>
-      {items.map((i, idx) => {
-        const qty = Number(i.qty ?? i.quantity ?? 0);
-        const price = Number(i.price ?? 0);
-        return (
-          <div key={idx} className="item-line">
-            <span style={{ fontWeight: 600, flex: 2, color: '#1e293b' }}>{i.item_name}</span>
-            <span style={{ flex: 1, textAlign: 'center', color: '#64748b' }}>{qty}</span>
-            <span style={{ fontWeight: 700, flex: 1, textAlign: 'right', color: '#0f172a' }}>₹{(qty * price).toLocaleString('en-IN')}</span>
+       {items.map((i, idx) => {
+         const qty = Number(i.qty ?? i.quantity ?? 0);
+         const price = Number(i.price ?? 0);
+         // FETCHED FROM DB: Use i.total if available (invoice_items), else calc fallback
+         const lineTotal = i.total ? Number(i.total) : (qty * price);
+
+         return (
+          <div key={idx} style={{display:'flex', fontSize:'12px', alignItems:'center', padding: '4px 0'}}>
+            <span style={{flex:2, fontWeight:600, color:'#334155'}}>{i.item_name}</span>
+            <span style={{flex:1, textAlign:'center', color:'#64748b'}}>{qty}</span>
+            <span style={{flex:1, textAlign:'right', fontWeight:700, color:'#0f172a'}}>₹{lineTotal.toLocaleString('en-IN')}</span>
           </div>
-        );
-      })}
+         )
+       })}
     </div>
   );
 }
