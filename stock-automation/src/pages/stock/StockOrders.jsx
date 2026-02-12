@@ -115,6 +115,7 @@ function StockOrders() {
       </nav>
 
       <div className="max-w-7xl mx-auto px-4 md:px-8 mt-6 space-y-6">
+        {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { label: "New Orders", val: stats.incoming, color: "text-blue-600" },
@@ -129,6 +130,7 @@ function StockOrders() {
           ))}
         </div>
 
+        {/* Filters Section */}
         <div className="bg-white border border-slate-200 p-4 rounded-[2rem] shadow-sm space-y-4">
           <div className="relative">
             <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -140,12 +142,16 @@ function StockOrders() {
             />
           </div>
 
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          {/* Corrected Tab Alignment */}
+          <div className="flex w-full bg-slate-100 p-1 rounded-2xl gap-1">
             {TABS.map((tab) => (
               <button
-                key={tab} onClick={() => setActiveTab(tab)}
-                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase whitespace-nowrap border transition-all
-${activeTab === tab ? 'bg-black text-white border-black' : 'bg-white text-slate-500 border-slate-100'}`}
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all duration-200 min-w-[65px]
+                  ${activeTab === tab
+                    ? 'bg-black text-white shadow-md'
+                    : 'text-slate-500 hover:text-black hover:bg-white/50'}`}
               >
                 {tab}
               </button>
@@ -160,16 +166,36 @@ ${activeTab === tab ? 'bg-black text-white border-black' : 'bg-white text-slate-
                 <option value="range">Range</option>
               </select>
               <div className="w-[1px] h-4 bg-slate-200 mx-1" />
-              <input
-                type="date" value={dateMode === 'date' ? singleDate : startDate}
-                onChange={(e) => dateMode === 'date' ? setSingleDate(e.target.value) : setStartDate(e.target.value)}
-                className="bg-transparent text-[11px] font-bold outline-none flex-1 text-black"
-              />
+              {dateMode === "date" ? (
+                <input
+                  type="date"
+                  value={singleDate}
+                  onChange={(e) => setSingleDate(e.target.value)}
+                  className="bg-transparent text-[11px] font-bold outline-none flex-1 text-black min-w-0"
+                />
+              ) : (
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="bg-transparent text-[11px] font-bold outline-none flex-1 text-black min-w-0"
+                  />
+                  <span className="text-slate-400 font-bold">-</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="bg-transparent text-[11px] font-bold outline-none flex-1 text-black min-w-0"
+                  />
+                </div>
+              )}
             </div>
             <button onClick={resetFilters} className="p-4 bg-slate-100 text-slate-500 rounded-2xl active:bg-black active:text-white transition-all flex justify-center"><FiRotateCcw /></button>
           </div>
         </div>
 
+        {/* Content Area */}
         {isMobile ? (
           <div className="grid grid-cols-1 gap-3 pb-20">
             {filteredOrders.length === 0 ? (
@@ -223,9 +249,10 @@ ${activeTab === tab ? 'bg-black text-white border-black' : 'bg-white text-slate-
         )}
       </div>
 
+      {/* Modal / Overlay */}
       {selectedOrder && (
         <div className="fixed inset-0 z-[100] flex flex-col justify-end md:items-center md:justify-center p-0 md:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-          <div className={`bg-white w-full max-w-4xl flex flex-col shadow-2xl overflow-hidden ${isMobile ? 'h-[94vh] rounded-t-[3rem]' : 'max-h-[85vh] rounded-[3rem] border-[6px] border-slate-100'}`}>
+          <div id="printable-area" className={`bg-white w-full max-w-4xl flex flex-col shadow-2xl overflow-hidden ${isMobile ? 'h-[94vh] rounded-t-[3rem]' : 'max-h-[85vh] rounded-[3rem] border-[6px] border-slate-100'}`}>
             <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
@@ -234,7 +261,7 @@ ${activeTab === tab ? 'bg-black text-white border-black' : 'bg-white text-slate-
                 </div>
                 <h2 className="text-2xl md:text-4xl font-black uppercase tracking-tight leading-none text-black">{selectedOrder.customer_name}</h2>
               </div>
-              <button onClick={() => setSelectedOrder(null)} className="p-4 bg-slate-100 rounded-2xl active:bg-black active:text-white transition-all text-black"><FiX size={24} /></button>
+              <button onClick={() => setSelectedOrder(null)} className="p-4 bg-slate-100 rounded-2xl active:bg-black active:text-white transition-all text-black no-print"><FiX size={24} /></button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 md:p-10 space-y-8 bg-[#F9FAFB]">
@@ -271,7 +298,7 @@ ${activeTab === tab ? 'bg-black text-white border-black' : 'bg-white text-slate-
               </div>
             </div>
 
-            <div className={`p-6 md:p-8 bg-white border-t border-slate-100 z-20 flex flex-col md:flex-row gap-3 shadow-[0_-20px_40px_rgba(0,0,0,0.03)] ${isMobile ? 'pb-10' : ''}`}>
+            <div className={`p-6 md:p-8 bg-white border-t border-slate-100 z-20 flex flex-col md:flex-row gap-3 shadow-[0_-20px_40px_rgba(0,0,0,0.03)] no-print ${isMobile ? 'pb-10' : ''}`}>
               <div className="flex-1 flex gap-2">
                 <button onClick={() => window.print()} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest active:bg-slate-200 transition-all">Print</button>
                 <button onClick={() => handleWhatsApp(selectedOrder)} className="flex-1 py-4 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-2xl font-black text-[10px] uppercase tracking-widest active:bg-emerald-100 transition-all flex items-center justify-center gap-2"><FaWhatsapp size={16} /> WhatsApp</button>
@@ -314,13 +341,24 @@ ${activeTab === tab ? 'bg-black text-white border-black' : 'bg-white text-slate-
       )}
 
       <style>{`
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-@media print {
-body { background: white; }
-.min-h-screen { display: none !important; }
-}
-`}</style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @media print {
+          body * { visibility: hidden; }
+          #printable-area, #printable-area * { visibility: visible; }
+          #printable-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: auto;
+            margin: 0;
+            padding: 0;
+            overflow: visible;
+          }
+          .no-print { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 }
