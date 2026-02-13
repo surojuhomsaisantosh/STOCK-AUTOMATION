@@ -332,3 +332,4 @@ const styles = {
 };
 
 export default StockManagerDashboard;
+
