@@ -70,7 +70,8 @@ const InvoicePage = ({ invoice, items, companyDetails, pageIndex, totalPages, se
     (allItemsForTaxCalc || []).forEach(item => {
         const qty = Number(item.quantity) || 0;
         const basePrice = Number(item.price) || 0;
-        const gstRate = Number(item.stocks?.gst_rate) || 0;
+        // FIX: Pulling from the snapshot, NOT the live stock table!
+        const gstRate = Number(item.gst_rate) || 0; 
         const rowTaxable = basePrice * qty;
         const rowTaxAmount = rowTaxable * (gstRate / 100);
         totalTaxableValue += rowTaxable;
@@ -155,7 +156,8 @@ const InvoicePage = ({ invoice, items, companyDetails, pageIndex, totalPages, se
                         </thead>
                         <tbody className="font-bold text-[10px]">
                             {items.map((item, idx) => {
-                                const gstRate = Number(item.stocks?.gst_rate) || 0;
+                                // FIX: Pulling from the snapshot!
+                                const gstRate = Number(item.gst_rate) || 0; 
                                 const basePrice = Number(item.price) || 0;
                                 const qty = Number(item.quantity) || 0;
                                 const taxAmount = (basePrice * qty) * (gstRate / 100);
@@ -336,7 +338,7 @@ function FranchiseInvoices() {
     setModalStats({ taxable: 0, tax: 0 });
 
     try {
-        const { data: itemsData } = await supabase.from("invoice_items").select(`*, stocks(hsn_code, gst_rate)`).eq("invoice_id", invoice.id);
+        const { data: itemsData } = await supabase.from("invoice_items").select(`*, stocks(hsn_code)`).eq("invoice_id", invoice.id);
         setInvoiceItems(itemsData || []);
 
         // Calculate Modal Stats
@@ -345,7 +347,8 @@ function FranchiseInvoices() {
         (itemsData || []).forEach(item => {
             const qty = Number(item.quantity) || 0;
             const basePrice = Number(item.price) || 0;
-            const gstRate = Number(item.stocks?.gst_rate) || 0;
+            // FIX: Pulling from the snapshot!
+            const gstRate = Number(item.gst_rate) || 0; 
             const rowTaxable = basePrice * qty;
             const rowTax = rowTaxable * (gstRate / 100);
             aggTaxable += rowTaxable;
@@ -512,7 +515,8 @@ function FranchiseInvoices() {
                     <div className="flex-1 overflow-y-auto custom-scrollbar px-6 pb-6">
                         <div className="space-y-3">
                             {invoiceItems.map((item, i) => {
-                                const gstRate = Number(item.stocks?.gst_rate) || 0;
+                                // FIX: Pulling from the snapshot!
+                                const gstRate = Number(item.gst_rate) || 0; 
                                 const basePrice = Number(item.price) || 0; 
                                 const quantity = Number(item.quantity) || 0;
                                 const totalTaxable = basePrice * quantity;

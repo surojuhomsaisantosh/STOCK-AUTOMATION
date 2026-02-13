@@ -338,27 +338,42 @@ function StockOrder() {
     setCart(prev => prev.filter(c => c.id !== itemId));
   };
 
+  const updateCartQty = (itemId, delta) => {
+    setCart(prev => prev.map(item => {
+      if (item.id === itemId) {
+        const newQty = item.qty + delta;
+        if (newQty <= 0) return null;
+
+        // Check availability
+        const stockItem = stocks.find(s => s.id === itemId);
+        if (stockItem) {
+          const factor = getConversionFactor(item.cartUnit);
+          const requestedBase = newQty * factor;
+          if (requestedBase > stockItem.quantity) {
+            addToast('error', 'Limit Reached', `Only ${stockItem.quantity} ${stockItem.unit} available.`, 1000, `limit-${itemId}`);
+            return item;
+          }
+        }
+        return { ...item, qty: newQty, displayQty: newQty };
+      }
+      return item;
+    }).filter(Boolean));
+  };
+
   const handleAddToCart = (itemId) => {
     const item = stocks.find(s => s.id === itemId);
-    const qty = qtyInput[itemId];
     const isInCart = cart.some(c => c.id === itemId);
 
-    if (!qty || qty <= 0) {
-      if (isInCart) {
-        removeFromCart(itemId);
-        addToast('success', 'Removed', 'Item removed from cart.');
-        return;
-      }
-      return addToast('error', 'Invalid Qty', 'Enter quantity.');
+    if (isInCart) {
+      updateCartQty(itemId, 1);
+    } else {
+      const unit = selectedUnit[itemId] || item.unit;
+      const inputQty = qtyInput[itemId];
+      const qtyToAdd = (inputQty && inputQty > 0) ? inputQty : 1;
+      
+      setCart(prev => [...prev, { ...item, qty: qtyToAdd, displayQty: qtyToAdd, cartUnit: unit }]);
+      setQtyInput(prev => ({...prev, [itemId]: qtyToAdd}));
     }
-
-    const unit = selectedUnit[itemId] || item.unit;
-    setCart(prev => {
-      const existing = prev.find(i => i.id === item.id);
-      const entry = { ...item, qty: qty, displayQty: qty, cartUnit: unit };
-      return existing ? prev.map(i => i.id === item.id ? entry : i) : [...prev, entry];
-    });
-    // addToast('success', isInCart ? 'Updated' : 'Added', `${item.item_name} ${isInCart ? 'updated' : 'added to cart'}.`);
   };
 
   const removeFromCart = (id) => {
@@ -390,7 +405,9 @@ function StockOrder() {
         const live = liveStocks.find(l => l.id === item.id);
         if (!live || live.quantity < (item.qty * getConversionFactor(item.cartUnit))) throw new Error(`${item.item_name} stock changed.`);
       }
-      const orderItems = cart.map(i => ({ stock_id: i.id, item_name: i.item_name, quantity: i.qty, unit: i.cartUnit, price: i.price }));
+      
+      const orderItems = cart.map(i => ({ stock_id: i.id, item_name: i.item_name, quantity: i.qty, unit: i.cartUnit, price: i.price, gst_rate: i.gst_rate }));
+      
       const isScriptLoaded = await loadRazorpayScript();
       if (!isScriptLoaded) throw new Error("Gateway error.");
       const options = {
@@ -399,16 +416,11 @@ function StockOrder() {
         currency: "INR",
         name: companyDetails?.company_name || "Tvanamm",
         handler: async (response) => {
-          // --- CAPTURE EXACT TIME FOR order_time_text ---
           const successTime = new Date();
           const formattedTime = successTime.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
           });
 
-          // --- RPC CALL TO SAVE IN invoices & invoice_items ---
           const { data: result, error: rpcError } = await supabase.rpc('place_stock_order', {
             p_created_by: user.id,
             p_customer_name: profile.name,
@@ -428,21 +440,11 @@ function StockOrder() {
 
           if (rpcError) throw rpcError;
 
-          // Use the UUID returned from the DB as the order ID
           setLastOrderId(result.order_id);
-
-          setPrintData({
-            ...calculations,
-            roundedBill: result.real_amount,
-            orderTime: formattedTime
-          });
-
+          setPrintData({ ...calculations, roundedBill: result.real_amount, orderTime: formattedTime });
           setOrderSuccess(true);
           setProcessingOrder(false);
-          // sessionStorage.removeItem("cachedStocks"); // If needed later
           fetchData();
-
-          // Clear Cart
           setCart([]);
           setQtyInput({});
           setIsCartOpen(false);
@@ -456,28 +458,6 @@ function StockOrder() {
       addToast('error', 'Order Error', error.message);
       setProcessingOrder(false);
     }
-  };
-
-  const updateCartQty = (itemId, delta) => {
-    setCart(prev => prev.map(item => {
-      if (item.id === itemId) {
-        const newQty = item.qty + delta;
-        if (newQty <= 0) return null;
-
-        // Check availability
-        const stockItem = stocks.find(s => s.id === itemId);
-        if (stockItem) {
-          const factor = getConversionFactor(item.cartUnit);
-          const requestedBase = newQty * factor;
-          if (requestedBase > stockItem.quantity) {
-            addToast('error', 'Limit Reached', `Only ${stockItem.quantity} ${stockItem.unit} available.`, 1000, `limit-${itemId}`);
-            return item;
-          }
-        }
-        return { ...item, qty: newQty, displayQty: newQty };
-      }
-      return item;
-    }).filter(Boolean));
   };
 
   return (
@@ -499,7 +479,6 @@ function StockOrder() {
       </div>
 
       <div className="min-h-[100dvh] bg-[#F3F4F6] pb-24 font-sans text-black relative print:hidden">
-        {/* Success Modal */}
         {orderSuccess && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
             <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95">
@@ -514,12 +493,11 @@ function StockOrder() {
           </div>
         )}
 
-        {/* Mobile Floating Cart Button - only shown when cart has items */}
+        {/* Mobile Floating Cart Button - changed to black and perfectly round */}
         {cart.length > 0 && (
           <button
             onClick={() => setIsCartOpen(true)}
-            className="sm:hidden fixed bottom-6 right-6 z-[45] w-14 h-14 rounded-full shadow-2xl flex items-center justify-center text-white transition-all active:scale-90 hover:scale-105"
-            style={{ backgroundColor: BRAND_COLOR }}
+            className="sm:hidden fixed bottom-6 right-6 z-[45] w-14 h-14 bg-black rounded-full shadow-2xl flex items-center justify-center text-white transition-all active:scale-90 hover:scale-105"
           >
             <FiShoppingCart size={24} />
             <span className="absolute -top-1 -right-1 bg-white text-black text-xs font-black h-6 w-6 rounded-full flex items-center justify-center shadow-md border border-white">
@@ -565,7 +543,9 @@ function StockOrder() {
                 <div className="p-6 border-t border-slate-100 bg-white shadow-inner">
                   <div className="space-y-2 mb-6 p-4 bg-slate-50 rounded-2xl text-[11px] font-black uppercase">
                     <div className="flex justify-between text-slate-400"><span>Subtotal</span><span>{formatCurrency(calculations.subtotal)}</span></div>
-                    <div className="flex justify-between text-lg pt-2 border-t border-slate-200"><span>Total Bill</span><span>{formatCurrency(calculations.roundedBill)}</span></div>
+                    <div className="flex justify-between text-slate-400"><span>Total GST</span><span>{formatCurrency(calculations.totalGst)}</span></div>
+                    <div className="flex justify-between text-lg pt-2 border-t border-slate-200 mt-2"><span>Total Bill</span><span>{formatCurrency(calculations.roundedBill)}</span></div>
+                    <p className="text-[9px] text-slate-400 normal-case mt-3 text-center italic">* GST breakdown will be clearly shown in the invoice when downloaded.</p>
                   </div>
                   <button onClick={handlePlaceOrder} disabled={processingOrder} className="w-full py-5 bg-black text-white rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all active:scale-95">
                     {processingOrder ? <FiRefreshCw className="animate-spin" /> : <FiCheck size={18} />}
@@ -577,11 +557,10 @@ function StockOrder() {
           </>
         )}
 
-        {/* Sticky Top Header (only Back, Title, Franchise ID, Cart) */}
         <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
           <nav className="max-w-7xl mx-auto px-4 py-2 sm:py-3 flex items-center justify-between relative">
             <button onClick={() => navigate(-1)} className="flex items-center gap-2 font-black uppercase text-sm sm:text-base hover:text-slate-500 transition-colors shrink-0 z-30">
-              <FiArrowLeft size={20} /> <span className="hidden sm:inline">Back</span>
+              <FiArrowLeft size={20} /> <span>Back</span>
             </button>
 
             <h1 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-lg sm:text-3xl font-black text-black tracking-wider text-center w-full pointer-events-none z-10">
@@ -589,13 +568,13 @@ function StockOrder() {
             </h1>
 
             <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-3 shrink-0 z-30">
-              <span className="text-[10px] sm:text-sm font-black uppercase bg-slate-100 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-slate-700 border border-slate-200 whitespace-nowrap">
+              <span className="text-[10px] sm:text-sm font-black uppercase bg-slate-100 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-slate-700 border border-slate-200 whitespace-nowrap">
                 ID: {profile?.franchise_id || '---'}
               </span>
-              <button onClick={() => setIsCartOpen(true)} className="hidden sm:block relative p-1.5 sm:p-2.5 bg-white border border-slate-200 rounded-xl hover:border-black transition-all shadow-sm group">
+              <button onClick={() => setIsCartOpen(true)} className="hidden sm:block relative p-2 sm:p-2.5 bg-white border border-slate-200 rounded-md hover:border-black transition-all shadow-sm group">
                 <FiShoppingCart size={18} className="sm:w-5 sm:h-5 group-hover:scale-110 transition-transform" />
                 {cart.length > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 text-white text-[10px] font-black h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center rounded-full shadow-lg border-2 border-white" style={{ backgroundColor: BRAND_COLOR }}>
+                  <span className="absolute -top-1.5 -right-1.5 text-white text-[10px] font-black h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center rounded-md shadow-lg border-2 border-white" style={{ backgroundColor: BRAND_COLOR }}>
                     {cart.length}
                   </span>
                 )}
@@ -604,10 +583,8 @@ function StockOrder() {
           </nav>
         </header>
 
-        {/* Scrollable Filters + Categories */}
         <div className="max-w-7xl mx-auto px-3 sm:px-4 pt-4">
           <div className="flex flex-col gap-4">
-            {/* Search + Controls */}
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
                 <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -635,7 +612,6 @@ function StockOrder() {
               </div>
             </div>
 
-            {/* Categories - with visible scrollbar */}
             <div className="overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
               <div className="flex gap-2 min-w-max py-1">
                 {sortedCategories.map((cat) => (
@@ -653,7 +629,6 @@ function StockOrder() {
           </div>
         </div>
 
-        {/* Main Content */}
         <main className="max-w-7xl mx-auto px-3 sm:px-4 mt-5 sm:mt-6 pb-20">
           {loadingStocks ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
@@ -704,40 +679,54 @@ function StockOrder() {
                     <div className="mt-auto space-y-2 sm:space-y-3">
                       {!isOutOfStock ? (
                         <>
-                          <div className="flex gap-1.5">
-                            <div className="flex-1 flex items-center border border-slate-100 rounded-xl sm:rounded-2xl bg-slate-50 overflow-hidden focus-within:border-black transition-all">
-                              <button onClick={() => handleQtyInputChange(item.id, null, item.quantity, true, -1)} className="px-2 sm:px-3 h-10 sm:h-10 hover:bg-slate-200"><FiMinus size={12} /></button>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex-1 flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden focus-within:border-black transition-all">
+                              <button onClick={() => isInCart ? updateCartQty(item.id, -1) : handleQtyInputChange(item.id, null, item.quantity, true, -1)} className="px-3 sm:px-4 h-10 hover:bg-slate-200 text-slate-700 font-bold"><FiMinus size={14} /></button>
                               <input
                                 type="number"
-                                value={qtyInput[item.id] || ""}
-                                onChange={(e) => handleQtyInputChange(item.id, e.target.value, item.quantity)}
-                                className="w-full text-center font-black text-xs sm:text-[12px] bg-transparent outline-none p-0"
+                                value={isInCart ? cart.find(c=>c.id === item.id).qty : (qtyInput[item.id] || "")}
+                                onChange={(e) => {
+                                    handleQtyInputChange(item.id, e.target.value, item.quantity);
+                                    if (isInCart) {
+                                        const val = e.target.value;
+                                        const numVal = val === "" ? 0 : Math.max(0, Number(val));
+                                        if (numVal === 0) removeFromCart(item.id);
+                                        else setCart(prev => prev.map(c => c.id === item.id ? { ...c, qty: numVal, displayQty: numVal } : c));
+                                    }
+                                }}
+                                className="w-full text-center font-black text-xs sm:text-[13px] bg-transparent outline-none p-0"
                                 placeholder="0"
                               />
-                              <button onClick={() => handleQtyInputChange(item.id, null, item.quantity, true, 1)} className="px-2 sm:px-3 h-10 sm:h-10 hover:bg-slate-200"><FiPlus size={12} /></button>
+                              <button onClick={() => isInCart ? updateCartQty(item.id, 1) : handleQtyInputChange(item.id, null, item.quantity, true, 1)} className="px-3 sm:px-4 h-10 hover:bg-slate-200 text-slate-700 font-bold"><FiPlus size={14} /></button>
                             </div>
-                            <select
-                              value={unit}
-                              onChange={(e) => handleUnitChange(item.id, e.target.value)}
-                              className="w-12 sm:w-16 bg-white border border-slate-100 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase px-0.5 outline-none hover:border-slate-300 cursor-pointer"
-                            >
-                              <option value={item.unit}>{item.unit}</option>
-                              {item.alt_unit && item.alt_unit !== item.unit && <option value={item.alt_unit}>{item.alt_unit}</option>}
-                            </select>
+                            
+                            <div className="relative w-full">
+                              <select
+                                value={unit}
+                                onChange={(e) => handleUnitChange(item.id, e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase py-2 pl-3 pr-8 text-left outline-none hover:border-slate-400 cursor-pointer appearance-none"
+                              >
+                                <option value={item.unit}>{item.unit}</option>
+                                {item.alt_unit && item.alt_unit !== item.unit && <option value={item.alt_unit}>{item.alt_unit}</option>}
+                              </select>
+                              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                                <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                              </div>
+                            </div>
                           </div>
 
                           <button
                             onClick={() => handleAddToCart(item.id)}
-                            className="w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] text-white transition-all shadow-md active:scale-95"
+                            className="w-full py-3.5 sm:py-4 rounded-lg text-[10px] font-black uppercase tracking-[0.1em] text-white transition-all shadow-md active:scale-95 mt-1"
                             style={{ backgroundColor: BRAND_COLOR }}
                           >
-                            {isInCart ? "Update" : "Add"}
+                            {isInCart ? "Add (+1)" : "Add"}
                           </button>
                         </>
                       ) : (
                         <button
                           onClick={() => !isNotified && handleNotifyMe(item)}
-                          className={`w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-all ${isNotified ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                          className={`w-full py-3.5 sm:py-4 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-all ${isNotified ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}
                         >
                           {isNotified ? <FiCheck size={12} /> : <FiBell size={12} />}
                           {isNotified ? "Sent" : "Notify"}
