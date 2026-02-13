@@ -173,8 +173,13 @@ function StockOrders() {
             body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; background: white; }
             body * { visibility: hidden; }
             .print-invoice-container, .print-invoice-container * { visibility: visible; }
+            
+            /* FIXED: Force A4 width regardless of device */
             .print-invoice-container {
-                position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+                position: absolute; left: 0; top: 0; 
+                width: 210mm !important; 
+                min-width: 210mm !important;
+                height: 100%;
                 margin: 0; padding: 0; display: block !important; background: white;
             }
             nav, .dashboard-content, .modal-ui-controls { display: none !important; }
@@ -490,7 +495,8 @@ function StockOrders() {
                 const sgstDisplay = dbTaxAmount / 2;
 
                 return (
-                    <div className="bg-white text-black font-sans text-xs w-full max-w-[210mm] relative flex flex-col min-h-[296mm] h-[296mm] shadow-none p-6 overflow-hidden mx-auto">
+                    // FIXED: Replaced w-full with w-[210mm] min-w-[210mm] to force A4 width on mobile
+                    <div className="bg-white text-black font-sans text-xs w-[210mm] min-w-[210mm] max-w-[210mm] relative flex flex-col min-h-[296mm] h-[296mm] shadow-none p-6 overflow-hidden mx-auto">
                         <div className="border-2 border-black h-full flex flex-col relative">
                             {/* HEADER */}
                             <div className="text-center py-2 bg-white">
