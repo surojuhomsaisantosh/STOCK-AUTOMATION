@@ -14,43 +14,64 @@ import {
 const PRIMARY = "#065f46"; // Deep Emerald
 const BORDER = "#e5e7eb"; // Neutral Gray 200
 
+// --- UTILITY: Safe Session Storage Access ---
+// Prevents crashes if storage is disabled (e.g., incognito mode)
+const getSessionItem = (key, defaultValue) => {
+  try {
+    const item = sessionStorage.getItem(key);
+    return item ? item : defaultValue;
+  } catch (error) {
+    console.warn(`Error reading ${key} from sessionStorage:`, error);
+    return defaultValue;
+  }
+};
+
+const setSessionItem = (key, value) => {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch (error) {
+    console.warn(`Error writing ${key} to sessionStorage:`, error);
+  }
+};
+
 function StockManagerDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // OPTIMIZATION: Read from session storage immediately to prevent "N/A" flicker
-  const [franchiseId, setFranchiseId] = useState(() => {
-    try {
-      return sessionStorage.getItem("franchise_id") || "N/A";
-    } catch (e) {
-      return "N/A";
-    }
-  });
+  // 1. OPTIMIZATION: Initialize state from session storage to prevent "N/A" flicker
+  const [franchiseId, setFranchiseId] = useState(() => 
+    getSessionItem("franchise_id", "N/A")
+  );
 
   const [screenSize, setScreenSize] = useState('desktop');
 
-  // Sync Franchise ID when user data loads
+  // 2. DATA SYNC: Update state and session storage when user data is available
   useEffect(() => {
     if (user?.franchise_id) {
       setFranchiseId(user.franchise_id);
-      sessionStorage.setItem("franchise_id", user.franchise_id);
+      setSessionItem("franchise_id", user.franchise_id);
     }
   }, [user]);
 
-  // Debounced Resize Listener
+  // 3. PERFORMANCE: Debounced Resize Listener
   useEffect(() => {
     let timeoutId;
-    const handleResize = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        const width = window.innerWidth;
-        if (width < 768) setScreenSize('mobile');
-        else if (width >= 768 && width < 1280) setScreenSize('tablet');
-        else setScreenSize('desktop');
-      }, 100);
+    
+    // Initial check
+    const checkSize = () => {
+      const width = window.innerWidth;
+      if (width < 768) setScreenSize('mobile');
+      else if (width >= 768 && width < 1280) setScreenSize('tablet');
+      else setScreenSize('desktop');
     };
 
-    handleResize();
+    checkSize(); // Run immediately
+
+    const handleResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(checkSize, 150); // 150ms debounce
+    };
+
     window.addEventListener('resize', handleResize);
     return () => {
       window.removeEventListener('resize', handleResize);
@@ -74,29 +95,24 @@ function StockManagerDashboard() {
     year: 'numeric'
   });
 
-  // --- DYNAMIC STYLES ---
-  const getGridTemplate = () => {
-    if (screenSize === 'mobile') return "1fr";
-    if (screenSize === 'tablet') return "repeat(2, 1fr)";
-    return "repeat(3, 1fr)";
+  // --- DYNAMIC STYLES HELPER ---
+  const getGridStyles = () => {
+    if (screenSize === 'mobile') {
+      return { template: "1fr", rowHeight: "100px", padding: "40px 20px" };
+    }
+    if (screenSize === 'tablet') {
+      return { template: "repeat(2, 1fr)", rowHeight: "minmax(180px, 1fr)", padding: "60px 40px" };
+    }
+    return { template: "repeat(3, 1fr)", rowHeight: "minmax(180px, 1fr)", padding: "80px 50px" };
   };
 
-  const getContainerPadding = () => {
-    if (screenSize === 'mobile') return "40px 20px";
-    if (screenSize === 'tablet') return "60px 40px";
-    return "80px 50px";
-  };
-
-  const getGridRowHeight = () => {
-     if (screenSize === 'mobile') return '100px';
-     return 'minmax(180px, 1fr)';
-  };
+  const currentLayout = getGridStyles();
 
   return (
     <div style={styles.page}>
-      <div style={{ ...styles.container, padding: getContainerPadding() }}>
+      <div style={{ ...styles.container, padding: currentLayout.padding }}>
 
-        {/* HEADER: Forced Row Layout to keep ID Top-Right */}
+        {/* HEADER */}
         <header style={styles.header}>
           
           {/* LEFT SIDE */}
@@ -124,15 +140,16 @@ function StockManagerDashboard() {
             </div>
           </div>
 
-          {/* RIGHT SIDE: Franchise ID */}
+          {/* RIGHT SIDE: Franchise ID (Rectangular Box) */}
           <div style={styles.headerRight}>
-             <span style={{
-               ...styles.franchiseText,
-               fontSize: screenSize === 'mobile' ? '12px' : '14px',
-               padding: screenSize === 'mobile' ? '6px 10px' : '8px 16px'
+             <div style={{
+               ...styles.franchiseBox,
+               padding: screenSize === 'mobile' ? '8px 12px' : '10px 20px',
+               fontSize: screenSize === 'mobile' ? '12px' : '14px'
              }}>
-                ID : {franchiseId}
-             </span>
+                <span style={{ color: "#6b7280", fontWeight: "600", marginRight: "6px" }}>ID :</span>
+                <span style={{ color: "#111827", fontWeight: "800" }}>{franchiseId}</span>
+             </div>
           </div>
 
         </header>
@@ -140,8 +157,8 @@ function StockManagerDashboard() {
         {/* NAVIGATION GRID */}
         <div style={{
           ...styles.grid,
-          gridTemplateColumns: getGridTemplate(),
-          gridAutoRows: getGridRowHeight(),
+          gridTemplateColumns: currentLayout.template,
+          gridAutoRows: currentLayout.rowHeight,
           height: screenSize === 'mobile' ? 'auto' : '58vh'
         }}>
           {navItems.map((item, idx) => (
@@ -149,9 +166,11 @@ function StockManagerDashboard() {
               key={idx}
               role="button"
               tabIndex={item.disabled ? -1 : 0}
+              aria-disabled={item.disabled}
               onClick={item.disabled ? null : () => navigate(item.path)}
               onKeyDown={(e) => {
                 if (!item.disabled && (e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault();
                   navigate(item.path);
                 }
               }}
@@ -201,7 +220,7 @@ function StockManagerDashboard() {
   );
 }
 
-// --- STYLES OBJECT ---
+// --- STATIC STYLES OBJECT ---
 const styles = {
   page: {
     background: "#ffffff",
@@ -225,7 +244,7 @@ const styles = {
   },
   header: {
     display: "flex",
-    flexDirection: "row", // Enforces Side-by-Side layout on ALL screens
+    flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     width: "100%",
@@ -238,7 +257,7 @@ const styles = {
   },
   headerRight: {
     paddingTop: "5px",
-    flexShrink: 0 // Prevents ID from shrinking/wrapping
+    flexShrink: 0
   },
   greeting: {
     fontWeight: "700",
@@ -251,14 +270,14 @@ const styles = {
     margin: "4px 0 0 0",
     fontWeight: "500"
   },
-  franchiseText: {
-    fontWeight: "700",
-    color: "#111827",
+  franchiseBox: {
     background: "#f9fafb",
     border: `1px solid ${BORDER}`,
-    borderRadius: "30px",
+    borderRadius: "12px", // Fixed Rectangular Shape
     whiteSpace: "nowrap",
-    letterSpacing: "0.5px"
+    letterSpacing: "0.5px",
+    display: "flex",
+    alignItems: "center"
   },
   title: {
     fontWeight: "900",
