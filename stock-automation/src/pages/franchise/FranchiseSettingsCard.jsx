@@ -137,7 +137,7 @@ function FranchiseSettingsCard() {
       <nav className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 md:px-8 h-16 shadow-sm">
         <div className="max-w-[1400px] mx-auto h-full grid grid-cols-[auto_1fr_auto] items-center">
             
-            {/* Left: Back Button (Text Visible on All Devices) */}
+            {/* Left: Back Button */}
             <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 font-black uppercase text-xs tracking-widest hover:text-slate-900 transition-colors">
                 <ArrowLeft size={20} /> <span>Back</span>
             </button>
@@ -149,11 +149,9 @@ function FranchiseSettingsCard() {
             
             {/* Right: ID Box */}
             <div className="flex justify-end">
-                <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">ID:</span>
-                    <span className="text-[10px] sm:text-xs font-black text-black bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
-                        {franchiseId}
-                    </span>
+                <div className="bg-white border border-slate-200 shadow-sm rounded-lg px-3 py-1.5 md:px-4 md:py-2 flex items-center gap-2">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID:</span>
+                    <span className="font-mono text-xs md:text-sm font-bold text-slate-900">{franchiseId}</span>
                 </div>
             </div>
         </div>
@@ -188,7 +186,7 @@ function FranchiseSettingsCard() {
             <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-widest">Update Items & Prices</p>
           </button>
 
-          {/* 3. SECURITY CARD (Fixed Appearance) */}
+          {/* 3. SECURITY CARD */}
           <button 
             onClick={openSecurity}
             className="bg-white rounded-[2rem] border border-slate-200 p-8 shadow-sm flex flex-col justify-center items-center text-center transition-all hover:border-black/20 hover:shadow-md active:scale-95 group min-h-[200px]"
@@ -235,9 +233,10 @@ function FranchiseSettingsCard() {
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1"><Hash size={10}/> ID</label>
                       <p className="font-mono text-sm font-black text-slate-900">{profileData.franchise_id || "N/A"}</p>
                     </div>
+                    {/* Updated Location Box: No Truncate, Break Words */}
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1"><MapPin size={10}/> Loc</label>
-                      <p className="text-xs font-black text-slate-900 uppercase truncate">{profileData.address || "No Address"}</p>
+                      <p className="text-xs font-black text-slate-900 uppercase break-words leading-snug">{profileData.address || "No Address"}</p>
                     </div>
                   </div>
                   <div className="space-y-4">
