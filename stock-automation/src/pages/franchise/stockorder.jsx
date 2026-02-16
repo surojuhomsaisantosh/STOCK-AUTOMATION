@@ -370,9 +370,8 @@ function StockOrder() {
       const unit = selectedUnit[itemId] || item.unit;
       const inputQty = qtyInput[itemId];
       const qtyToAdd = (inputQty && inputQty > 0) ? inputQty : 1;
-      
       setCart(prev => [...prev, { ...item, qty: qtyToAdd, displayQty: qtyToAdd, cartUnit: unit }]);
-      setQtyInput(prev => ({...prev, [itemId]: qtyToAdd}));
+      setQtyInput(prev => ({ ...prev, [itemId]: qtyToAdd }));
     }
   };
 
@@ -405,9 +404,9 @@ function StockOrder() {
         const live = liveStocks.find(l => l.id === item.id);
         if (!live || live.quantity < (item.qty * getConversionFactor(item.cartUnit))) throw new Error(`${item.item_name} stock changed.`);
       }
-      
+
       const orderItems = cart.map(i => ({ stock_id: i.id, item_name: i.item_name, quantity: i.qty, unit: i.cartUnit, price: i.price, gst_rate: i.gst_rate }));
-      
+
       const isScriptLoaded = await loadRazorpayScript();
       if (!isScriptLoaded) throw new Error("Gateway error.");
       const options = {
@@ -684,22 +683,22 @@ function StockOrder() {
                               <button onClick={() => isInCart ? updateCartQty(item.id, -1) : handleQtyInputChange(item.id, null, item.quantity, true, -1)} className="px-3 sm:px-4 h-10 hover:bg-slate-200 text-slate-700 font-bold"><FiMinus size={14} /></button>
                               <input
                                 type="number"
-                                value={isInCart ? cart.find(c=>c.id === item.id).qty : (qtyInput[item.id] || "")}
+                                value={isInCart ? cart.find(c => c.id === item.id).qty : (qtyInput[item.id] || "")}
                                 onChange={(e) => {
-                                    handleQtyInputChange(item.id, e.target.value, item.quantity);
-                                    if (isInCart) {
-                                        const val = e.target.value;
-                                        const numVal = val === "" ? 0 : Math.max(0, Number(val));
-                                        if (numVal === 0) removeFromCart(item.id);
-                                        else setCart(prev => prev.map(c => c.id === item.id ? { ...c, qty: numVal, displayQty: numVal } : c));
-                                    }
+                                  handleQtyInputChange(item.id, e.target.value, item.quantity);
+                                  if (isInCart) {
+                                    const val = e.target.value;
+                                    const numVal = val === "" ? 0 : Math.max(0, Number(val));
+                                    if (numVal === 0) removeFromCart(item.id);
+                                    else setCart(prev => prev.map(c => c.id === item.id ? { ...c, qty: numVal, displayQty: numVal } : c));
+                                  }
                                 }}
                                 className="w-full text-center font-black text-xs sm:text-[13px] bg-transparent outline-none p-0"
                                 placeholder="0"
                               />
                               <button onClick={() => isInCart ? updateCartQty(item.id, 1) : handleQtyInputChange(item.id, null, item.quantity, true, 1)} className="px-3 sm:px-4 h-10 hover:bg-slate-200 text-slate-700 font-bold"><FiPlus size={14} /></button>
                             </div>
-                            
+
                             <div className="relative w-full">
                               <select
                                 value={unit}
@@ -710,11 +709,10 @@ function StockOrder() {
                                 {item.alt_unit && item.alt_unit !== item.unit && <option value={item.alt_unit}>{item.alt_unit}</option>}
                               </select>
                               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
-                                <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
                               </div>
                             </div>
                           </div>
-
                           <button
                             onClick={() => handleAddToCart(item.id)}
                             className="w-full py-3.5 sm:py-4 rounded-lg text-[10px] font-black uppercase tracking-[0.1em] text-white transition-all shadow-md active:scale-95 mt-1"
@@ -731,15 +729,17 @@ function StockOrder() {
                           {isNotified ? <FiCheck size={12} /> : <FiBell size={12} />}
                           {isNotified ? "Sent" : "Notify"}
                         </button>
-                      )}
-                    </div>
-                  </div>
+                      )
+                      }
+                    </div >
+                  </div >
                 );
               })}
-            </div>
-          )}
-        </main>
-      </div>
+            </div >
+          )
+          }
+        </main >
+      </div >
 
       <style>{`
        @media print {
