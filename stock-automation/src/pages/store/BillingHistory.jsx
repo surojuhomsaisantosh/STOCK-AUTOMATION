@@ -142,6 +142,28 @@ function BillingHistory() {
   const { connectPrinter, disconnectPrinter, printReceipt, isConnected, isConnecting } = useBluetoothPrinter();
 
   const [history, setHistory] = useState([]);
+  // ... state ...
+
+  // Inject Custom Styles for Animations
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes fadeInScale {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      @keyframes slideUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .anim-card { animation: slideUp 0.3s ease-out forwards; opacity: 0; }
+      .anim-modal { animation: fadeInScale 0.2s ease-out forwards; }
+      .anim-row:hover { background-color: #f1f5f9 !important; transform: scale-[1.01]; transition: all 0.2s; }
+      .touch-active:active { transform: scale(0.96); opacity: 0.8; }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
   const [storeProfile, setStoreProfile] = useState(null);
   const [staffName, setStaffName] = useState("Owner"); // Default to Owner
   const [selectedBill, setSelectedBill] = useState(null);
@@ -398,8 +420,8 @@ function BillingHistory() {
         <div style={{ ...styles.tableWrapper, background: isMobile ? 'transparent' : '#fff' }}>
           {isMobile ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '0 15px 15px 15px' }}>
-              {sortedHistory.map((bill) => (
-                <div key={bill.id} style={styles.mobileCard} onClick={() => setSelectedBill(bill)}>
+              {sortedHistory.map((bill, index) => (
+                <div key={bill.id} className="anim-card touch-active" style={{ ...styles.mobileCard, animationDelay: `${index * 0.05}s` }} onClick={() => setSelectedBill(bill)}>
                   <div style={styles.mobileCardHeader}>
                     <div style={{ flex: 1 }}>
                       <div style={styles.idHash}>#{bill.id.toString().slice(-6).toUpperCase()}</div>
@@ -446,8 +468,8 @@ function BillingHistory() {
                 </tr>
               </thead>
               <tbody>
-                {sortedHistory.map((bill) => (
-                  <tr key={bill.id} style={styles.tr} onClick={() => setSelectedBill(bill)}>
+                {sortedHistory.map((bill, index) => (
+                  <tr key={bill.id} className="anim-row" style={{ ...styles.tr, animationDelay: `${index * 0.03}s` }} onClick={() => setSelectedBill(bill)}>
                     <td style={styles.td}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ fontWeight: '700', fontSize: '14px' }}>{new Date(bill.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}</span>
@@ -483,7 +505,7 @@ function BillingHistory() {
       {
         (billToDelete || showCheckoutModal) && (
           <div style={styles.modalOverlay}>
-            <div style={{ ...styles.modalContent, width: isMobile ? '85%' : '400px', padding: '25px', textAlign: 'center' }}>
+            <div className="anim-modal" style={{ ...styles.modalContent, width: isMobile ? '85%' : '400px', padding: '25px', textAlign: 'center' }}>
               <div style={styles.warningIconWrapper}>
                 {billToDelete ? <AlertTriangle size={40} color={DANGER} /> : <LogOut size={40} color={PRIMARY} />}
               </div>
@@ -498,7 +520,7 @@ function BillingHistory() {
           </div>
         )
       }
-    </div >
+    </div>
   );
 }
 
