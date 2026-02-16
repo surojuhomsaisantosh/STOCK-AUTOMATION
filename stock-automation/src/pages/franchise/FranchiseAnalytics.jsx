@@ -17,11 +17,27 @@ const COLORS = ["#065f46", "#0ea5e9", "#f59e0b", "#be185d", "#8b5cf6", "#10b981"
 function FranchiseAnalytics() {
   const navigate = useNavigate();
   
-  // --- STATE ---
-  const [activeTab, setActiveTab] = useState("store"); 
-  const [dateRangeMode, setDateRangeMode] = useState("single");
-  const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
+  // --- STATE (Modified to use Session Storage) ---
+  
+  // 1. Tab Preference
+  const [activeTab, setActiveTab] = useState(() => {
+    return sessionStorage.getItem("analytics_activeTab") || "store";
+  });
+
+  // 2. Date Range Mode Preference
+  const [dateRangeMode, setDateRangeMode] = useState(() => {
+    return sessionStorage.getItem("analytics_dateRangeMode") || "single";
+  });
+
+  // 3. Start Date (Default to today if not found)
+  const [startDate, setStartDate] = useState(() => {
+    return sessionStorage.getItem("analytics_startDate") || new Date().toISOString().split("T")[0];
+  });
+
+  // 4. End Date (Default to today if not found)
+  const [endDate, setEndDate] = useState(() => {
+    return sessionStorage.getItem("analytics_endDate") || new Date().toISOString().split("T")[0];
+  });
   
   const [graphData, setGraphData] = useState([]);
   const [topItems, setTopItems] = useState([]);
@@ -31,10 +47,21 @@ function FranchiseAnalytics() {
   const [franchiseId, setFranchiseId] = useState("...");
 
   // --- EFFECTS ---
+
+  // A. Fetch Profile Once
   useEffect(() => {
     fetchFranchiseProfile();
   }, []);
 
+  // B. Save to Session Storage whenever these change
+  useEffect(() => {
+    sessionStorage.setItem("analytics_activeTab", activeTab);
+    sessionStorage.setItem("analytics_dateRangeMode", dateRangeMode);
+    sessionStorage.setItem("analytics_startDate", startDate);
+    sessionStorage.setItem("analytics_endDate", endDate);
+  }, [activeTab, dateRangeMode, startDate, endDate]);
+
+  // C. Fetch Data on change
   useEffect(() => {
     fetchData();
   }, [activeTab, startDate, endDate, dateRangeMode]);
@@ -56,21 +83,15 @@ function FranchiseAnalytics() {
       const isStore = activeTab === "store";
       const table = isStore ? "bills_generated" : "invoices";
       
-      // If activeTab is store, we don't need created_by link usually, 
-      // but if you have a relation there, keep it. 
-      // For invoices, we use the foreign key relation.
       let query = isStore 
         ? supabase.from(table).select("*")
         : supabase.from(table).select("*, profiles:created_by(franchise_id)");
 
-      // --- DATE LOGIC FIXED ---
       if (dateRangeMode === "single") {
         query = query
           .gte("created_at", `${startDate}T00:00:00`)
           .lte("created_at", `${startDate}T23:59:59`);
       } else {
-        // Range Mode: Ensure we use start of StartDate and end of EndDate
-        // If user hasn't selected an end date yet, default to start date
         const finalEndDate = endDate || startDate;
         query = query
           .gte("created_at", `${startDate}T00:00:00`)
@@ -97,7 +118,6 @@ function FranchiseAnalytics() {
   const processChartData = (data) => {
     const map = {};
     data.forEach(r => {
-      // Handle both table column names for total amount
       const amt = Number(r.total ?? r.total_amount ?? 0);
       const dateKey = new Date(r.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
       map[dateKey] = (map[dateKey] || 0) + amt;
@@ -141,7 +161,7 @@ function FranchiseAnalytics() {
           <h1 className="header-title">Analytics</h1>
         </div>
 
-        {/* Right: ID Box (FIXED: ID Label is INSIDE the box) */}
+        {/* Right: ID Box */}
         <div className="nav-right">
           <div className="id-box-styled">
             <span className="id-label-text">ID :</span>
@@ -154,7 +174,7 @@ function FranchiseAnalytics() {
         
         {/* CONTROLS SECTION */}
         <div className="controls-wrapper">
-          {/* Tabs */}
+          {/* Tabs (Compact Mode) */}
           <div className="tab-group">
             <button onClick={() => setActiveTab("store")} className={`tab-btn ${activeTab === "store" ? "active" : ""}`}>Store Sales</button>
             <button onClick={() => setActiveTab("invoice")} className={`tab-btn ${activeTab === "invoice" ? "active" : ""}`}>Orders</button>
@@ -257,6 +277,7 @@ function FranchiseAnalytics() {
               </div>
               
               <div className="table-header-row">
+                 <span className="th-sno">#</span>
                  <span className="th-id">ID</span>
                  <span className="th-date">Date & Time</span>
                  <span className="th-amt">Amount</span>
@@ -265,13 +286,17 @@ function FranchiseAnalytics() {
 
               <div className="list-scroll">
                 {bills.length === 0 && <div className="no-data">No records found.</div>}
-                {bills.map(bill => (
+                {bills.map((bill, index) => (
                   <div key={bill.id} className={`list-item ${expandedBill === bill.id ? 'expanded' : ''}`}>
                     <div className="item-summary" onClick={() => setExpandedBill(expandedBill === bill.id ? null : bill.id)}>
                       
+                      {/* Serial Number Column */}
+                      <div className="col sno-col">
+                        {index + 1}
+                      </div>
+
                       <div className="col id-col">
                         <div className="icon-box"><Hash size={12} /></div>
-                        {/* Display Franchise ID from profile relation OR the invoice field directly if available */}
                         <span className="id-text">
                            {bill.profiles?.franchise_id || bill.franchise_id || "..."}
                         </span>
@@ -332,7 +357,7 @@ function FranchiseAnalytics() {
         .back-btn { background: none; border: none; display: flex; align-items: center; gap: 4px; color: var(--text-sub); font-weight: 600; cursor: pointer; padding: 8px 0; }
         .back-text { display: inline; font-size: 14px; } 
 
-        /* --- FIXED ID BOX STYLING --- */
+        /* ID BOX */
         .id-box-styled {
             background: #fff;
             border: 1px solid #cbd5e1;
@@ -342,40 +367,41 @@ function FranchiseAnalytics() {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
+            gap: 8px;
         }
         .id-label-text {
-            font-size: 11px;
-            font-weight: 800;
-            color: #64748b; /* slate-500 */
+            font-size: 10px;
+            font-weight: 900;
+            color: #94a3b8;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.1em;
         }
         .id-value-text {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 700;
-            color: #0f172a; /* slate-900 */
+            color: #0f172a;
+            font-family: monospace;
         }
 
         /* CONTROLS */
         .main-container { max-width: 1200px; margin: 0 auto; padding: 16px; }
         .controls-wrapper { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
         
-        .tab-group { background: #e2e8f0; padding: 4px; border-radius: 10px; display: flex; }
-        .tab-btn { flex: 1; border: none; background: none; padding: 8px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-sub); cursor: pointer; transition: 0.2s; }
-        .tab-btn.active { background: #fff; color: var(--primary); shadow: 0 2px 4px rgba(0,0,0,0.05); font-weight: 700; }
+        .tab-group { background: #e2e8f0; padding: 2px; border-radius: 8px; display: inline-flex; width: fit-content; }
+        .tab-btn { border: none; background: none; padding: 6px 16px; border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--text-sub); cursor: pointer; transition: 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
+        .tab-btn.active { background: #fff; color: var(--text-main); box-shadow: 0 1px 2px rgba(0,0,0,0.1); font-weight: 800; }
 
         .date-group { display: flex; gap: 10px; align-items: center; }
         .range-toggle { display: flex; background: #e2e8f0; padding: 2px; border-radius: 8px; }
-        .range-toggle button { border: none; background: none; padding: 6px 12px; font-size: 11px; font-weight: 600; color: var(--text-sub); border-radius: 6px; cursor: pointer; }
-        .range-toggle button.active { background: #fff; color: var(--text-main); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .range-toggle button { border: none; background: none; padding: 6px 12px; font-size: 11px; font-weight: 600; color: var(--text-sub); border-radius: 6px; cursor: pointer; text-transform: uppercase; }
+        .range-toggle button.active { background: #fff; color: var(--text-main); box-shadow: 0 1px 2px rgba(0,0,0,0.1); font-weight: 800; }
 
-        .date-picker-box { flex: 1; display: flex; align-items: center; background: #fff; border: 1px solid var(--border); padding: 0 10px; border-radius: 8px; height: 36px; }
+        .date-picker-box { flex: 1; display: flex; align-items: center; background: #fff; border: 1px solid var(--border); padding: 0 10px; border-radius: 8px; height: 32px; }
         .date-picker-box input { border: none; background: transparent; font-size: 12px; font-weight: 600; outline: none; width: 100%; color: var(--text-main); }
         .cal-icon { margin-right: 8px; color: var(--text-sub); }
         .sep { margin: 0 8px; font-weight: 700; color: var(--border); }
 
-        /* GRID LAYOUT - MOBILE FIRST */
+        /* GRID LAYOUT */
         .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
         
         .card { background: var(--card-bg); border-radius: 16px; border: 1px solid var(--border); overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
@@ -398,26 +424,30 @@ function FranchiseAnalytics() {
         .list-area { display: flex; flex-direction: column; height: 100%; min-height: 400px; }
         .table-header-row { display: flex; padding: 10px 16px; background: #f8fafc; border-bottom: 1px solid var(--border); }
         .table-header-row span { font-size: 10px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; }
+        
+        .th-sno { width: 30px; text-align: center; }
         .th-id { width: 60px; }
         .th-date { flex: 1; text-align: center; }
         .th-amt { width: 80px; text-align: right; }
         .th-icon { width: 24px; }
 
-        .list-scroll { overflow-y: auto; max-height: 600px; } /* Main list scroll */
+        .list-scroll { overflow-y: auto; max-height: 600px; }
         .list-item { border-bottom: 1px solid var(--border); transition: background 0.2s; }
         .list-item:active { background: #f8fafc; }
         .item-summary { display: flex; padding: 14px 16px; align-items: center; cursor: pointer; }
         
-        .id-col { width: 60px; display: flex; gap: 6px; align-items: center; }
-        .icon-box { display: none; } /* hidden on mobile */
+        .col { display: flex; align-items: center; }
+        .sno-col { width: 30px; justify-content: center; font-size: 11px; font-weight: 700; color: #94a3b8; }
+        .id-col { width: 60px; gap: 6px; }
+        .icon-box { display: none; }
         .id-text { font-size: 12px; font-weight: 700; color: var(--text-main); }
         
-        .date-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .date-col { flex: 1; flex-direction: column; align-items: center; justify-content: center; }
         .d-date { font-size: 12px; font-weight: 600; color: var(--text-main); }
         .d-time { font-size: 10px; color: var(--text-sub); display: flex; align-items: center; gap: 3px; }
 
-        .amt-col { width: 80px; text-align: right; font-size: 13px; font-weight: 700; color: var(--primary); }
-        .arrow-col { width: 24px; display: flex; justify-content: flex-end; color: #cbd5e1; }
+        .amt-col { width: 80px; justify-content: flex-end; font-size: 13px; font-weight: 700; color: var(--primary); }
+        .arrow-col { width: 24px; justify-content: flex-end; color: #cbd5e1; }
 
         .item-details { background: #f8fafc; padding: 12px 16px; border-top: 1px solid var(--border); }
         .no-data { text-align: center; padding: 20px; font-size: 12px; color: var(--text-sub); font-style: italic; }
@@ -431,22 +461,16 @@ function FranchiseAnalytics() {
           .nav-bar { padding: 0 32px; height: 70px; }
           .controls-wrapper { flex-direction: row; justify-content: space-between; align-items: center; }
           .tab-group, .date-group { width: auto; }
-          .tab-btn { padding: 8px 24px; }
           
-          .id-box-styled {
-             border: 2px solid #e2e8f0;
-             padding: 8px 16px;
-          }
-          .id-label-text { font-size: 11px; margin-right: 0; }
-          .id-value-text { font-size: 14px; }
-
-          /* Grid: 2 Columns */
           .dashboard-grid { grid-template-columns: 2fr 1fr; grid-template-rows: auto auto; }
           .revenue-area { grid-column: 1 / 2; }
           .pie-area { grid-column: 2 / 3; }
-          .list-area { grid-column: 1 / -1; } /* Full width bottom */
+          .list-area { grid-column: 1 / -1; }
           
           .icon-box { display: flex; align-items: center; justify-content: center; background: #e0f2fe; color: #0284c7; width: 24px; height: 24px; border-radius: 6px; }
+          
+          /* Adjust columns for desktop */
+          .th-sno, .sno-col { width: 50px; font-size: 12px; }
           .id-col { width: 120px; }
           .date-col { flex-direction: row; gap: 10px; }
         }
@@ -462,7 +486,7 @@ function FranchiseAnalytics() {
   );
 }
 
-// --- FIXED Sub-component for bill items ---
+// --- Sub-component for bill items ---
 function BillItems({ billId, type }) {
   const [items, setItems] = useState([]);
   
@@ -472,7 +496,6 @@ function BillItems({ billId, type }) {
       const table = type === "store" ? "bills_items_generated" : "invoice_items";
       const key = type === "store" ? "bill_id" : "invoice_id";
       
-      // Select * so we get 'total' from the DB directly
       const { data } = await supabase.from(table).select("*").eq(key, billId);
       if(mounted) setItems(data || []);
     };
@@ -481,7 +504,6 @@ function BillItems({ billId, type }) {
   }, [billId, type]);
 
   return (
-    // Added MAX-HEIGHT and OVERFLOW for scrollbar
     <div style={{display:'flex', flexDirection:'column', gap:'8px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px'}}>
        <div style={{display:'flex', fontSize:'10px', color:'#94a3b8', textTransform:'uppercase', fontWeight:700, paddingBottom:4, borderBottom:'1px solid #e2e8f0', position: 'sticky', top: 0, background: '#f8fafc'}}>
           <span style={{flex:2}}>Item Name</span>
@@ -491,7 +513,6 @@ function BillItems({ billId, type }) {
        {items.map((i, idx) => {
          const qty = Number(i.qty ?? i.quantity ?? 0);
          const price = Number(i.price ?? 0);
-         // FETCHED FROM DB: Use i.total if available (invoice_items), else calc fallback
          const lineTotal = i.total ? Number(i.total) : (qty * price);
 
          return (

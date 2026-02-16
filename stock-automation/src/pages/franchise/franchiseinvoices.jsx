@@ -380,7 +380,12 @@ function FranchiseInvoices() {
       <nav className="shrink-0 bg-white/95 border-b px-4 md:px-8 py-3 flex items-center justify-between no-print">
           <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 font-black uppercase text-[10px]"><ArrowLeft size={16} /> Back</button>
           <h1 className="text-lg md:text-xl font-black uppercase tracking-widest">Invoices</h1>
-          <span className="text-[10px] font-black bg-slate-100 px-3 py-1.5 rounded-lg">{currentFranchiseId}</span>
+          
+          {/* UPDATED TOP RIGHT ID BOX */}
+          <div className="bg-white border border-slate-200 shadow-sm rounded-lg px-3 py-1.5 flex items-center gap-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID:</span>
+              <span className="font-mono text-xs font-bold text-slate-900">{currentFranchiseId}</span>
+          </div>
       </nav>
 
       <main className="flex-1 flex flex-col min-h-0 px-4 md:px-8 py-4 gap-4 no-print overflow-hidden">
