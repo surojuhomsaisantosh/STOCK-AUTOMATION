@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../../supabase/supabaseClient";
-// ADDED: Import ArrowLeft for a better looking back button
-import { ArrowLeft } from "lucide-react"; 
+import { ArrowLeft } from "lucide-react";
 
 const GREEN = "rgb(0,100,55)";
 const LIGHT_GREEN = "rgba(0,100,55,0.05)";
@@ -41,8 +40,8 @@ function PosManagement() {
     setTimeout(() => setToast({ show: false, message: "", type: "success" }), 3500);
   };
 
-  useEffect(() => { 
-    fetchFranchises(); 
+  useEffect(() => {
+    fetchFranchises();
     fetchCurrentUser();
   }, []);
 
@@ -57,9 +56,9 @@ function PosManagement() {
   const fetchFranchises = async () => {
     const { data } = await supabase.from("profiles").select("franchise_id, company").neq("role", "stock");
     if (data) {
-        setAllProfiles(data);
-        const uniqueCompanies = [...new Set(data.map(d => d.company).filter(Boolean))];
-        setCompanies(uniqueCompanies);
+      setAllProfiles(data);
+      const uniqueCompanies = [...new Set(data.map(d => d.company).filter(Boolean))];
+      setCompanies(uniqueCompanies);
     }
   };
 
@@ -72,13 +71,13 @@ function PosManagement() {
     const id = (idOverride || viewFranchise)?.toString().trim();
     if (!id) { setMenus([]); return; }
     setLoading(true);
-    setMenus([]); 
+    setMenus([]);
     try {
-        const { data, error } = await supabase.from("menus").select("*").eq("franchise_id", id).order("category");
-        if (!error) setMenus(data || []);
+      const { data, error } = await supabase.from("menus").select("*").eq("franchise_id", id).order("category");
+      if (!error) setMenus(data || []);
     } finally {
-        setSelectedCategory("All");
-        setLoading(false);
+      setSelectedCategory("All");
+      setLoading(false);
     }
   };
 
@@ -89,15 +88,15 @@ function PosManagement() {
     if (!exists) return showToast(`ID ${finalTargetId} not found`, "error");
 
     setLoading(true);
-    const { error } = await supabase.rpc('clone_franchise_menu', { 
-        target_id: finalTargetId, 
-        central_id: CENTRAL_ID 
+    const { error } = await supabase.rpc('clone_franchise_menu', {
+      target_id: finalTargetId,
+      central_id: CENTRAL_ID
     });
 
     if (error) showToast(error.message, "error");
     else {
-        showToast(`🚀 Menu Synced to ${finalTargetId}`);
-        if (viewFranchise === finalTargetId) getMenu(finalTargetId);
+      showToast(`🚀 Menu Synced to ${finalTargetId}`);
+      if (viewFranchise === finalTargetId) getMenu(finalTargetId);
     }
     setTargetFranchise("");
     setLoading(false);
@@ -112,18 +111,18 @@ function PosManagement() {
     if (!exists) return showToast(`Franchise ID ${finalTargetId} not found`, "error");
 
     if (window.confirm(`⚠️ DANGER: Permanent wipe for ${finalTargetId}?`)) {
-        setLoading(true);
-        const { error } = await supabase.rpc('delete_franchise_menu_global', { 
-            target_id: finalTargetId 
-        });
+      setLoading(true);
+      const { error } = await supabase.rpc('delete_franchise_menu_global', {
+        target_id: finalTargetId
+      });
 
-        if (error) showToast(error.message, "error");
-        else {
-            showToast(`🗑️ Menu Wiped for ${finalTargetId}`, "success");
-            if (viewFranchise === finalTargetId) setMenus([]);
-        }
-        setDeleteTargetId("");
-        setLoading(false);
+      if (error) showToast(error.message, "error");
+      else {
+        showToast(`🗑️ Menu Wiped for ${finalTargetId}`, "success");
+        if (viewFranchise === finalTargetId) setMenus([]);
+      }
+      setDeleteTargetId("");
+      setLoading(false);
     }
   };
 
@@ -160,7 +159,7 @@ function PosManagement() {
     }
   };
 
-  const filteredMenus = menus.filter(m => 
+  const filteredMenus = menus.filter(m =>
     (selectedCategory === "All" || m.category === selectedCategory) &&
     m.item_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -195,116 +194,83 @@ function PosManagement() {
       `}</style>
 
       {toast.show && (
-        <div style={{...styles.toast, backgroundColor: toast.type === "success" ? GREEN : DANGER}}>
+        <div style={{ ...styles.toast, backgroundColor: toast.type === "success" ? GREEN : DANGER }}>
           {toast.message}
         </div>
       )}
 
       {/* HEADER */}
-      <header style={{
-          ...styles.header, 
-          flexDirection: isMobile ? 'column' : 'row', 
-          alignItems: isMobile ? 'flex-start' : 'center',
-          gap: isMobile ? '16px' : '0'
-      }}>
-        
-        {/* Top Row on Mobile: Back Button & Franchise ID */}
-        <div style={{ 
-            width: '100%', 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            order: isMobile ? 1 : 0, 
-            flex: isMobile ? 'none' : 1
-        }}>
-            {/* FIX: Using ArrowLeft Icon and Flex Alignment */}
-            <button onClick={() => window.history.back()} style={styles.backBtn}>
-                <ArrowLeft size={20} strokeWidth={2.5} /> Back
-            </button>
-            
-            {isMobile && (
-                <div style={styles.idDisplay}>
-                    <span style={styles.idLabel}>ID :</span>
-                    <span style={styles.idValue}>{myFranchiseId || "--"}</span>
-                </div>
-            )}
+      <header style={styles.header}>
+        <div style={styles.headerInner}>
+          <button onClick={() => window.history.back()} style={styles.backBtn}>
+            <ArrowLeft size={18} /> <span>Back</span>
+          </button>
+
+          <h1 style={styles.heading}>
+            Menu <span style={{ color: GREEN }}>Management</span>
+          </h1>
+
+          <div style={styles.idBox}>
+            ID : {myFranchiseId || "---"}
+          </div>
         </div>
-        
-        {/* Center: Title */}
-        <div style={{
-            ...styles.titleWrapper,
-            order: isMobile ? 2 : 1, 
-            width: isMobile ? '100%' : 'auto',
-            textAlign: isMobile ? 'center' : 'center'
-        }}>
-          <h1 style={{...styles.heading, fontSize: isMobile ? '24px' : '32px'}}>Menu Management</h1>
-          <p style={styles.subheading}>Centralized Menu Control System</p>
-        </div>
-        
-        {/* Right: Franchise ID (Desktop Only) */}
-        {!isMobile && (
-            <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', order: 2 }}>
-                <div style={styles.idDisplay}>
-                <span style={styles.idLabel}>ID :</span>
-                <span style={styles.idValue}>{myFranchiseId || "--"}</span>
-                </div>
-            </div>
-        )}
       </header>
 
       <main style={styles.mainContent}>
-        
+
         {/* 1. ADMIN ACTIONS CARD */}
         <section style={{
-            ...styles.adminCard, 
-            flexDirection: isMobile ? 'column' : 'row',
-            alignItems: 'stretch' 
+          ...styles.adminCard,
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'stretch' : 'center',
+          justifyContent: isMobile ? 'flex-start' : 'space-between'
         }}>
-          <div style={{...styles.inputGroup, width: isMobile ? '100%' : 'auto'}}>
-            <button onClick={cloneFromCentral} style={{...styles.primaryBtn, width: isMobile ? '100%' : 'auto'}} disabled={loading}>Sync from Central</button>
-            <input 
-                style={{...styles.premiumInput, width: isMobile ? '100%' : '160px'}} 
-                placeholder="Target ID" 
-                value={targetFranchise} 
-                onChange={e => setTargetFranchise(e.target.value)} 
+          {/* Left Side: Sync */}
+          <div style={{ ...styles.inputGroup, width: isMobile ? '100%' : 'auto' }}>
+            <button onClick={cloneFromCentral} style={{ ...styles.primaryBtn, width: isMobile ? '100%' : 'auto' }} disabled={loading}>Sync from Central</button>
+            <input
+              style={{ ...styles.premiumInput, width: isMobile ? '100%' : '160px' }}
+              placeholder="Target ID"
+              value={targetFranchise}
+              onChange={e => setTargetFranchise(e.target.value)}
             />
           </div>
-          
-          {isMobile && <div style={{height: '1px', background: '#eee', margin: '8px 0'}}></div>}
 
-          <div style={{...styles.inputGroup, width: isMobile ? '100%' : 'auto'}}>
-            <input 
-                style={{...styles.premiumInput, borderColor: DANGER, width: isMobile ? '100%' : '160px'}} 
-                placeholder="Wipe ID" 
-                value={deleteTargetId} 
-                onChange={e => setDeleteTargetId(e.target.value)} 
+          {isMobile && <div style={{ height: '1px', background: '#eee', margin: '8px 0' }}></div>}
+
+          {/* Right Side: Wipe */}
+          <div style={{ ...styles.inputGroup, width: isMobile ? '100%' : 'auto' }}>
+            <input
+              style={{ ...styles.premiumInput, borderColor: DANGER, width: isMobile ? '100%' : '160px' }}
+              placeholder="Wipe ID"
+              value={deleteTargetId}
+              onChange={e => setDeleteTargetId(e.target.value)}
             />
-            <button onClick={deleteWholeMenu} style={{...styles.dangerBtn, width: isMobile ? '100%' : 'auto'}} disabled={loading}>Wipe Menu</button>
+            <button onClick={deleteWholeMenu} style={{ ...styles.dangerBtn, width: isMobile ? '100%' : 'auto' }} disabled={loading}>Wipe Menu</button>
           </div>
         </section>
 
         {/* 2. FILTERS & CONTROLS CARD */}
         <section style={styles.controlCard}>
-          <div style={{...styles.row, flexDirection: isMobile ? 'column' : 'row'}}>
-            
-            <div style={{...styles.selectWrapper, width: isMobile ? '100%' : '300px'}}>
-                <label style={styles.miniLabel}>Filter by Company</label>
-                <select style={styles.premiumSelect} value={selectedCompany} onChange={e => { setSelectedCompany(e.target.value); setViewFranchise(""); setMenus([]); }}>
-                    <option value="">Select Company...</option>
-                    {companies.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+          <div style={{ ...styles.row, flexDirection: isMobile ? 'column' : 'row' }}>
+            <div style={{ ...styles.selectWrapper, width: isMobile ? '100%' : '300px' }}>
+              <label style={styles.miniLabel}>Filter by Company</label>
+              <select style={styles.premiumSelect} value={selectedCompany} onChange={e => { setSelectedCompany(e.target.value); setViewFranchise(""); setMenus([]); }}>
+                <option value="">Select Company...</option>
+                {companies.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
 
-            <div style={{...styles.selectWrapper, width: isMobile ? '100%' : '300px'}}>
+            <div style={{ ...styles.selectWrapper, width: isMobile ? '100%' : '300px' }}>
               <label style={styles.miniLabel}>Manage Menu For</label>
-              <select 
-                style={{...styles.premiumSelect, opacity: !selectedCompany ? 0.5 : 1}} 
+              <select
+                style={{ ...styles.premiumSelect, opacity: !selectedCompany ? 0.5 : 1 }}
                 disabled={!selectedCompany}
-                value={viewFranchise} 
-                onChange={e => { 
-                    const val = e.target.value;
-                    setViewFranchise(val); 
-                    getMenu(val); 
+                value={viewFranchise}
+                onChange={e => {
+                  const val = e.target.value;
+                  setViewFranchise(val);
+                  getMenu(val);
                 }}
               >
                 <option value="">{selectedCompany ? "Choose Franchise..." : "Select Company First"}</option>
@@ -313,24 +279,33 @@ function PosManagement() {
             </div>
           </div>
 
-          <div style={{...styles.searchRow, flexDirection: isMobile ? 'column' : 'row'}}>
+          <div style={{ ...styles.searchRow, flexDirection: isMobile ? 'column' : 'row' }}>
             <div style={styles.searchBarWrapper}>
               <span style={styles.searchIcon}>🔍</span>
               <input style={styles.searchField} placeholder="Quick search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
-            <button 
-                onClick={() => setIsAddModalOpen(true)} 
-                style={{
-                    ...styles.addBtn, 
-                    width: isMobile ? '100%' : 'auto', 
-                    background: !viewFranchise ? '#f5f5f5' : GREEN, 
-                    color: !viewFranchise ? '#aaa' : '#fff'
-                }} 
-                disabled={!viewFranchise}
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              style={{
+                ...styles.addBtn,
+                width: isMobile ? '100%' : 'auto',
+                background: !viewFranchise ? '#f5f5f5' : GREEN,
+                color: !viewFranchise ? '#aaa' : '#fff'
+              }}
+              disabled={!viewFranchise}
             >
-                + New Item
+              + Add Item
             </button>
           </div>
+
+          {/* UPDATED: Badge always says "Total Items", regardless of selection */}
+          {menus.length > 0 && (
+            <div style={{ marginBottom: '12px', textAlign: 'right' }}>
+              <span style={styles.totalBadge}>
+                Total Items: {filteredMenus.length}
+              </span>
+            </div>
+          )}
 
           {menus.length > 0 && (
             <div style={styles.scrollWrapper} className="category-scroll">
@@ -348,20 +323,23 @@ function PosManagement() {
           ) : Object.keys(groupedMenu).length > 0 ? (
             Object.keys(groupedMenu).map(cat => (
               <div key={cat} style={styles.categoryGroup}>
-                <h3 style={styles.categoryHeader}>{cat}</h3>
+                <div style={styles.categoryHeaderContainer}>
+                  <h3 style={styles.categoryHeader}>{cat}</h3>
+                </div>
+
                 <div style={styles.itemsWrapper}>
                   {groupedMenu[cat].map(item => (
                     <div key={item.id} style={styles.premiumItemRow}>
                       <div style={styles.itemLead}>
-                        <div style={{display: 'flex', flexDirection: 'column'}}>
-                            <span style={styles.itemNameText}>{item.item_name}</span>
-                            <span style={styles.itemPriceText}>₹{item.price}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={styles.itemNameText}>{item.item_name}</span>
+                          <span style={styles.itemPriceText}>₹{item.price}</span>
                         </div>
                       </div>
                       <div style={styles.itemActions}>
                         <button onClick={() => { setEditingItem(item); setIsEditModalOpen(true); }} style={styles.iconBtn}>Edit</button>
                         <button onClick={() => deleteItem(item.id)} style={styles.deleteBtn}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={DANGER} strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={DANGER} strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
                         </button>
                       </div>
                     </div>
@@ -378,16 +356,16 @@ function PosManagement() {
       {/* MODALS */}
       {isAddModalOpen && (
         <div style={styles.modalOverlay}>
-          <div style={{...styles.modal, width: isMobile ? '90%' : '400px'}}>
+          <div style={{ ...styles.modal, width: isMobile ? '90%' : '400px' }}>
             <h2 style={{ color: GREEN, marginBottom: '20px', fontSize: isMobile ? '20px' : '24px' }}>Add New Menu Item</h2>
             <label style={styles.label}>Item Name</label>
-            <input style={styles.modalInput} placeholder="e.g. Chicken Burger" onChange={e => setNewItem({...newItem, item_name: e.target.value})} />
+            <input style={styles.modalInput} placeholder="e.g. Chicken Burger" onChange={e => setNewItem({ ...newItem, item_name: e.target.value })} />
             <label style={styles.label}>Price (₹)</label>
-            <input style={styles.modalInput} placeholder="e.g. 199" onChange={e => setNewItem({...newItem, price: e.target.value})} />
+            <input style={styles.modalInput} placeholder="e.g. 199" onChange={e => setNewItem({ ...newItem, price: e.target.value })} />
             <label style={styles.label}>Category</label>
-            <input style={styles.modalInput} placeholder="e.g. BURGERS" onChange={e => setNewItem({...newItem, category: e.target.value})} />
+            <input style={styles.modalInput} placeholder="e.g. BURGERS" onChange={e => setNewItem({ ...newItem, category: e.target.value })} />
             <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-              <button onClick={addItem} style={{...styles.primaryBtn, flex: 1}}>Save Item</button>
+              <button onClick={addItem} style={{ ...styles.primaryBtn, flex: 1 }}>Save Item</button>
               <button onClick={() => setIsAddModalOpen(false)} style={styles.cancelBtn}>Cancel</button>
             </div>
           </div>
@@ -396,16 +374,16 @@ function PosManagement() {
 
       {isEditModalOpen && editingItem && (
         <div style={styles.modalOverlay}>
-          <div style={{...styles.modal, width: isMobile ? '90%' : '400px'}}>
+          <div style={{ ...styles.modal, width: isMobile ? '90%' : '400px' }}>
             <h2 style={{ color: GREEN, marginBottom: '20px', fontSize: isMobile ? '20px' : '24px' }}>Modify Item</h2>
             <label style={styles.label}>Item Name</label>
-            <input style={styles.modalInput} value={editingItem.item_name} onChange={e => setEditingItem({...editingItem, item_name: e.target.value})} />
+            <input style={styles.modalInput} value={editingItem.item_name} onChange={e => setEditingItem({ ...editingItem, item_name: e.target.value })} />
             <label style={styles.label}>Price (₹)</label>
-            <input style={styles.modalInput} value={editingItem.price} onChange={e => setEditingItem({...editingItem, price: e.target.value})} />
+            <input style={styles.modalInput} value={editingItem.price} onChange={e => setEditingItem({ ...editingItem, price: e.target.value })} />
             <label style={styles.label}>Category</label>
-            <input style={styles.modalInput} value={editingItem.category} onChange={e => setEditingItem({...editingItem, category: e.target.value})} />
+            <input style={styles.modalInput} value={editingItem.category} onChange={e => setEditingItem({ ...editingItem, category: e.target.value })} />
             <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-              <button onClick={saveEdit} style={{...styles.primaryBtn, flex: 1}}>Update Item</button>
+              <button onClick={saveEdit} style={{ ...styles.primaryBtn, flex: 1 }}>Update Item</button>
               <button onClick={() => setIsEditModalOpen(false)} style={styles.cancelBtn}>Cancel</button>
             </div>
           </div>
@@ -416,61 +394,73 @@ function PosManagement() {
 }
 
 const styles = {
-  page: { background: "#f8f9fa", minHeight: "100vh", fontFamily: '"Inter", sans-serif', padding: "20px 20px 80px", overflowX: 'hidden' },
-  toast: { position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', padding: '12px 24px', borderRadius: '12px', color: '#fff', fontWeight: '800', zIndex: 9999, boxShadow: '0 10px 30px rgba(0,0,0,0.2)', textAlign: 'center', minWidth: '280px', maxWidth: '90%' },
-  header: { display: "flex", justifyContent: "space-between", position: "relative", maxWidth: "1100px", margin: "0 auto 24px auto", borderBottom: '1px solid #eee', paddingBottom: '20px' },
-  
-  // FIX: Updated backBtn style to be flex container
-  backBtn: { background: "none", border: "none", color: GREEN, fontSize: "16px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '8px' },
-  
-  titleWrapper: { textAlign: "center" },
-  heading: { fontWeight: "800", color: "#1a1a1a", letterSpacing: "-1px", margin: 0 },
-  subheading: { color: "#6c757d", fontSize: "14px", marginTop: "5px", fontWeight: "500" },
-  
-  idDisplay: { display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' },
-  idLabel: { fontSize: '12px', fontWeight: '800', color: '#888', textTransform: 'uppercase' },
-  idValue: { fontSize: '14px', fontWeight: '800', color: GREEN, background: LIGHT_GREEN, padding: '4px 8px', borderRadius: '6px' },
+  page: {
+    background: "#f8f9fa",
+    minHeight: "100vh",
+    fontFamily: '"Inter", sans-serif',
+    padding: 0,
+    overflowX: 'hidden'
+  },
 
-  mainContent: { maxWidth: "1100px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "24px" },
+  toast: { position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', padding: '12px 24px', borderRadius: '12px', color: '#fff', fontWeight: '800', zIndex: 9999, boxShadow: '0 10px 30px rgba(0,0,0,0.2)', textAlign: 'center', minWidth: '280px', maxWidth: '90%' },
+
+  // Header
+  header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
+  headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px' },
+  backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
+  heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
+  idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 },
+
+  // Main Layout
+  mainContent: { width: "100%", display: "flex", flexDirection: "column", gap: "24px", padding: "0 20px 20px 20px" },
+
+  // Admin Card
   adminCard: { background: "#fff", padding: "20px", borderRadius: "16px", display: "flex", justifyContent: "flex-start", gap: "20px", border: "1px solid #edf2f7", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" },
-  
+
   controlCard: { background: "#fff", padding: "20px", borderRadius: "16px", border: "1px solid #edf2f7", boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05)" },
   inputGroup: { display: "flex", gap: "10px", alignItems: "center" },
   premiumInput: { padding: "0 16px", height: "48px", borderRadius: "10px", border: "2px solid #edf2f7", outline: "none", fontSize: '14px' },
   primaryBtn: { background: GREEN, color: "#fff", border: "none", height: "48px", padding: "0 20px", borderRadius: "10px", fontWeight: "700", cursor: "pointer", fontSize: '14px', whiteSpace: 'nowrap' },
   dangerBtn: { background: "#fff", color: DANGER, border: `2px solid ${DANGER}`, height: "48px", padding: "0 20px", borderRadius: "10px", fontWeight: "700", cursor: "pointer", fontSize: '14px', whiteSpace: 'nowrap' },
-  
+
   row: { display: "flex", gap: "16px", marginBottom: "20px", alignItems: "center" },
   miniLabel: { fontSize: '11px', fontWeight: 'bold', color: '#888', textTransform: 'uppercase', marginBottom: '6px', display: 'block' },
   premiumSelect: { width: "100%", height: "48px", padding: "0 16px", borderRadius: "10px", border: "2px solid #edf2f7", appearance: "none", cursor: "pointer", background: "url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%234A5568%22%20stroke-width%3D%221.66667%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E') no-repeat right 15px center", outline: "none", fontSize: '14px', backgroundColor: '#fff' },
   selectWrapper: { position: "relative" },
-  
+
   searchRow: { display: "flex", gap: "12px", alignItems: "center", marginBottom: "20px" },
   searchBarWrapper: { position: "relative", flex: 1, width: '100%' },
   searchIcon: { position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", color: '#999' },
   searchField: { width: "100%", height: "50px", padding: "0 16px 0 44px", borderRadius: "12px", border: `2px solid ${LIGHT_GREEN}`, background: "#fcfcfc", outline: "none", fontSize: '14px' },
-  addBtn: { border: "none", height: "50px", padding: "0 24px", borderRadius: "12px", fontWeight: "700", cursor: "pointer", fontSize: '14px', whiteSpace: 'nowrap' },
-  
+
+  addBtn: { border: "none", height: "50px", padding: "0 24px", borderRadius: "12px", fontWeight: "700", cursor: "pointer", fontSize: '14px', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+
+  totalBadge: { display: 'inline-block', fontSize: '11px', fontWeight: '800', color: GREEN, background: LIGHT_GREEN, padding: '6px 12px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '0.5px' },
+
   scrollWrapper: { display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "4px" },
   tab: { padding: "8px 20px", borderRadius: "30px", background: "#f1f3f5", border: "none", color: "#495057", fontWeight: "600", cursor: "pointer", fontSize: '13px', whiteSpace: 'nowrap' },
   activeTab: { padding: "8px 20px", borderRadius: "30px", background: GREEN, color: "#fff", fontWeight: "700", border: "none", fontSize: '13px', whiteSpace: 'nowrap' },
-  
+
   listContainer: { display: "flex", flexDirection: "column", gap: "24px" },
   categoryGroup: { borderBottom: "1px solid #eee", paddingBottom: "10px" },
-  categoryHeader: { fontSize: "12px", color: GREEN, fontWeight: "900", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "12px", display: "inline-block", background: LIGHT_GREEN, padding: "4px 10px", borderRadius: "6px" },
+
+  categoryHeaderContainer: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' },
+  categoryHeader: { fontSize: "12px", color: GREEN, fontWeight: "900", letterSpacing: "1px", textTransform: "uppercase", margin: 0, display: "inline-block", background: LIGHT_GREEN, padding: "4px 10px", borderRadius: "6px" },
+  itemCountBadge: { fontSize: '11px', fontWeight: '800', color: '#64748b', background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' },
+
   premiumItemRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderRadius: "12px", background: "#fff", marginBottom: "10px", border: '1px solid #f0f0f0' },
-  itemLead: { display: "flex", alignItems: "center", flex: 1, overflow: 'hidden' }, 
+  itemLead: { display: "flex", alignItems: "center", flex: 1, overflow: 'hidden' },
   itemNameText: { fontSize: "15px", fontWeight: "600", color: "#2d3436", display: 'block', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   itemPriceText: { fontSize: "14px", fontWeight: "800", color: GREEN },
   itemActions: { display: "flex", gap: "12px", alignItems: "center", paddingLeft: '10px' },
   iconBtn: { background: "none", border: `1px solid ${GREEN}`, color: GREEN, padding: "6px 14px", borderRadius: "8px", fontWeight: "700", cursor: "pointer", fontSize: '12px' },
   deleteBtn: { background: "none", border: "none", cursor: "pointer", padding: "5px", color: DANGER },
-  
+
   modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 },
   modal: { background: "#fff", padding: "30px", borderRadius: "20px", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)" },
   modalInput: { padding: "12px", marginBottom: "15px", border: "1px solid #e2e8f0", borderRadius: "10px", width: "100%", fontSize: '14px', outline: 'none' },
   cancelBtn: { background: "#f1f5f9", border: "none", color: "#64748b", padding: "0 20px", borderRadius: "10px", height: "48px", cursor: "pointer", fontWeight: '700', fontSize: '14px' },
-  
+
   loadingState: { textAlign: "center", padding: "60px", color: "#94a3b8", fontWeight: '500' },
   emptyState: { textAlign: "center", padding: "40px", color: "#94a3b8", background: '#fff', borderRadius: '12px', border: '1px dashed #e2e8f0' }
 };

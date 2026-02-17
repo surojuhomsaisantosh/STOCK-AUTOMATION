@@ -2,8 +2,8 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
-import { 
-    Edit3, Trash2, X, Plus, Search, 
+import {
+    Edit3, Trash2, X, Plus, Search,
     Calendar, ArrowLeft, AlertTriangle, Globe, EyeOff, Info,
     ChevronUp, ChevronDown, CheckCircle, Package, Tag, Hash
 } from "lucide-react";
@@ -11,8 +11,8 @@ import {
 function CentralStockMaster() {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const BRAND_COLOR = "rgb(0, 100, 55)"; 
-    
+    const BRAND_COLOR = "rgb(0, 100, 55)";
+
     // --- STATE ---
     const [items, setItems] = useState([]);
     const [filteredItems, setFilteredItems] = useState([]);
@@ -20,7 +20,7 @@ function CentralStockMaster() {
     const [showModal, setShowModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("All");
-    
+
     const [showLowStock, setShowLowStock] = useState(false);
     const [showAvailableOnly, setShowAvailableOnly] = useState(false);
     const [showOnlineOnly, setShowOnlineOnly] = useState(false);
@@ -35,8 +35,8 @@ function CentralStockMaster() {
     const initialForm = {
         item_name: "", quantity: "", unit: "pcs", price: "",
         description: "", category: "", alt_unit: "", item_code: "",
-        hsn_code: "", gst_rate: "", sales_tax_inc: "Exclusive", 
-        purchase_price: "", purchase_tax_inc: "Exclusive", mrp: "", 
+        hsn_code: "", gst_rate: "", sales_tax_inc: "Exclusive",
+        purchase_price: "", purchase_tax_inc: "Exclusive", mrp: "",
         threshold: "", item_type: "Product", online_store: false,
         min_order_quantity: "", moq_unit: "pcs"
     };
@@ -128,7 +128,8 @@ function CentralStockMaster() {
 
     const openEdit = (item) => {
         setEditingId(item.id);
-        setFormData({ ...item, 
+        setFormData({
+            ...item,
             quantity: item.quantity?.toString() || "", price: item.price?.toString() || "",
             gst_rate: item.gst_rate?.toString() || "", purchase_price: item.purchase_price?.toString() || "",
             mrp: item.mrp?.toString() || "", threshold: item.threshold?.toString() || "",
@@ -140,19 +141,20 @@ function CentralStockMaster() {
     const saveItem = async () => {
         if (!formData.item_name) return alert("Item Name is mandatory!");
         setLoading(true);
-        const payload = { ...formData, 
+        const payload = {
+            ...formData,
             quantity: Number(formData.quantity) || 0, price: Number(formData.price) || 0,
             gst_rate: Number(formData.gst_rate) || 0, purchase_price: Number(formData.purchase_price) || 0,
             mrp: Number(formData.mrp) || 0, threshold: Number(formData.threshold) || 0,
             min_order_quantity: Number(formData.min_order_quantity) || 0
         };
-        const { error } = editingId 
+        const { error } = editingId
             ? await supabase.from("stocks").update(payload).eq('id', editingId)
             : await supabase.from("stocks").insert([payload]);
 
         if (error) alert("Error: " + error.message);
-        else { 
-            setShowModal(false); 
+        else {
+            setShowModal(false);
             const { data } = await supabase.from("stocks").select("*").range(0, 999);
             if (data) setItems(data);
         }
@@ -183,28 +185,28 @@ function CentralStockMaster() {
         const isActive = sortConfig.key === columnKey;
         return (
             <div className="flex flex-col ml-1 transition-opacity">
-                <ChevronUp size={8} strokeWidth={4} className={`-mb-0.5 ${isActive && sortConfig.direction === 'ascending' ? 'opacity-100' : 'opacity-20'}`} style={isActive && sortConfig.direction === 'ascending' ? {color: BRAND_COLOR} : {}} />
-                <ChevronDown size={8} strokeWidth={4} className={`${isActive && sortConfig.direction === 'descending' ? 'opacity-100' : 'opacity-20'}`} style={isActive && sortConfig.direction === 'descending' ? {color: BRAND_COLOR} : {}} />
+                <ChevronUp size={8} strokeWidth={4} className={`-mb-0.5 ${isActive && sortConfig.direction === 'ascending' ? 'opacity-100' : 'opacity-20'}`} style={isActive && sortConfig.direction === 'ascending' ? { color: BRAND_COLOR } : {}} />
+                <ChevronDown size={8} strokeWidth={4} className={`${isActive && sortConfig.direction === 'descending' ? 'opacity-100' : 'opacity-20'}`} style={isActive && sortConfig.direction === 'descending' ? { color: BRAND_COLOR } : {}} />
             </div>
         );
     };
-    
+
     // --- HELPER FOR CUSTOM DROPDOWNS ---
     const CustomSelect = ({ name, value, onChange, options }) => (
         <div className="relative w-full">
-            <select 
-                name={name} 
-                value={value} 
-                onChange={onChange} 
+            <select
+                name={name}
+                value={value}
+                onChange={onChange}
                 className="w-full bg-slate-50 rounded-lg border border-slate-200 pl-3 pr-8 py-3 outline-none font-bold text-black text-xs uppercase appearance-none"
             >
                 {options.map(opt => (
                     <option key={opt} value={opt}>{opt}</option>
                 ))}
             </select>
-            <ChevronDown 
-                size={14} 
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" 
+            <ChevronDown
+                size={14}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
             />
         </div>
     );
@@ -212,9 +214,8 @@ function CentralStockMaster() {
     const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
     return (
-        // Changed h-screen to h-[100dvh] for better mobile browser support
         <div className="h-[100dvh] w-full flex flex-col bg-slate-50 font-sans text-black overflow-hidden relative">
-            
+
             {/* --- HEADER --- */}
             <div className="flex-none bg-white shadow-sm z-30 pt-4 md:pt-0">
                 <div className="border-b border-slate-200 px-4 md:px-6 py-3 md:py-4">
@@ -225,14 +226,11 @@ function CentralStockMaster() {
                         <h1 className="text-[10px] md:text-2xl font-black uppercase text-black text-center flex-1 leading-tight">
                             Central <span style={{ color: BRAND_COLOR }}>Stock Management</span>
                         </h1>
-                        
-                        {/* ID SECTION (Corrected Alignment) */}
-                        <div className="flex items-center gap-2 flex-shrink-0 z-10">
-                            <span className="text-[9px] md:text-xs text-slate-400 font-black uppercase tracking-widest whitespace-nowrap">ID:</span>
-                            <div className="bg-slate-50 px-2 py-1 md:px-3 md:py-1.5 rounded-md border border-slate-200 flex items-center justify-center min-w-[40px] flex-shrink-0">
-                                <span className="text-[9px] md:text-sm font-bold text-black leading-none">
-                                    {profile.franchise_id}
-                                </span>
+
+                        {/* UPDATED: ID SECTION (Box Style) */}
+                        <div className="flex-shrink-0 z-10">
+                            <div className="bg-slate-100 border border-slate-200 rounded-md px-3 py-1.5 text-slate-700 text-[10px] md:text-xs font-black uppercase tracking-wide whitespace-nowrap">
+                                ID : {profile.franchise_id || "---"}
                             </div>
                         </div>
 
@@ -243,7 +241,7 @@ function CentralStockMaster() {
                     <div className="flex flex-col lg:flex-row gap-3 mb-3">
                         <div className="relative flex-1">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                            <input 
+                            <input
                                 type="text" placeholder="Search items..." value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-[rgb(0,100,55)] transition-all text-black text-sm font-semibold shadow-sm"
@@ -254,7 +252,7 @@ function CentralStockMaster() {
                                 <Calendar size={18} style={{ color: BRAND_COLOR }} />
                                 <span className="text-sm font-bold">{today}</span>
                             </div>
-                            <button onClick={() => {setEditingId(null); setFormData(initialForm); setShowModal(true);}} 
+                            <button onClick={() => { setEditingId(null); setFormData(initialForm); setShowModal(true); }}
                                 className="w-full lg:w-auto text-white px-6 py-3 rounded-xl font-bold uppercase text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all flex-shrink-0"
                                 style={{ backgroundColor: BRAND_COLOR }}>
                                 <Plus size={18} /> Add Item
@@ -303,7 +301,7 @@ function CentralStockMaster() {
             {/* --- CONTENT AREA --- */}
             <div className="flex-grow overflow-hidden bg-slate-50 relative">
                 <div className="absolute inset-0 overflow-y-auto px-4 md:px-6 pb-20 md:pb-6 pt-2 scrollbar-thin scrollbar-thumb-slate-200">
-                    
+
                     {/* MOBILE/TABLET CARD VIEW */}
                     <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-3">
                         {filteredItems.map((item) => {
@@ -389,8 +387,8 @@ function CentralStockMaster() {
                                             </td>
                                             <td className="px-6 py-4 text-center whitespace-nowrap">
                                                 <div className="flex justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => openEdit(item)} className="p-2 bg-white border border-slate-200 text-black rounded-lg hover:border-[rgb(0,100,55)] hover:text-[rgb(0,100,55)] transition-all shadow-sm"><Edit3 size={14}/></button>
-                                                    <button onClick={() => deleteItem(item.id)} className="p-2 bg-white border border-slate-200 text-red-500 rounded-lg hover:bg-red-50 hover:border-red-200 transition-all shadow-sm"><Trash2 size={14}/></button>
+                                                    <button onClick={() => openEdit(item)} className="p-2 bg-white border border-slate-200 text-black rounded-lg hover:border-[rgb(0,100,55)] hover:text-[rgb(0,100,55)] transition-all shadow-sm"><Edit3 size={14} /></button>
+                                                    <button onClick={() => deleteItem(item.id)} className="p-2 bg-white border border-slate-200 text-red-500 rounded-lg hover:bg-red-50 hover:border-red-200 transition-all shadow-sm"><Trash2 size={14} /></button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -408,29 +406,29 @@ function CentralStockMaster() {
                     <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-4xl md:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
                         <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center bg-white flex-shrink-0">
                             <h2 className="text-base md:text-lg font-black uppercase tracking-widest text-black flex items-center gap-2">
-                                <Package size={18} className="text-slate-400"/>
+                                <Package size={18} className="text-slate-400" />
                                 {editingId ? "Product Master" : "Product Master"}
                             </h2>
-                            <button onClick={() => setShowModal(false)} className="p-2 bg-slate-50 rounded-full text-black hover:bg-red-50 hover:text-red-500 transition-all"><X size={20}/></button>
+                            <button onClick={() => setShowModal(false)} className="p-2 bg-slate-50 rounded-full text-black hover:bg-red-50 hover:text-red-500 transition-all"><X size={20} /></button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-white scrollbar-thin scrollbar-thumb-slate-200">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 md:gap-x-8 gap-y-6">
-                                
+
                                 <div className="md:col-span-3 flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100 mb-2">
-                                    <input type="checkbox" name="online_store" id="online_store" checked={formData.online_store} onChange={handleInput} className="w-5 h-5 accent-[rgb(0,100,55)] rounded cursor-pointer"/>
+                                    <input type="checkbox" name="online_store" id="online_store" checked={formData.online_store} onChange={handleInput} className="w-5 h-5 accent-[rgb(0,100,55)] rounded cursor-pointer" />
                                     <label htmlFor="online_store" className="text-xs font-black uppercase tracking-wide text-blue-900 cursor-pointer flex items-center gap-2">
                                         <Globe size={14} className="text-blue-500" /> Sync with Online Store Storefront
                                     </label>
                                 </div>
 
-                                <div className="md:col-span-3 border-b border-slate-100 pb-2"><h3 className="text-[11px] font-black uppercase text-black tracking-[0.2em] flex items-center gap-2"><Info size={12}/> Product Identity</h3></div>
-                                
+                                <div className="md:col-span-3 border-b border-slate-100 pb-2"><h3 className="text-[11px] font-black uppercase text-black tracking-[0.2em] flex items-center gap-2"><Info size={12} /> Product Identity</h3></div>
+
                                 <div className="md:col-span-2">
                                     <label className="text-[10px] font-bold uppercase text-black block mb-1">Item Name*</label>
                                     <input name="item_name" value={formData.item_name} onChange={handleInput} placeholder="Enter Product Name" className="w-full bg-slate-50 rounded-lg border border-slate-200 px-3 py-3 outline-none focus:border-[rgb(0,100,55)] focus:ring-1 focus:ring-[rgb(0,100,55)] transition font-bold text-base text-black" />
                                 </div>
-                                
+
                                 <div className="md:col-span-1">
                                     <label className="text-[10px] font-bold uppercase text-black block mb-1">Item Code / SKU</label>
                                     <input name="item_code" value={formData.item_code} onChange={handleInput} placeholder="SKU001" className="w-full bg-slate-50 rounded-lg border border-slate-200 px-3 py-3 outline-none focus:border-[rgb(0,100,55)] transition text-black font-mono text-sm" />
@@ -451,18 +449,18 @@ function CentralStockMaster() {
                                     <div className="flex gap-2">
                                         <input type="number" name="min_order_quantity" value={formData.min_order_quantity} onChange={handleInput} placeholder="1" className="flex-1 bg-slate-50 rounded-lg border border-slate-200 px-3 py-3 outline-none focus:border-[rgb(0,100,55)] transition font-bold text-black text-sm" />
                                         <div className="w-[80px]">
-                                            <CustomSelect name="moq_unit" value={formData.moq_unit} onChange={handleInput} options={["pcs","kg","gm","pkt"]} />
+                                            <CustomSelect name="moq_unit" value={formData.moq_unit} onChange={handleInput} options={["pcs", "kg", "gm", "pkt"]} />
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* SECTION 2 */}
-                                <div className="md:col-span-3 border-b border-slate-100 pb-2 mt-4"><h3 className="text-[11px] font-black uppercase text-black tracking-[0.2em] flex items-center gap-2"><Package size={12}/> Inventory & Units</h3></div>
-                                
+                                <div className="md:col-span-3 border-b border-slate-100 pb-2 mt-4"><h3 className="text-[11px] font-black uppercase text-black tracking-[0.2em] flex items-center gap-2"><Package size={12} /> Inventory & Units</h3></div>
+
                                 <div className="md:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4">
                                     <div>
                                         <label className="text-[10px] font-bold uppercase text-black block mb-1">Primary Unit</label>
-                                        <CustomSelect name="unit" value={formData.unit} onChange={handleInput} options={["pcs","kg","gm","pkt"]} />
+                                        <CustomSelect name="unit" value={formData.unit} onChange={handleInput} options={["pcs", "kg", "gm", "pkt"]} />
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-bold uppercase text-black block mb-1">Current Stock</label>
@@ -474,26 +472,26 @@ function CentralStockMaster() {
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-bold uppercase text-black block mb-1">Alt Unit</label>
-                                        <CustomSelect name="alt_unit" value={formData.alt_unit} onChange={handleInput} options={["None","pcs","kg","gm","pkt"]} />
+                                        <CustomSelect name="alt_unit" value={formData.alt_unit} onChange={handleInput} options={["None", "pcs", "kg", "gm", "pkt"]} />
                                     </div>
                                 </div>
 
                                 {/* SECTION 3 */}
-                                <div className="md:col-span-3 border-b border-slate-100 pb-2 mt-4"><h3 className="text-[11px] font-black uppercase text-black tracking-[0.2em] flex items-center gap-2"><Hash size={12}/> Pricing & Taxation</h3></div>
-                                
+                                <div className="md:col-span-3 border-b border-slate-100 pb-2 mt-4"><h3 className="text-[11px] font-black uppercase text-black tracking-[0.2em] flex items-center gap-2"><Hash size={12} /> Pricing & Taxation</h3></div>
+
                                 <div className="md:col-span-1">
                                     <label className="text-[10px] font-bold uppercase text-black block mb-1">Purchase Price</label>
                                     <input type="number" name="purchase_price" value={formData.purchase_price} onChange={handleInput} className="w-full bg-slate-50 rounded-lg border border-slate-200 px-3 py-3 outline-none font-bold text-black text-sm" placeholder="0.00" />
                                 </div>
                                 <div className="md:col-span-1">
                                     <label className="text-[10px] font-bold uppercase text-black block mb-1">Purchase Tax Mode</label>
-                                    <TaxToggle value={formData.purchase_tax_inc} onSelect={(val) => setFormData({...formData, purchase_tax_inc: val})} />
+                                    <TaxToggle value={formData.purchase_tax_inc} onSelect={(val) => setFormData({ ...formData, purchase_tax_inc: val })} />
                                 </div>
                                 <div className="md:col-span-1">
                                     <label className="text-[10px] font-bold uppercase text-black block mb-1">GST Rate (%)</label>
                                     <input type="number" name="gst_rate" value={formData.gst_rate} onChange={handleInput} className="w-full bg-slate-50 rounded-lg border border-slate-200 px-3 py-3 outline-none font-bold text-black text-sm" placeholder="18" />
                                 </div>
-                                
+
                                 <div className="md:col-span-1">
                                     <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Purchase Price + GST</label>
                                     <div className="py-3 font-black text-slate-600 bg-slate-50 px-3 rounded-lg border border-slate-100 text-sm">
@@ -509,9 +507,9 @@ function CentralStockMaster() {
                                 </div>
                                 <div className="md:col-span-1">
                                     <label className="text-[10px] font-bold uppercase text-black block mb-1">Sales Tax Mode</label>
-                                    <TaxToggle value={formData.sales_tax_inc} onSelect={(val) => setFormData({...formData, sales_tax_inc: val})} />
+                                    <TaxToggle value={formData.sales_tax_inc} onSelect={(val) => setFormData({ ...formData, sales_tax_inc: val })} />
                                 </div>
-                                
+
                                 <div className="md:col-span-1">
                                     <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Sales Price + GST</label>
                                     <div className="py-3 font-black text-emerald-700 bg-emerald-50 px-3 rounded-lg border border-emerald-100 text-sm">
