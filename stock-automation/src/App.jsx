@@ -1,8 +1,6 @@
-import { useEffect } from "react"; 
-import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom"; 
-
-/* LOGO IMPORT FROM SRC */
-import myLogo from "./assets/jksh_logo.jpeg"; 
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import myLogo from "./assets/jksh_logo.jpeg";
 
 /* AUTH */
 import Login from "./pages/login/Login";
@@ -26,31 +24,31 @@ import Settings from "./pages/stock/settings";
 /* FRANCHISE */
 import StockOrder from "./pages/franchise/stockorder";
 import FranchiseInvoices from "./pages/franchise/franchiseinvoices";
-import FranchiseAnalytics from "./pages/franchise/FranchiseAnalytics"; 
-import RequestPortal from "./pages/franchise/RequestPortal"; 
+import FranchiseAnalytics from "./pages/franchise/FranchiseAnalytics";
+import RequestPortal from "./pages/franchise/RequestPortal";
 import FranchiseMenu from "./pages/franchise/FranchiseMenu";
 import FranchiseSettingsCard from "./pages/franchise/FranchiseSettingsCard";
 import FranchiseProfiles from "./pages/franchise/FranchiseProfiles";
-import LoginTimings from "./pages/franchise/LoginTimings"; 
+import LoginTimings from "./pages/franchise/LoginTimings";
 
 /* CENTRAL */
 import CentralInvoices from "./pages/central/centralinvoices";
 import CentralSettings from "./pages/central/centralsettings";
 import CentralProfiles from "./pages/central/centralprofiles";
-import CentralStaffProfiles from "./pages/central/CentralStaffProfiles"; 
+import CentralStaffProfiles from "./pages/central/CentralStaffProfiles";
 import CentralStaffLogins from "./pages/central/CentralStaffLogins";
-import CentralVendors from "./pages/central/CentralVendors"; 
+import CentralVendors from "./pages/central/CentralVendors";
 import Accounts from "./pages/central/accounts";
 import PosManagement from "./pages/central/posmanagement";
 import Reports from "./pages/central/reports";
 import FranchiseReplies from "./pages/central/FranchiseReplies";
 import CentralStockMaster from "./pages/central/CentralStockMaster";
 // Updated Import Path based on your file structure
-import InvoiceDesign from "./pages/central/InvoiceDesign"; 
+import InvoiceDesign from "./pages/central/InvoiceDesign";
 
 /* CONTEXTS */
 import { AuthProvider } from "./context/AuthContext";
-import { PrinterProvider } from "./pages/printer/BluetoothPrinter"; 
+import { PrinterProvider } from "./pages/printer/BluetoothPrinter";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
 /**
@@ -76,7 +74,7 @@ function App() {
 
   return (
     <AuthProvider>
-      <PrinterProvider> 
+      <PrinterProvider>
         <BrowserRouter>
           <Routes>
 
@@ -92,7 +90,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            
+
             <Route
               path="/history"
               element={
@@ -129,7 +127,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            
+
             <Route
               path="/central/vendors"
               element={
@@ -202,7 +200,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            
+
             <Route
               path="/central/accounts"
               element={
@@ -211,7 +209,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            
+
             <Route
               path="/central/reports"
               element={
@@ -388,7 +386,7 @@ function App() {
 
           </Routes>
         </BrowserRouter>
-      </PrinterProvider> 
+      </PrinterProvider>
     </AuthProvider>
   );
 }
