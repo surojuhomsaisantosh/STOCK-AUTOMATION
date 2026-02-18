@@ -154,69 +154,35 @@ function CentralProfiles() {
 
   return (
     <div style={styles.page}>
-      <div style={{ ...styles.container, padding: isMobile ? "20px 15px" : "40px 20px" }}>
 
-        {/* HEADER SECTION */}
-        {/* HEADER SECTION */}
-        <header style={{
-          ...styles.header,
-          marginBottom: isMobile ? '20px' : '40px',
-          alignItems: 'flex-start' // Ensure top alignment for all children
-        }}>
-          {/* Left: Back Button */}
-          <button onClick={() => navigate(-1)} style={{
-            ...styles.backBtn,
-            marginTop: isMobile ? '4px' : '0' // Visually align with Title/ID
-          }}>
-            <ArrowLeft size={isMobile ? 18 : 20} />
-            <span style={{ fontSize: isMobile ? '13px' : '14px' }}>Back</span>
+      {/* HEADER */}
+      <header style={styles.header}>
+        <div style={styles.headerInner}>
+          <button onClick={() => navigate(-1)} style={styles.backBtn}>
+            <ArrowLeft size={18} /> <span>Back</span>
           </button>
 
-          {/* Center: Title (Absolute) */}
-          <h1 style={{
-            ...styles.centerTitle,
-            fontSize: isMobile ? '18px' : '24px',
-            top: isMobile ? '2px' : '0' // Minor adjustment for alignment
-          }}>PROFILES</h1>
+          <h1 style={styles.heading}>
+            User <span style={{ color: ACTION_GREEN }}>Profiles</span>
+          </h1>
 
-          {/* Right: ID & Register */}
-          <div style={{
-            ...styles.topRightActions,
-            gap: isMobile ? '4px' : '25px',
-            flexDirection: isMobile ? 'column' : 'row',
-            alignItems: isMobile ? 'flex-end' : 'center'
-          }}>
-            <div style={styles.franchiseDisplay}>
-              {!isMobile && <span style={styles.franchiseLabel}>Franchise ID :</span>}
-              <span style={{
-                ...styles.franchiseValue,
-                fontSize: isMobile ? '11px' : '13px',
-                padding: isMobile ? '4px 8px' : '4px 10px'
-              }}>{userFranchiseId}</span>
+          <div style={styles.topRightActions}>
+            <div style={styles.idBox}>
+              ID : {userFranchiseId}
             </div>
-
-            <button onClick={() => navigate("/register")} style={{
-              ...styles.registerBtn,
-              padding: isMobile ? '8px 16px' : '10px 20px',
-              borderRadius: isMobile ? '10px' : '12px',
-              marginTop: isMobile ? '12px' : '0',
-              // improved mobile styling for "better" look
-              boxShadow: isMobile ? '0 4px 10px rgba(6, 95, 70, 0.2)' : 'none',
-              width: isMobile ? 'auto' : 'auto'
-            }}>
-              <UserPlus size={isMobile ? 16 : 18} />
-              <span style={{ fontSize: isMobile ? '11px' : '11px', fontWeight: '800' }}>REGISTER</span>
-            </button>
           </div>
-        </header>
+        </div>
+      </header>
 
-        {/* SEARCH & STATS BAR */}
+      <div style={{ ...styles.container, padding: isMobile ? "20px 15px" : "20px" }}>
+
+        {/* SEARCH & DATE BAR (Count removed from here) */}
         <div style={{
           ...styles.actionBar,
           flexDirection: isMobile ? 'column' : 'row',
           gap: isMobile ? '12px' : '15px'
         }}>
-          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '15px', width: isMobile ? '100%' : 'auto' }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '15px', width: '100%' }}>
             <div style={{ ...styles.searchWrapper, width: isMobile ? '100%' : '350px' }}>
               <Search size={18} color="#9ca3af" />
               <input
@@ -234,27 +200,60 @@ function CentralProfiles() {
               </div>
             )}
           </div>
-          <div style={{ ...styles.countBadge, alignSelf: isMobile ? 'flex-end' : 'auto' }}>
-            {sortedAndFilteredProfiles.length} TOTAL USERS
-          </div>
+          {/* Removed Count Badge from here */}
         </div>
 
-        {/* FILTERS SECTION */}
-        <div style={{ ...styles.filterRow, marginBottom: isMobile ? '15px' : '25px' }}>
-          <div style={{ ...styles.companyFilterWrapper, width: isMobile ? '100%' : 'fit-content' }}>
-            <Building2 size={16} color={PRIMARY} />
-            <select
-              style={{ ...styles.companySelect, flex: 1 }}
-              value={companyFilter}
-              onChange={(e) => setCompanyFilter(e.target.value)}
-            >
-              <option value="all">All Companies</option>
-              {companies.filter(c => c !== "all").map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-            <ChevronDown size={14} color="#6b7280" />
+        {/* FILTERS & ACTION ROW */}
+        <div style={{
+          ...styles.filterRow,
+          marginBottom: isMobile ? '15px' : '25px',
+          flexDirection: isMobile ? 'column' : 'row',
+          justifyContent: 'space-between',
+          alignItems: isMobile ? 'stretch' : 'center',
+          gap: isMobile ? '15px' : '0'
+        }}>
+
+          {/* Left Side: Dropdown + Total Users Text */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexDirection: isMobile ? 'column' : 'row', width: isMobile ? '100%' : 'auto' }}>
+            <div style={{ ...styles.companyFilterWrapper, width: isMobile ? '100%' : 'fit-content' }}>
+              <Building2 size={16} color={PRIMARY} />
+              <select
+                style={{ ...styles.companySelect, flex: 1 }}
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value)}
+              >
+                <option value="all">All Companies</option>
+                {companies.filter(c => c !== "all").map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} color="#6b7280" />
+            </div>
+
+            {/* MOVED HERE & COLORED BLACK */}
+            <span style={{
+              fontSize: '11px',
+              fontWeight: '800',
+              color: '#000',
+              letterSpacing: '0.5px',
+              whiteSpace: 'nowrap',
+              alignSelf: isMobile ? 'flex-start' : 'center',
+              paddingLeft: isMobile ? '5px' : '0'
+            }}>
+              {sortedAndFilteredProfiles.length} TOTAL USERS
+            </span>
           </div>
+
+          {/* Register Button Right */}
+          <button onClick={() => navigate("/register")} style={{
+            ...styles.registerBtn,
+            width: isMobile ? '100%' : 'auto',
+            justifyContent: 'center',
+            height: '42px'
+          }}>
+            <UserPlus size={16} />
+            <span>REGISTER NEW USER</span>
+          </button>
         </div>
 
         {/* CONTENT AREA: MOBILE CARDS OR DESKTOP TABLE */}
@@ -453,23 +452,28 @@ function CentralProfiles() {
 const styles = {
   page: { background: "#fff", minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: "#111827" },
   container: { maxWidth: "1400px", margin: "0 auto" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "40px", position: "relative" },
-  centerTitle: { fontSize: "24px", fontWeight: "900", letterSpacing: "-1px", margin: 0, position: "absolute", left: "50%", transform: "translateX(-50%)" },
-  backBtn: { display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#6b7280", fontWeight: "600", cursor: "pointer" },
-  topRightActions: { display: "flex", alignItems: "center", gap: "25px" },
-  franchiseDisplay: { display: "flex", alignItems: "center", gap: "8px" },
-  franchiseLabel: { fontSize: "11px", fontWeight: "700", color: "#9ca3af", letterSpacing: "0.5px" },
-  franchiseValue: { fontSize: "13px", fontWeight: "900", color: PRIMARY, background: "#f0fdf4", padding: "4px 10px", borderRadius: "8px", border: `1px solid #bbf7d0` },
-  registerBtn: { display: "flex", alignItems: "center", gap: "8px", background: PRIMARY, color: "#fff", border: "none", padding: "10px 20px", borderRadius: "12px", fontSize: "11px", fontWeight: "800", cursor: "pointer" },
+
+  // NEW HEADER STYLES
+  header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
+  headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px' },
+  backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
+  heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
+  topRightActions: { display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 },
+  idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
+
+  // Updated Register Button Style
+  registerBtn: { display: "flex", alignItems: "center", gap: "8px", background: ACTION_GREEN, color: "#fff", border: "none", padding: "8px 24px", borderRadius: "12px", fontSize: "12px", fontWeight: "800", cursor: "pointer", height: '46px' },
+
+  // Existing Styles ...
   actionBar: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" },
-  filterRow: { display: "flex", justifyContent: "flex-start" },
+  filterRow: { display: "flex" }, // Updated in inline style
   companyFilterWrapper: { display: "flex", alignItems: "center", gap: "10px", background: "#fff", border: `1.5px solid ${BORDER}`, padding: "8px 15px", borderRadius: "12px" },
   companySelect: { border: "none", background: "none", outline: "none", fontSize: "13px", fontWeight: "600", color: "#374151", cursor: "pointer", appearance: "none" },
   dateSection: { display: "flex", alignItems: "center", gap: "10px", background: "#f3f4f6", padding: "0 16px", borderRadius: "14px", border: `1px solid ${BORDER}`, height: "46px" },
   dateText: { fontSize: "12px", fontWeight: "700", color: "#4b5563", textTransform: "uppercase" },
   searchWrapper: { display: "flex", alignItems: "center", gap: "12px", background: "#f9fafb", border: `1.5px solid ${BORDER}`, borderRadius: "16px", padding: "0 16px", height: "46px" },
   searchInput: { border: "none", background: "none", padding: "14px 0", outline: "none", fontSize: "14px", width: "100%", fontWeight: "500" },
-  countBadge: { fontSize: "10px", fontWeight: "800", color: "#9ca3af", letterSpacing: "1px" },
+  // countBadge removed as it is now inline styled
   tableWrapper: { border: `1px solid ${BORDER}`, borderRadius: "24px", overflow: "hidden" },
   table: { width: "100%", borderCollapse: "collapse", textAlign: "left" },
   thRow: { background: "#f3f4f6", borderBottom: `2px solid ${PRIMARY}` },
