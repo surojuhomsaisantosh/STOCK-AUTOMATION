@@ -11,6 +11,7 @@ import tvanammLogo from "../../assets/tvanamm_logo.jpeg";
 
 // --- THEME CONSTANTS ---
 const THEME_COLOR = "rgb(0, 100, 55)"; // Deep Green
+const ITEMS_PER_INVOICE_PAGE = 15;
 
 // --- UTILITY: Safe Session Storage ---
 const getSessionItem = (key) => {
@@ -21,24 +22,217 @@ const getSessionItem = (key) => {
 };
 
 const setSessionItem = (key, value) => {
-    try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (e) { }
 };
 
-// --- HELPER FUNCTION ---
-const numberToWords = (num) => {
-    const a = ['', 'one ', 'two ', 'three ', 'four ', 'five ', 'six ', 'seven ', 'eight ', 'nine ', 'ten ', 'eleven ', 'twelve ', 'thirteen ', 'fourteen ', 'fifteen ', 'sixteen ', 'seventeen ', 'eighteen ', 'nineteen '];
-    const b = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
-    if ((num = num.toString()).length > 9) return 'overflow';
-    const n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
-    if (!n) return;
-    let str = '';
-    str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'crore ' : '';
-    str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'lakh ' : '';
-    str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'thousand ' : '';
-    str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'hundred ' : '';
-    str += (n[5] != 0) ? ((str !== '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
-    return str.toUpperCase() + ' RUPEES ONLY';
+// --- HELPER FUNCTIONS ---
+const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(amount || 0);
 };
+
+const amountToWords = (price) => {
+    if (!price) return "";
+    const num = Math.round(price);
+    const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+    const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    const inWords = (n) => {
+        if ((n = n.toString()).length > 9) return 'overflow';
+        let n_array = ('000000000' + n).slice(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+        if (!n_array) return;
+        let str = '';
+        str += (n_array[1] != 0) ? (a[Number(n_array[1])] || b[n_array[1][0]] + ' ' + a[n_array[1][1]]) + 'Crore ' : '';
+        str += (n_array[2] != 0) ? (a[Number(n_array[2])] || b[n_array[2][0]] + ' ' + a[n_array[2][1]]) + 'Lakh ' : '';
+        str += (n_array[3] != 0) ? (a[Number(n_array[3])] || b[n_array[3][0]] + ' ' + a[n_array[3][1]]) + 'Thousand ' : '';
+        str += (n_array[4] != 0) ? (a[Number(n_array[4])] || b[n_array[4][0]] + ' ' + a[n_array[4][1]]) + 'Hundred ' : '';
+        str += (n_array[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n_array[5])] || b[n_array[5][0]] + ' ' + a[n_array[5][1]]) : '';
+        return str;
+    }
+    return inWords(num) + "Rupees Only";
+};
+
+
+// --- INVOICE PRINT COMPONENT ---
+const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalPages, itemsChunk }) => {
+    if (!order) return null;
+    const companyName = companyDetails?.company_name || "";
+    const invDate = new Date(order.created_at).toLocaleDateString('en-GB');
+    const taxableAmount = Number(order.subtotal) || 0;
+    const totalGst = Number(order.tax_amount) || 0;
+    const cgst = totalGst / 2;
+    const sgst = totalGst / 2;
+    const roundedBill = Number(order.total_amount) || 0;
+    const roundOff = Number(order.round_off) || 0;
+    const orderId = order.id ? order.id.substring(0, 8) : 'PENDING';
+
+    // Calculate empty rows needed to lock the table height exactly for 15 items
+    const emptyRowsCount = Math.max(0, ITEMS_PER_INVOICE_PAGE - itemsChunk.length);
+
+    return (
+        <div className="a4-page flex flex-col bg-white text-black font-sans text-xs leading-normal relative">
+            <div className="w-full border-2 border-black flex flex-col relative flex-1">
+                {/* Header Section */}
+                <div className="p-3 border-b-2 border-black relative">
+                    <div className="absolute top-2 left-0 w-full text-center pointer-events-none">
+                        <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4 text-black">TAX INVOICE</h1>
+                    </div>
+                    <div className="flex justify-between items-center mt-5 pt-3">
+                        <div className="text-left z-10 w-[55%]">
+                            <div className="font-bold leading-relaxed text-[10px]">
+                                <span className="uppercase underline mb-1 block text-black font-black">Registered Office:</span>
+                                <p className="whitespace-pre-wrap break-words text-black leading-tight">{companyDetails?.company_address || ""}</p>
+                                <div className="mt-1 space-y-0.5">
+                                    {companyDetails?.company_gst && <p className="text-black">GSTIN: <span className="font-black">{companyDetails.company_gst}</span></p>}
+                                    {companyDetails?.company_email && <p className="text-black">Email: {companyDetails.company_email}</p>}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="z-10 flex flex-col items-center text-center max-w-[40%]">
+                            {currentLogo ? (
+                                <img src={currentLogo} alt="Logo" className="h-12 w-auto object-contain mb-1" />
+                            ) : (
+                                <div className="h-10 w-24 border border-dashed border-gray-400 flex items-center justify-center text-[9px] text-black mb-1">NO LOGO</div>
+                            )}
+                            <h2 className="text-base font-black uppercase text-black break-words text-center leading-tight">{companyName}</h2>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Invoice Info */}
+                <div className="flex border-b-2 border-black bg-slate-50 print:bg-transparent text-black">
+                    <div className="w-1/2 border-r-2 border-black py-1 px-3">
+                        <span className="font-bold text-black uppercase text-[9px]">Invoice No:</span>
+                        <p className="font-black text-sm text-black">#{orderId}</p>
+                    </div>
+                    <div className="w-1/2 py-1 px-3">
+                        <span className="font-bold text-black uppercase text-[9px]">Invoice Date:</span>
+                        <p className="font-black text-sm text-black">{invDate}</p>
+                    </div>
+                </div>
+
+                {/* Bill To */}
+                <div className="flex border-b-2 border-black text-black">
+                    <div className="w-[70%] p-2 border-r-2 border-black">
+                        <span className="font-black uppercase underline text-[10px] tracking-widest text-black mb-1 block">Bill To:</span>
+                        <h3 className="text-sm font-black uppercase leading-tight text-black">{order?.customer_name || ""}</h3>
+                        <p className="font-bold text-[10px] mt-0.5 uppercase leading-snug whitespace-pre-wrap break-words text-black">
+                            {order?.customer_address || ""}
+                        </p>
+                    </div>
+                    <div className="w-[30%] p-2 flex flex-col justify-center pl-4 text-black">
+                        <div className="mb-1.5"><span className="text-[10px] font-bold block mb-0.5">ID: </span><span className="text-sm font-black block text-black leading-none">{order?.franchise_id || ""}</span></div>
+                        {order?.customer_phone && (<div><span className="text-[10px] font-bold block mb-0.5">Ph: </span><span className="text-sm font-black block text-black leading-none">{order.customer_phone}</span></div>)}
+                    </div>
+                </div>
+
+                {/* Table - Optimized Row Heights (26px) & Padding */}
+                <div className="flex-1 border-b-2 border-black relative">
+                    <table className="w-full text-left border-collapse text-black">
+                        <thead className="bg-slate-100 text-[10px] border-b-2 border-black text-black">
+                            <tr>
+                                <th className="py-1 px-2 border-r-2 border-black w-10 text-center">S.No</th>
+                                <th className="py-1 px-2 border-r-2 border-black">Item Description</th>
+                                <th className="py-1 px-2 border-r-2 border-black w-14 text-center">Qty</th>
+                                <th className="py-1 px-2 border-r-2 border-black w-20 text-right">Rate</th>
+                                <th className="py-1 px-2 border-r-2 border-black w-12 text-center">GST%</th>
+                                <th className="py-1 px-2 border-r-2 border-black w-16 text-right">GST Amt</th>
+                                <th className="py-1 px-2 w-24 text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-[10px] font-bold text-black">
+                            {itemsChunk.map((item, idx) => {
+                                const rate = Number(item.price) || 0;
+                                const qty = Number(item.quantity) || 0;
+                                const subtotal = rate * qty;
+                                const gstRate = Number(item.gst_rate) || 0;
+                                const gstAmt = subtotal * (gstRate / 100);
+                                const finalAmount = Number(item.total) || (subtotal + gstAmt);
+
+                                // Embed HSN directly in the title column so we maintain exact CSS limits
+                                const hsnText = item.stocks?.hsn_code || item.hsn_code ? ` (HSN: ${item.stocks?.hsn_code || item.hsn_code})` : '';
+
+                                return (
+                                    <tr key={idx} className="h-[26px] overflow-hidden">
+                                        <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-black">{(pageIndex * ITEMS_PER_INVOICE_PAGE) + idx + 1}</td>
+                                        <td className="py-0.5 px-2 border-r-2 border-b border-black uppercase truncate max-w-[150px] text-black overflow-hidden whitespace-nowrap">
+                                            {item.item_name}{hsnText}
+                                        </td>
+                                        <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-black">{qty} {item.unit}</td>
+                                        <td className="py-0.5 px-2 border-r-2 border-b border-black text-right text-black">{formatCurrency(rate)}</td>
+                                        <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-black">{gstRate}%</td>
+                                        <td className="py-0.5 px-2 border-r-2 border-b border-black text-right text-black">{formatCurrency(gstAmt)}</td>
+                                        <td className="py-0.5 px-2 border-b border-black text-right text-black">{formatCurrency(finalAmount)}</td>
+                                    </tr>
+                                );
+                            })}
+
+                            {/* Generate empty rows to pad out to exactly 15 rows */}
+                            {Array.from({ length: emptyRowsCount }).map((_, idx) => (
+                                <tr key={`empty-${idx}`} className="h-[26px]">
+                                    <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-transparent">-</td>
+                                    <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
+                                    <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
+                                    <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
+                                    <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
+                                    <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
+                                    <td className="py-0.5 px-2 border-b border-black"></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Footer */}
+                <div className="flex mt-auto text-black">
+                    <div className="w-[60%] border-r-2 border-black flex flex-col">
+                        <div className="py-1.5 px-2 border-b-2 border-black min-h-[30px] flex flex-col justify-center bg-slate-50">
+                            <span className="font-bold text-[9px] text-black uppercase">Total Amount in Words:</span>
+                            <p className="font-black italic capitalize text-[10px] mt-0.5 text-black leading-tight">{amountToWords(roundedBill)}</p>
+                        </div>
+                        <div className="p-2 flex-1 flex flex-col justify-between">
+                            <div>
+                                <p className="font-black uppercase underline text-[11px] mb-1.5 text-black">Bank Details</p>
+                                <div className="grid grid-cols-[50px_1fr] gap-y-0.5 text-[10px] font-bold uppercase text-black leading-tight">
+                                    <span>Bank:</span> <span className="text-black">{companyDetails?.bank_name || ""}</span>
+                                    <span>A/c No:</span> <span className="text-black">{companyDetails?.bank_acc_no || ""}</span>
+                                    <span>IFSC:</span> <span className="text-black">{companyDetails?.bank_ifsc || ""}</span>
+                                </div>
+                            </div>
+                            <div className="mt-2 pt-1.5 border-t border-slate-300">
+                                <p className="font-black uppercase underline text-[10px] mb-1 text-black">Terms & Conditions:</p>
+                                <p className="text-[8px] text-black whitespace-pre-wrap leading-tight">{companyDetails?.terms || "No terms available."}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="w-[40%] flex flex-col text-[10px] text-black">
+                        <div className="flex justify-between py-1 px-1.5 border-b border-black text-black"><span>Taxable</span><span>{formatCurrency(taxableAmount)}</span></div>
+                        <div className="flex justify-between py-1 px-1.5 border-b border-slate-300 text-black"><span>Total GST</span><span>{formatCurrency(totalGst)}</span></div>
+                        <div className="flex justify-between py-0.5 px-2 border-b border-slate-300 text-black text-[9px] bg-slate-50 pl-4"><span>CGST</span><span>{formatCurrency(cgst)}</span></div>
+                        <div className="flex justify-between py-0.5 px-2 border-b border-black text-black text-[9px] bg-slate-50 pl-4"><span>SGST</span><span>{formatCurrency(sgst)}</span></div>
+
+                        <div className="flex justify-between py-1 px-1.5 border-b border-black text-black"><span>Round Off</span><span>{formatCurrency(roundOff)}</span></div>
+                        <div className="flex justify-between py-1.5 px-2 border-b-2 border-black bg-slate-200 text-black"><span className="font-black uppercase text-black">Total</span><span className="font-black text-black">{formatCurrency(roundedBill)}</span></div>
+                        <div className="flex-1 flex flex-col justify-end p-2 text-center">
+                            {pageIndex < totalPages - 1 && <p className="text-[8px] mb-1 font-bold italic text-slate-500">Continued on next page...</p>}
+                            <p className="font-black border-t border-black pt-1 uppercase text-[8px] text-black">Authorized Signature</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* PAGE NUMBER ADDED AT THE BOTTOM RIGHT */}
+            <div className="absolute bottom-1 right-2 print:bottom-1.5 print:right-2 text-[9px] font-black text-black">
+                Page {pageIndex + 1} of {totalPages}
+            </div>
+        </div>
+    );
+};
+
 
 function InvoicesBilling() {
     const navigate = useNavigate();
@@ -96,7 +290,7 @@ function InvoicesBilling() {
                 .order("created_at", { ascending: false });
             if (invError) throw invError;
             setInvoices(invData || []);
-        } catch (err) { console.error(err); } 
+        } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
 
@@ -132,7 +326,7 @@ function InvoicesBilling() {
     };
 
     return (
-        <div className="min-h-screen bg-[#F8F9FA] text-black font-sans pb-20 print:bg-white print:pb-0 overflow-x-hidden">
+        <div className="min-h-screen bg-[#F8F9FA] text-black font-sans pb-20 overflow-x-hidden print:bg-white print:pb-0">
             <style>{`
                 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
@@ -140,18 +334,59 @@ function InvoicesBilling() {
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
                 
                 @media print {
-                    @page { size: A4; margin: 0; }
-                    body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; background: white; }
-                    .print-invoice-container { display: block !important; width: 100%; }
-                    .print-invoice-container * { visibility: visible; }
-                    .invoice-page { page-break-after: always; height: 297mm; width: 210mm; position: relative; overflow: hidden; margin: 0 auto; box-sizing: border-box; background: white; color: black; }
-                    .invoice-page:last-child { page-break-after: auto; }
-                    nav, .filters-container, .main-ui, .preview-modal { display: none !important; }
+                  body { background: white; margin: 0; padding: 0; }
+                  .print-only { display: block !important; width: 100%; }
+                  @page { size: A4; margin: 0; }
+                  .a4-page {
+                    width: 210mm;
+                    height: 296.5mm;
+                    padding: 5mm;
+                    margin: 0 auto;
+                    page-break-after: always;
+                    box-sizing: border-box;
+                    overflow: hidden;
+                  }
+                  .a4-page:last-child {
+                    page-break-after: auto;
+                  }
+                  * {
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                  }
+                  .main-ui, .preview-modal { display: none !important; }
                 }
-                .print-invoice-container { display: none; }
             `}</style>
 
-            <div className="main-ui">
+            {/* --- ACTUAL PRINT CONTAINER (ROOT LEVEL) --- */}
+            <div className="print-only hidden print:block bg-white">
+                {selectedInvoice && (() => {
+                    const companyDetails = getCompanyDetails(selectedInvoice.franchise_id);
+                    const selectedLogo = getCompanyLogo(companyDetails.company_name);
+                    const fullItems = selectedInvoice.invoice_items || [];
+                    const pages = [];
+
+                    if (fullItems.length === 0) pages.push([]);
+                    else {
+                        for (let i = 0; i < fullItems.length; i += ITEMS_PER_INVOICE_PAGE) {
+                            pages.push(fullItems.slice(i, i + ITEMS_PER_INVOICE_PAGE));
+                        }
+                    }
+
+                    return pages.map((chunk, index) => (
+                        <FullPageInvoice
+                            key={index}
+                            order={selectedInvoice}
+                            companyDetails={companyDetails}
+                            currentLogo={selectedLogo}
+                            pageIndex={index}
+                            totalPages={pages.length}
+                            itemsChunk={chunk}
+                        />
+                    ));
+                })()}
+            </div>
+
+            <div className="main-ui print:hidden">
                 {/* --- NAVIGATION BAR --- */}
                 <nav className="border-b border-slate-200 bg-white sticky top-0 z-50 h-16 shadow-sm">
                     <div className="max-w-7xl mx-auto px-4 md:px-8 h-full flex items-center justify-between relative">
@@ -247,7 +482,7 @@ function InvoicesBilling() {
 
             {/* --- PREVIEW MODAL --- */}
             {selectedInvoice && (
-                <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm preview-modal">
+                <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm preview-modal print:hidden">
                     <div className="absolute inset-0" onClick={() => setSelectedInvoice(null)} />
                     <div className="bg-white w-full max-w-5xl h-[95vh] sm:h-[80vh] overflow-hidden rounded-t-[2rem] sm:rounded-3xl shadow-2xl relative z-10 flex flex-col transition-all">
                         <div className="flex justify-between items-center p-5 border-b border-gray-100 shrink-0">
@@ -293,8 +528,8 @@ function InvoicesBilling() {
                                                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-4">Payment Summary</h4>
                                                 <div className="space-y-3">
                                                     <div className="flex justify-between items-center text-[11px] font-bold text-gray-500"><span>Taxable Amount</span><span className="text-gray-800 font-black">₹{taxableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
-                                                    <div className="flex justify-between items-center text-[11px] font-bold text-gray-500"><span>CGST ({gstPercent/2}%)</span><span className="text-gray-600">+ ₹{(totalTaxAmount / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
-                                                    <div className="flex justify-between items-center text-[11px] font-bold text-gray-500"><span>SGST ({gstPercent/2}%)</span><span className="text-gray-600">+ ₹{(totalTaxAmount / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                                                    <div className="flex justify-between items-center text-[11px] font-bold text-gray-500"><span>CGST ({gstPercent / 2}%)</span><span className="text-gray-600">+ ₹{(totalTaxAmount / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                                                    <div className="flex justify-between items-center text-[11px] font-bold text-gray-500"><span>SGST ({gstPercent / 2}%)</span><span className="text-gray-600">+ ₹{(totalTaxAmount / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
                                                     <div className="flex justify-between items-center text-[11px] font-bold text-gray-500"><span>Round Off</span><span className={roundOff < 0 ? 'text-red-500' : 'text-gray-600'}>{roundOff >= 0 ? '+' : ''} ₹{roundOff.toFixed(2)}</span></div>
                                                     <div className="my-2 border-t border-dashed border-gray-100"></div>
                                                     <div className="flex justify-between items-end pt-1"><span className="text-[10px] font-black uppercase text-gray-900">Grand Total</span><span className="text-2xl font-black leading-none" style={{ color: THEME_COLOR }}>₹{Number(inv.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
@@ -309,130 +544,6 @@ function InvoicesBilling() {
                     </div>
                 </div>
             )}
-
-            {/* --- ACTUAL PRINT CONTAINER (ROOT LEVEL) --- */}
-            <div className="print-invoice-container">
-                {selectedInvoice && (() => {
-                    const inv = selectedInvoice;
-                    const fullItems = inv.invoice_items || [];
-                    const companyDetails = getCompanyDetails(inv.franchise_id);
-                    const selectedLogo = getCompanyLogo(companyDetails.company_name);
-                    const taxableAmount = Number(inv.subtotal) || 0;
-                    const totalTaxAmount = Number(inv.tax_amount) || 0;
-                    const roundOff = Number(inv.round_off) || 0;
-                    const gstPercent = fullItems[0]?.gst_rate || 18;
-
-                    const itemsPerPage = 10;
-                    const pages = [];
-                    for (let i = 0; i < fullItems.length; i += itemsPerPage) pages.push(fullItems.slice(i, i + itemsPerPage));
-                    if (pages.length === 0) pages.push([]);
-
-                    return pages.map((pageItems, pageIdx) => {
-                        const isLastPage = pageIdx === pages.length - 1;
-                        return (
-                            <div key={pageIdx} className="invoice-page bg-white p-10 text-black font-bold">
-                                <div className="border-2 border-black h-full flex flex-col relative">
-                                    <div className="text-center py-2 border-b-2 border-black"><h1 className="text-xl font-bold underline uppercase tracking-wider">Tax Invoice</h1></div>
-                                    <div className="flex border-b-2 border-black h-28">
-                                        <div className="w-1/2 p-3 flex flex-col justify-center text-left">
-                                            <p className="font-bold text-[10px] underline uppercase mb-0.5">Registered Office:</p>
-                                            <p className="text-[10px] font-bold uppercase leading-tight">{companyDetails.company_address}</p>
-                                            <div className="mt-2 text-[10px] font-bold">
-                                                <p>GSTIN: {companyDetails.company_gst}</p>
-                                                <p>Email: {companyDetails.company_email}</p>
-                                            </div>
-                                        </div>
-                                        <div className="w-1/2 p-3 flex flex-col items-end justify-center text-right">
-                                            <div className="flex flex-col items-center">
-                                                <div className="mb-1">{selectedLogo && <img src={selectedLogo} alt="Logo" className="h-14 w-auto object-contain" />}</div>
-                                                <h2 className="text-lg font-black uppercase leading-none">{companyDetails.company_name}</h2>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex border-b-2 border-black text-[10px]">
-                                        <div className="w-1/2 border-r-2 border-black p-2 flex justify-between"><span>Invoice No:</span><span className="font-bold uppercase">{inv.id.substring(0, 8)}</span></div>
-                                        <div className="w-1/2 p-2 flex justify-between"><span>Invoice Date:</span><span className="font-bold">{new Date(inv.created_at).toLocaleDateString('en-GB')}</span></div>
-                                    </div>
-                                    <div className="flex border-b-2 border-black text-[10px]">
-                                        <div className="w-1/2 border-r-2 border-black p-3 text-left">
-                                            <p className="font-bold underline uppercase mb-0.5">Bill To:</p>
-                                            <p className="font-bold uppercase text-[12px]">{inv.customer_name}</p>
-                                            <p className="uppercase leading-tight">{inv.customer_address}</p>
-                                        </div>
-                                        <div className="w-1/2 p-3 flex flex-col justify-center gap-2 text-[10px]">
-                                            <div className="flex justify-between"><span>Franchise ID:</span><span className="font-bold">{inv.franchise_id}</span></div>
-                                            <div className="flex justify-between"><span>Phone:</span><span className="font-bold">{inv.customer_phone || "N/A"}</span></div>
-                                        </div>
-                                    </div>
-                                    <div className="flex-grow flex flex-col relative">
-                                        <div className="flex bg-white text-center border-b-2 border-black font-bold uppercase text-[10px] py-1.5">
-                                            <div className="border-r border-black w-10">S.No</div><div className="border-r border-black flex-1 text-left px-2">Description</div><div className="border-r border-black w-20">HSN</div><div className="border-r border-black w-14">Qty</div><div className="border-r border-black w-24">Rate</div><div className="border-r border-black w-14">GST</div><div className="w-24 px-2 text-right">Amount</div>
-                                        </div>
-                                        {pageItems.map((item, i) => (
-                                            <div key={i} className="flex border-b border-black text-center items-stretch text-[9px] min-h-[12mm] py-1">
-                                                <div className="border-r border-black w-10 flex items-center justify-center font-bold">{(pageIdx * itemsPerPage) + i + 1}</div>
-                                                <div className="border-r border-black flex-1 text-left px-2 font-bold uppercase flex items-center">{item.item_name}</div>
-                                                <div className="border-r border-black w-20 flex items-center justify-center font-bold">{item.stocks?.hsn_code || "-"}</div>
-                                                <div className="border-r border-black w-14 flex items-center justify-center font-bold">{item.quantity} {item.unit}</div>
-                                                <div className="border-r border-black w-24 text-right px-2 flex items-center justify-end font-bold">{Number(item.price).toFixed(2)}</div>
-                                                <div className="border-r border-black w-14 flex items-center justify-center font-bold">{item.gst_rate}%</div>
-                                                <div className="w-24 text-right px-2 font-bold flex items-center justify-end">{Number(item.total).toFixed(2)}</div>
-                                            </div>
-                                        ))}
-                                        {pageItems.length < itemsPerPage && Array.from({length: itemsPerPage - pageItems.length}).map((_, idx) => (
-                                            <div key={`f-${idx}`} className="flex border-b border-black flex-grow min-h-[12mm]">
-                                                <div className="border-r border-black w-10"></div><div className="border-r border-black flex-1"></div><div className="border-r border-black w-20"></div><div className="border-r border-black w-14"></div><div className="border-r border-black w-24"></div><div className="border-r border-black w-14"></div><div className="w-24"></div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="flex border-t-2 border-black mt-auto">
-                                        <div className="w-1/2 border-r-2 border-black flex flex-col text-left">
-                                            <div className="p-2 border-b border-black"><p className="font-bold underline text-[9px] uppercase">Amount in Words:</p><p className="text-[9px] font-bold uppercase">{isLastPage ? numberToWords(Math.round(inv.total_amount)) : "Continued..."}</p></div>
-                                            
-                                            <div className="p-2 border-b border-black">
-                                                <p className="font-bold underline text-[9px] uppercase mb-1">Bank Details:</p>
-                                                <ul className="list-disc pl-4 text-[8px] font-bold uppercase space-y-0.5">
-                                                    <li>Bank: {companyDetails.bank_name || "N/A"}</li>
-                                                    <li>A/C No: {companyDetails.bank_acc_no || "N/A"}</li>
-                                                    <li>IFSC: {companyDetails.bank_ifsc || "N/A"}</li>
-                                                </ul>
-                                            </div>
-
-                                            <div className="p-2 flex-1 overflow-hidden text-[8px] font-bold leading-tight uppercase">
-                                                <p className="font-bold underline mb-1">Terms & Conditions:</p>
-                                                <ul className="list-disc pl-4 space-y-0.5">
-                                                    {companyDetails.terms 
-                                                        ? companyDetails.terms.split('\n').map((term, i) => 
-                                                            term.trim() ? <li key={i}>{term}</li> : null
-                                                          )
-                                                        : <li>Standard terms and conditions apply.</li>
-                                                    }
-                                                </ul>
-                                            </div>
-
-                                        </div>
-                                        <div className="w-1/2 flex flex-col text-[10px] font-bold">
-                                            {isLastPage ? (
-                                                <>
-                                                    <div className="flex justify-between px-3 py-1 border-b border-black"><span>Taxable Amount</span><span className="font-bold">₹{taxableAmount.toFixed(2)}</span></div>
-                                                    <div className="flex justify-between px-3 py-1 border-b border-black"><span>CGST ({gstPercent/2}%)</span><span>₹{(totalTaxAmount/2).toFixed(2)}</span></div>
-                                                    <div className="flex justify-between px-3 py-1 border-b border-black"><span>SGST ({gstPercent/2}%)</span><span>₹{(totalTaxAmount/2).toFixed(2)}</span></div>
-                                                    <div className="flex justify-between px-3 py-1 border-b border-black"><span>Round Off</span><span>{roundOff.toFixed(2)}</span></div>
-                                                    <div className="flex justify-between px-3 py-2 border-b-2 border-black font-bold text-sm"><span>TOTAL</span><span>₹{Number(inv.total_amount).toFixed(2)}</span></div>
-                                                </>
-                                            ) : (
-                                                <div className="flex-1 flex items-center justify-center text-black font-bold">Continued on next page...</div>
-                                            )}
-                                            <div className="flex-grow flex flex-col justify-center items-center py-4"><p className="font-bold uppercase text-[9px]">For {companyDetails.company_name}</p><div className="h-8"></div><p className="text-[8px] font-bold">(Authorized Signatory)</p></div>
-                                        </div>
-                                    </div>
-                                    <div className="absolute bottom-1 right-2 text-[8px] font-bold">Page {pageIdx+1} of {pages.length}</div>
-                                </div>
-                            </div>
-                        );
-                    });
-                })()}
-            </div>
         </div>
     );
 }
