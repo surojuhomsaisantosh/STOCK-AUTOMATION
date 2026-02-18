@@ -4,15 +4,16 @@ import { useNavigate } from "react-router-dom";
 import {
   FiArrowLeft, FiSearch, FiCalendar, FiShoppingCart,
   FiAlertTriangle, FiX, FiCheck, FiFilter, FiBell,
-  FiMinus, FiPlus, FiTrash2, FiDownload, FiInfo
-} from "react-icons/fi"; // Removed FiRefreshCw
+  FiMinus, FiPlus, FiTrash2, FiDownload, FiInfo,
+  FiRefreshCw
+} from "react-icons/fi";
 // --- ASSETS ---
 import tvanammLogo from "../../assets/tvanamm_logo.jpeg";
 import tleafLogo from "../../assets/tleaf_logo.jpeg";
 
 // --- CONSTANTS ---
 const BRAND_COLOR = "rgb(0, 100, 55)";
-const ITEMS_PER_INVOICE_PAGE = 12;
+const ITEMS_PER_INVOICE_PAGE = 15;
 const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID;
 
 // --- UTILS ---
@@ -133,107 +134,149 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
   const cgst = (data.totalGst || 0) / 2;
   const sgst = (data.totalGst || 0) / 2;
 
+  const emptyRowsCount = Math.max(0, ITEMS_PER_INVOICE_PAGE - itemsChunk.length);
+
   return (
-    <div className="w-full bg-white text-black font-sans p-8 print:p-6 box-border text-xs leading-normal h-full relative print:break-after-page print:h-[297mm]">
-      <div className="w-full border-2 border-black flex flex-col relative h-full">
-        {/* Header Section */}
-        <div className="p-4 border-b-2 border-black relative">
-          <div className="absolute top-4 left-0 w-full text-center pointer-events-none">
-            <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4">TAX INVOICE</h1>
+    <div className="a4-page flex flex-col bg-white text-black font-sans text-xs leading-normal relative">
+      <div className="w-full border-2 border-black flex flex-col relative flex-1">
+        {/* Header Section - Compressed margins/padding */}
+        <div className="p-3 border-b-2 border-black relative">
+          <div className="absolute top-2 left-0 w-full text-center pointer-events-none">
+            <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4 text-black">TAX INVOICE</h1>
           </div>
-          {totalPages > 1 && <div className="absolute top-2 right-2 text-[10px] font-black">Page {pageIndex + 1} of {totalPages}</div>}
-          <div className="flex justify-between items-center mt-6 pt-4">
+          <div className="flex justify-between items-center mt-5 pt-3">
             <div className="text-left z-10 w-[55%]">
               <div className="font-bold leading-relaxed text-[10px]">
-                <span className="uppercase underline mb-1 block text-slate-500 font-black">Registered Office:</span>
-                <p className="whitespace-pre-wrap break-words">{companyDetails?.company_address || ""}</p>
-                <div className="mt-2 space-y-0.5">
-                  {companyDetails?.company_gst && <p>GSTIN: <span className="font-black">{companyDetails.company_gst}</span></p>}
-                  {companyDetails?.company_email && <p>Email: {companyDetails.company_email}</p>}
+                <span className="uppercase underline mb-1 block text-black font-black">Registered Office:</span>
+                <p className="whitespace-pre-wrap break-words text-black leading-tight">{companyDetails?.company_address || ""}</p>
+                <div className="mt-1 space-y-0.5">
+                  {companyDetails?.company_gst && <p className="text-black">GSTIN: <span className="font-black">{companyDetails.company_gst}</span></p>}
+                  {companyDetails?.company_email && <p className="text-black">Email: {companyDetails.company_email}</p>}
                 </div>
               </div>
             </div>
             <div className="z-10 flex flex-col items-center text-center max-w-[40%]">
-              <img src={currentLogo} alt="Logo" className="h-16 w-auto object-contain mb-1" />
-              <h2 className="text-lg font-black uppercase text-[#006437] break-words text-center">{companyName}</h2>
+              <img src={currentLogo} alt="Logo" className="h-12 w-auto object-contain mb-1" />
+              <h2 className="text-base font-black uppercase text-black break-words text-center leading-tight">{companyName}</h2>
             </div>
           </div>
         </div>
+
         {/* Invoice Info */}
-        <div className="flex border-b-2 border-black bg-slate-50 print:bg-transparent">
-          <div className="w-1/2 border-r-2 border-black p-2">
-            <span className="font-bold text-slate-500 uppercase text-[9px]">Invoice No:</span>
-            <p className="font-black text-sm">#{orderId || 'PENDING'}</p>
+        <div className="flex border-b-2 border-black bg-slate-50 print:bg-transparent text-black">
+          <div className="w-1/2 border-r-2 border-black py-1 px-3">
+            <span className="font-bold text-black uppercase text-[9px]">Invoice No:</span>
+            <p className="font-black text-sm text-black">#{orderId || 'PENDING'}</p>
           </div>
-          <div className="w-1/2 p-2">
-            <span className="font-bold text-slate-500 uppercase text-[9px]">Invoice Date:</span>
-            <p className="font-black text-sm">{invDate}</p>
+          <div className="w-1/2 py-1 px-3">
+            <span className="font-bold text-black uppercase text-[9px]">Invoice Date:</span>
+            <p className="font-black text-sm text-black">{invDate}</p>
           </div>
         </div>
+
         {/* Bill To */}
-        <div className="flex border-b-2 border-black">
-          <div className="w-[70%] p-3 border-r-2 border-black">
-            <span className="font-black uppercase underline text-[10px] tracking-widest text-slate-500 mb-2 block">Bill To:</span>
-            <h3 className="text-sm font-black uppercase leading-tight">{profile?.name || ""}</h3>
-            <p className="font-bold text-[10px] mt-1 uppercase leading-relaxed whitespace-pre-wrap break-words">
+        <div className="flex border-b-2 border-black text-black">
+          <div className="w-[70%] p-2 border-r-2 border-black">
+            <span className="font-black uppercase underline text-[10px] tracking-widest text-black mb-1 block">Bill To:</span>
+            <h3 className="text-sm font-black uppercase leading-tight text-black">{profile?.name || ""}</h3>
+            <p className="font-bold text-[10px] mt-0.5 uppercase leading-snug whitespace-pre-wrap break-words text-black">
               {profile?.address || ""}<br />
               {profile?.city ? `${profile.city}` : ''} {profile?.state ? `, ${profile.state}` : ''} {profile?.pincode ? ` - ${profile.pincode}` : ''}
             </p>
           </div>
-          <div className="w-[30%] p-3 flex flex-col justify-center pl-4">
-            <div className="mb-2"><span className="text-[10px] font-bold block mb-1">ID: </span><span className="text-sm font-black block">{profile?.franchise_id || ""}</span></div>
-            {profile?.phone && (<div><span className="text-[10px] font-bold block mb-1">Ph: </span><span className="text-sm font-black block">{profile.phone}</span></div>)}
+          <div className="w-[30%] p-2 flex flex-col justify-center pl-4 text-black">
+            <div className="mb-1.5"><span className="text-[10px] font-bold block mb-0.5">ID: </span><span className="text-sm font-black block text-black leading-none">{profile?.franchise_id || ""}</span></div>
+            {profile?.phone && (<div><span className="text-[10px] font-bold block mb-0.5">Ph: </span><span className="text-sm font-black block text-black leading-none">{profile.phone}</span></div>)}
           </div>
         </div>
-        {/* Table */}
+
+        {/* Table - Optimized Row Heights (26px) & Padding */}
         <div className="flex-1 border-b-2 border-black relative">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-100 text-[10px] border-b-2 border-black">
+          <table className="w-full text-left border-collapse text-black">
+            <thead className="bg-slate-100 text-[10px] border-b-2 border-black text-black">
               <tr>
-                <th className="p-2 border-r-2 border-black w-10 text-center">S.No</th>
-                <th className="p-2 border-r-2 border-black">Item Description</th>
-                <th className="p-2 border-r-2 border-black w-14 text-center">Qty</th>
-                <th className="p-2 border-r-2 border-black w-20 text-right">Rate</th>
-                <th className="p-2 w-24 text-right">Amount</th>
+                <th className="py-1 px-2 border-r-2 border-black w-10 text-center">S.No</th>
+                <th className="py-1 px-2 border-r-2 border-black">Item Description</th>
+                <th className="py-1 px-2 border-r-2 border-black w-14 text-center">Qty</th>
+                <th className="py-1 px-2 border-r-2 border-black w-20 text-right">Rate</th>
+                <th className="py-1 px-2 border-r-2 border-black w-12 text-center">GST%</th>
+                <th className="py-1 px-2 border-r-2 border-black w-16 text-right">GST Amt</th>
+                <th className="py-1 px-2 w-24 text-right">Amount</th>
               </tr>
             </thead>
-            <tbody className="text-[10px] font-bold">
+            <tbody className="text-[10px] font-bold text-black">
               {itemsChunk.map((item, idx) => (
-                <tr key={idx} className="h-[35px]">
-                  <td className="p-2 border-r-2 border-b border-black text-center">{(pageIndex * ITEMS_PER_INVOICE_PAGE) + idx + 1}</td>
-                  <td className="p-2 border-r-2 border-b border-black uppercase truncate max-w-[150px]">{item.item_name}</td>
-                  <td className="p-2 border-r-2 border-b border-black text-center">{item.displayQty} {item.cartUnit}</td>
-                  <td className="p-2 border-r-2 border-b border-black text-right">{formatCurrency(item.effectivePrice || item.price)}</td>
-                  <td className="p-2 border-b border-black text-right">{formatCurrency(item.preciseSubtotal)}</td>
+                <tr key={idx} className="h-[26px] overflow-hidden">
+                  <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-black">{(pageIndex * ITEMS_PER_INVOICE_PAGE) + idx + 1}</td>
+                  <td className="py-0.5 px-2 border-r-2 border-b border-black uppercase truncate max-w-[150px] text-black overflow-hidden whitespace-nowrap">{item.item_name}</td>
+                  <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-black">{item.displayQty} {item.cartUnit}</td>
+                  <td className="py-0.5 px-2 border-r-2 border-b border-black text-right text-black">{formatCurrency(item.effectivePrice || item.price)}</td>
+                  <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-black">{item.gst_rate || 0}%</td>
+                  <td className="py-0.5 px-2 border-r-2 border-b border-black text-right text-black">{formatCurrency(item.preciseGst || 0)}</td>
+                  <td className="py-0.5 px-2 border-b border-black text-right text-black">{formatCurrency(item.preciseSubtotal + (item.preciseGst || 0))}</td>
+                </tr>
+              ))}
+
+              {/* Generate empty rows to pad out to exactly 15 rows */}
+              {Array.from({ length: emptyRowsCount }).map((_, idx) => (
+                <tr key={`empty-${idx}`} className="h-[26px]">
+                  <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-transparent">-</td>
+                  <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
+                  <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
+                  <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
+                  <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
+                  <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
+                  <td className="py-0.5 px-2 border-b border-black"></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        {/* Footer */}
-        <div className="flex border-t-2 border-black mt-auto">
+
+        {/* Footer - Compressed Layout to prevent Cutoff */}
+        <div className="flex mt-auto text-black">
           <div className="w-[60%] border-r-2 border-black flex flex-col">
-            <div className="p-2 border-b-2 border-black min-h-[40px] flex flex-col justify-center bg-slate-50">
-              <span className="font-bold text-[9px] text-slate-500 uppercase">Total Amount in Words:</span>
-              <p className="font-black italic capitalize text-[11px] mt-0.5">{amountToWords(data.roundedBill || 0)}</p>
+            <div className="py-1.5 px-2 border-b-2 border-black min-h-[30px] flex flex-col justify-center bg-slate-50">
+              <span className="font-bold text-[9px] text-black uppercase">Total Amount in Words:</span>
+              <p className="font-black italic capitalize text-[10px] mt-0.5 text-black leading-tight">{amountToWords(data.roundedBill || 0)}</p>
             </div>
-            <div className="p-3">
-              <p className="font-black uppercase underline text-xs mb-2">Bank Details</p>
-              <div className="grid grid-cols-[60px_1fr] gap-y-1 text-[10px] font-bold uppercase">
-                <span>Bank:</span> <span>{companyDetails?.bank_name || ""}</span>
-                <span>A/c No:</span> <span>{companyDetails?.bank_acc_no || ""}</span>
-                <span>IFSC:</span> <span>{companyDetails?.bank_ifsc || ""}</span>
+            <div className="p-2 flex-1 flex flex-col justify-between">
+              <div>
+                <p className="font-black uppercase underline text-[11px] mb-1.5 text-black">Bank Details</p>
+                <div className="grid grid-cols-[50px_1fr] gap-y-0.5 text-[10px] font-bold uppercase text-black leading-tight">
+                  <span>Bank:</span> <span className="text-black">{companyDetails?.bank_name || ""}</span>
+                  <span>A/c No:</span> <span className="text-black">{companyDetails?.bank_acc_no || ""}</span>
+                  <span>IFSC:</span> <span className="text-black">{companyDetails?.bank_ifsc || ""}</span>
+                </div>
+              </div>
+
+              <div className="mt-2 pt-1.5 border-t border-slate-300">
+                <p className="font-black uppercase underline text-[10px] mb-1 text-black">Terms & Conditions:</p>
+                <p className="text-[8px] text-black whitespace-pre-wrap leading-tight">{companyDetails?.terms || "No terms available."}</p>
               </div>
             </div>
           </div>
-          <div className="w-[40%] flex flex-col text-[10px]">
-            <div className="flex justify-between p-1.5 border-b border-black"><span>Taxable</span><span>{formatCurrency(taxableAmount)}</span></div>
-            <div className="flex justify-between p-1.5 border-b border-black"><span>GST</span><span>{formatCurrency(cgst + sgst)}</span></div>
-            <div className="flex justify-between p-1.5 border-b border-black"><span>Round Off</span><span>{formatCurrency(data.roundOff || 0)}</span></div>
-            <div className="flex justify-between p-2 border-b-2 border-black bg-slate-200"><span className="font-black uppercase">Total</span><span className="font-black">{formatCurrency(data.roundedBill || 0)}</span></div>
-            <div className="flex-1 flex flex-col justify-end p-4 text-center"><p className="font-black border-t border-black pt-1 uppercase text-[8px]">Authorized Signature</p></div>
+
+          <div className="w-[40%] flex flex-col text-[10px] text-black">
+            <div className="flex justify-between py-1 px-1.5 border-b border-black text-black"><span>Taxable</span><span>{formatCurrency(taxableAmount)}</span></div>
+
+            <div className="flex justify-between py-1 px-1.5 border-b border-slate-300 text-black"><span>Total GST</span><span>{formatCurrency(data.totalGst || 0)}</span></div>
+            <div className="flex justify-between py-0.5 px-2 border-b border-slate-300 text-black text-[9px] bg-slate-50 pl-4"><span>CGST</span><span>{formatCurrency(cgst)}</span></div>
+            <div className="flex justify-between py-0.5 px-2 border-b border-black text-black text-[9px] bg-slate-50 pl-4"><span>SGST</span><span>{formatCurrency(sgst)}</span></div>
+
+            <div className="flex justify-between py-1 px-1.5 border-b border-black text-black"><span>Round Off</span><span>{formatCurrency(data.roundOff || 0)}</span></div>
+            <div className="flex justify-between py-1.5 px-2 border-b-2 border-black bg-slate-200 text-black"><span className="font-black uppercase text-black">Total</span><span className="font-black text-black">{formatCurrency(data.roundedBill || 0)}</span></div>
+            <div className="flex-1 flex flex-col justify-end p-2 text-center">
+              {pageIndex < totalPages - 1 && <p className="text-[8px] mb-1 font-bold italic text-slate-500">Continued on next page...</p>}
+              <p className="font-black border-t border-black pt-1 uppercase text-[8px] text-black">Authorized Signature</p>
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* PAGE NUMBER ADDED AT THE BOTTOM RIGHT */}
+      <div className="absolute bottom-1 right-2 print:bottom-1.5 print:right-2 text-[9px] font-black text-black">
+        Page {pageIndex + 1} of {totalPages}
       </div>
     </div>
   );
@@ -373,7 +416,7 @@ function StockOrder() {
 
   // --- CORE LOGIC: VALIDATE AND CLAMP QUANTITY ---
   const validateAndClampQty = (item, requestedQty, inputUnit) => {
-    const factor = getPriceMultiplier(item.unit, inputUnit); // e.g. Kg->Gm = 0.001
+    const factor = getPriceMultiplier(item.unit, inputUnit);
     const availableStock = Number(item.quantity);
     const neededBaseQty = requestedQty * factor;
 
@@ -491,7 +534,7 @@ function StockOrder() {
     if (stockItem) {
       const check = validateAndClampQty(stockItem, numVal, item.cartUnit);
       if (!check.valid) {
-        addToast('error', 'Limit Reached', check.msg);
+        addToast('error', 'Limit Reached', check.msg, 2000, `limit-${item.id}`);
         setCart(prev => prev.map(c => c.id === item.id ? { ...c, qty: check.clamped, displayQty: check.clamped } : c));
         return;
       }
@@ -563,7 +606,16 @@ function StockOrder() {
             p_tax_amount: calculations.totalGst,
             p_round_off: calculations.roundOff,
             p_total_amount: calculations.roundedBill,
-            p_order_time: formattedTime
+            p_order_time: formattedTime,
+            p_snapshot_company_name: companyDetails?.company_name || "",
+            p_snapshot_company_address: companyDetails?.company_address || "",
+            p_snapshot_company_gst: companyDetails?.company_gst || "",
+            p_snapshot_bank_details: {
+              bank_name: companyDetails?.bank_name || "",
+              bank_acc_no: companyDetails?.bank_acc_no || "",
+              bank_ifsc: companyDetails?.bank_ifsc || ""
+            },
+            p_snapshot_terms: companyDetails?.terms || ""
           });
 
           if (rpcError) throw rpcError;
@@ -588,22 +640,32 @@ function StockOrder() {
     }
   };
 
+  const printChunks = useMemo(() => {
+    if (!printData || !printData.items) return [];
+    const chunks = [];
+    for (let i = 0; i < printData.items.length; i += ITEMS_PER_INVOICE_PAGE) {
+      chunks.push(printData.items.slice(i, i + ITEMS_PER_INVOICE_PAGE));
+    }
+    return chunks;
+  }, [printData]);
+
   return (
     <>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
 
-      <div className="print-only hidden print:block">
-        {orderSuccess && printData && (
+      <div className="print-only hidden print:block bg-white">
+        {orderSuccess && printData && printChunks.map((chunk, index) => (
           <FullPageInvoice
+            key={index}
             data={printData}
             profile={profile}
             orderId={lastOrderId}
             companyDetails={companyDetails}
-            itemsChunk={printData.items}
-            pageIndex={0}
-            totalPages={1}
+            itemsChunk={chunk}
+            pageIndex={index}
+            totalPages={printChunks.length}
           />
-        )}
+        ))}
       </div>
 
       <div className="min-h-[100dvh] bg-[#F3F4F6] pb-24 font-sans text-black relative print:hidden">
@@ -615,7 +677,19 @@ function StockOrder() {
               <p className="text-slate-500 font-bold text-xs mb-8">Your order #{lastOrderId} has been placed.</p>
               <div className="space-y-3">
                 <button onClick={() => window.print()} className="w-full py-4 bg-black text-white rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center justify-center gap-2"><FiDownload /> Print Invoice</button>
-                <button onClick={() => { setOrderSuccess(false); setCart([]); setQtyInput({}); setIsCartOpen(false); fetchData(); }} className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase text-[11px]">Continue Shopping</button>
+                <button
+                  onClick={() => {
+                    setOrderSuccess(false);
+                    setPrintData(null);
+                    setCart([]);
+                    setQtyInput({});
+                    setIsCartOpen(false);
+                    fetchData();
+                  }}
+                  className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase text-[11px]"
+                >
+                  Continue Shopping
+                </button>
               </div>
             </div>
           </div>
@@ -650,8 +724,6 @@ function StockOrder() {
                 ) : cart.map(item => {
                   const multiplier = getPriceMultiplier(item.unit, item.cartUnit);
                   const displayPrice = item.price * multiplier;
-
-                  // Calculate Price for Minimum Order Quantity
                   const cartItemMoq = getMOQ(item, item.cartUnit);
                   const cartItemMoqPrice = displayPrice * cartItemMoq;
 
@@ -659,7 +731,6 @@ function StockOrder() {
                     <div key={item.id} className="flex gap-4 p-4 border border-slate-200 rounded-2xl bg-white shadow-sm items-center">
                       <div className="flex-1">
                         <h4 className="text-[12px] font-black uppercase leading-tight mb-1">{item.item_name}</h4>
-                        {/* Display Price per MOQ */}
                         <p className="text-[10px] font-bold text-slate-400 mb-2">
                           @ {cartItemMoq} {item.cartUnit} = {formatCurrency(cartItemMoqPrice)}
                         </p>
@@ -700,10 +771,9 @@ function StockOrder() {
           </>
         )}
 
-        {/* HEADER - FULL WIDTH */}
+        {/* HEADER */}
         <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
           <nav className="w-full px-4 sm:px-6 py-3 flex items-center justify-between relative">
-            {/* UPDATED: Added relative and updated onClick for back button */}
             <div className="relative flex-shrink-0 z-30">
               <button
                 onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/')}
@@ -733,7 +803,7 @@ function StockOrder() {
           </nav>
         </header>
 
-        {/* SEARCH & FILTERS - FULL WIDTH */}
+        {/* SEARCH & FILTERS */}
         <div className="w-full px-4 sm:px-6 pt-4">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row gap-3">
@@ -747,14 +817,12 @@ function StockOrder() {
                 />
               </div>
               <div className="flex gap-2">
-                {/* Updated Button Text */}
                 <button
                   onClick={() => setShowOnlyAvailable(!showOnlyAvailable)}
                   className={`flex-1 sm:flex-none px-4 sm:px-5 h-11 sm:h-12 rounded-2xl border font-black text-xs sm:text-sm uppercase flex items-center justify-center gap-2 transition-all shadow-sm ${showOnlyAvailable ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"}`}
                 >
                   <FiFilter /> {showOnlyAvailable ? "Show Available Only" : "Show All Items"}
                 </button>
-                {/* Removed Reset Button */}
               </div>
             </div>
             <div className="overflow-x-auto pb-3 scrollbar-thin">
@@ -774,7 +842,7 @@ function StockOrder() {
           </div>
         </div>
 
-        {/* MAIN GRID - FULL WIDTH */}
+        {/* MAIN GRID */}
         <main className="w-full px-4 sm:px-6 mt-5 sm:mt-6 pb-20">
           {loadingStocks ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
@@ -849,16 +917,16 @@ function StockOrder() {
                           <div className="flex flex-col gap-2">
                             <div className="flex-1 flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden focus-within:border-black transition-all">
                               <button onClick={() => isInCart ? updateCartQty(item.id, -1) : handleQtyInputChange(item.id, null, true, -1)} className="px-3 sm:px-4 h-10 hover:bg-slate-200 text-slate-700 font-bold"><FiMinus size={14} /></button>
+
                               <input
                                 type="number"
                                 value={isInCart ? cart.find(c => c.id === item.id).qty : (qtyInput[item.id] || "")}
                                 onChange={(e) => {
-                                  handleQtyInputChange(item.id, e.target.value);
                                   if (isInCart) {
-                                    const val = e.target.value;
-                                    const numVal = val === "" ? 0 : Math.max(0, Number(val));
-                                    if (numVal === 0) removeFromCart(item.id);
-                                    else setCart(prev => prev.map(c => c.id === item.id ? { ...c, qty: numVal, displayQty: numVal } : c));
+                                    const cartItem = cart.find(c => c.id === item.id);
+                                    handleManualInputCart(cartItem, e.target.value);
+                                  } else {
+                                    handleQtyInputChange(item.id, e.target.value);
                                   }
                                 }}
                                 className="w-full text-center font-black text-xs sm:text-[13px] bg-transparent outline-none p-0"
@@ -868,9 +936,10 @@ function StockOrder() {
                             </div>
                             <div className="relative w-full">
                               <select
-                                value={unit}
+                                value={isInCart ? cart.find(c => c.id === item.id).cartUnit : unit}
+                                disabled={isInCart}
                                 onChange={(e) => handleUnitChange(item.id, e.target.value)}
-                                className="w-full bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase py-2 pl-3 pr-8 text-left outline-none hover:border-slate-400 cursor-pointer appearance-none"
+                                className={`w-full bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase py-2 pl-3 pr-8 text-left outline-none appearance-none ${isInCart ? 'cursor-not-allowed opacity-70 bg-slate-50' : 'hover:border-slate-400 cursor-pointer'}`}
                               >
                                 <option value={item.unit}>{item.unit}</option>
                                 {item.alt_unit && item.alt_unit !== item.unit && item.alt_unit !== "None" && <option value={item.alt_unit}>{item.alt_unit}</option>}
@@ -907,20 +976,36 @@ function StockOrder() {
       </div >
 
       <style>{`
-       @media print {
-         body { background: white; margin: 0; }
-         .min-h-[100dvh] { display: none !important; }
-         .print-only { display: block !important; width: 100%; }
-         @page { size: A4; margin: 0; }
-       }
-       .scrollbar-thin { scrollbar-width: thin; scrollbar-color: #cbd5e1 #f1f5f9; }
-       .scrollbar-thin::-webkit-scrollbar { height: 6px; }
-       .scrollbar-thin::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
-       .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-       .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-       input[type="number"]::-webkit-inner-spin-button,
-       input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-     `}</style>
+        @media print {
+          body { background: white; margin: 0; padding: 0; }
+          .min-h-[100dvh] { display: none !important; }
+          .print-only { display: block !important; width: 100%; }
+          @page { size: A4; margin: 0; }
+          .a4-page {
+            width: 210mm;
+            height: 296.5mm;
+            padding: 5mm; /* Aggressively reduced padding to allow maximum inner height */
+            margin: 0 auto;
+            page-break-after: always;
+            box-sizing: border-box;
+            overflow: hidden; /* Added to strictly enforce boundary */
+          }
+          .a4-page:last-child {
+            page-break-after: auto;
+          }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+        .scrollbar-thin { scrollbar-width: thin; scrollbar-color: #cbd5e1 #f1f5f9; }
+        .scrollbar-thin::-webkit-scrollbar { height: 6px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+      `}</style>
     </>
   );
 }
