@@ -176,282 +176,268 @@ const CentralStaffLogins = () => {
     );
   }
 
-  // --- HEADER COMPONENT ---
-  const HeaderSection = () => {
-    const titleText = "Timings";
-
-    if (isMobile) {
-      return (
-        <div style={{ marginBottom: '20px' }}>
-          {/* Row 1: Back + ID */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <button onClick={() => navigate(-1)} style={styles.backBtn}>
-              <ArrowLeft size={18} /> Back
-            </button>
-            <div style={styles.franchiseBadge}>ID: {franchiseId}</div>
-          </div>
-          {/* Row 2: Center Heading */}
-          <div style={{ textAlign: 'center' }}>
-            <h1 style={{ ...styles.pageTitle, fontSize: '24px' }}>{titleText}</h1>
-          </div>
-        </div>
-      );
-    } else {
-      // Desktop Layout
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '30px' }}>
-          <div style={{ flex: 1 }}>
-            <button onClick={() => navigate(-1)} style={styles.backBtn}>
-              <ArrowLeft size={18} /> Back
-            </button>
-          </div>
-          <div style={{ flex: 2, textAlign: 'center' }}>
-            <h1 style={styles.pageTitle}>{titleText}</h1>
-          </div>
-          <div style={{ flex: 1, textAlign: 'right' }}>
-            <div style={styles.franchiseBadge}>ID: {franchiseId}</div>
-          </div>
-        </div>
-      );
-    }
-  };
-
   return (
-    <div style={{ ...styles.page, padding: isMobile ? '24px 16px' : '30px 40px' }}>
+    <div style={styles.page}>
 
-      <HeaderSection />
+      {/* NEW HEADER DESIGN */}
+      <header style={styles.header}>
+        <div style={styles.headerInner}>
+          <button onClick={() => navigate(-1)} style={styles.backBtn}>
+            <ArrowLeft size={18} /> <span>Back</span>
+          </button>
 
-      {/* 2. CONTROLS (Search + Date) */}
-      <div style={{
-        ...styles.controlsRow,
-        flexDirection: isMobile ? 'column' : 'row',
-        gap: isMobile ? '12px' : '20px'
-      }}>
-        {/* Search Input */}
-        <div style={{ ...styles.searchContainer, width: isMobile ? '100%' : '300px' }}>
-          <Search size={18} color="#94a3b8" />
-          <input
-            placeholder="Search Staff Name or ID..."
-            style={styles.searchInput}
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-          />
+          <h1 style={styles.heading}>
+            Staff <span style={{ color: THEME_GREEN }}>Timings</span>
+          </h1>
+
+          <div style={styles.topRightActions}>
+            <div style={styles.idBox}>
+              ID : {franchiseId}
+            </div>
+          </div>
         </div>
+      </header>
 
-        {/* Filters Group */}
+      <div style={{ ...styles.container, padding: isMobile ? '20px 15px' : '20px' }}>
+
+        {/* 2. CONTROLS (Search + Date) */}
         <div style={{
-          ...styles.filterGroup,
-          width: isMobile ? '100%' : 'auto',
-          justifyContent: isMobile ? 'space-between' : 'flex-end',
+          ...styles.controlsRow,
           flexDirection: isMobile ? 'column' : 'row',
-          alignItems: isMobile ? 'stretch' : 'center'
+          gap: isMobile ? '12px' : '20px'
         }}>
-          {/* Toggle Type - Full Width Segmented Control on Mobile */}
-          <div style={{
-            ...styles.toggleContainer,
-            width: isMobile ? '100%' : 'auto',
-            display: 'flex'
-          }}>
-            <button
-              style={{
-                ...(filterType === 'date' ? styles.toggleBtnActive : styles.toggleBtn),
-                flex: 1,
-                textAlign: 'center'
-              }}
-              onClick={() => setFilterType('date')}
-            >
-              Date
-            </button>
-            <button
-              style={{
-                ...(filterType === 'range' ? styles.toggleBtnActive : styles.toggleBtn),
-                flex: 1,
-                textAlign: 'center'
-              }}
-              onClick={() => setFilterType('range')}
-            >
-              Range
-            </button>
+          {/* Search Input */}
+          <div style={{ ...styles.searchContainer, width: isMobile ? '100%' : '300px' }}>
+            <Search size={18} color="#94a3b8" />
+            <input
+              placeholder="Search Staff Name or ID..."
+              style={styles.searchInput}
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
           </div>
 
-          {/* Inputs */}
+          {/* Filters Group */}
           <div style={{
-            display: 'flex',
-            gap: '8px',
-            alignItems: 'center',
+            ...styles.filterGroup,
             width: isMobile ? '100%' : 'auto',
-            justifyContent: isMobile ? 'space-between' : 'flex-end'
+            justifyContent: isMobile ? 'space-between' : 'flex-end',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'stretch' : 'center'
           }}>
-            {filterType === 'date' ? (
-              // Single Date Input
-              <input
-                type="date"
-                style={{ ...styles.dateInput, width: '100%' }}
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-              />
-            ) : (
-              // Range Inputs - Flex 1 to share space + minWidth 0
-              <>
+            {/* Toggle Type - Full Width Segmented Control on Mobile */}
+            <div style={{
+              ...styles.toggleContainer,
+              width: isMobile ? '100%' : 'auto',
+              display: 'flex'
+            }}>
+              <button
+                style={{
+                  ...(filterType === 'date' ? styles.toggleBtnActive : styles.toggleBtn),
+                  flex: 1,
+                  textAlign: 'center'
+                }}
+                onClick={() => setFilterType('date')}
+              >
+                Date
+              </button>
+              <button
+                style={{
+                  ...(filterType === 'range' ? styles.toggleBtnActive : styles.toggleBtn),
+                  flex: 1,
+                  textAlign: 'center'
+                }}
+                onClick={() => setFilterType('range')}
+              >
+                Range
+              </button>
+            </div>
+
+            {/* Inputs */}
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              alignItems: 'center',
+              width: isMobile ? '100%' : 'auto',
+              justifyContent: isMobile ? 'space-between' : 'flex-end'
+            }}>
+              {filterType === 'date' ? (
+                // Single Date Input
                 <input
                   type="date"
-                  style={{ ...styles.dateInput, flex: 1, minWidth: 0 }}
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  style={{ ...styles.dateInput, width: '100%' }}
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
                 />
-                <span style={{ color: '#94a3b8', flexShrink: 0 }}>-</span>
-                <input
-                  type="date"
-                  style={{ ...styles.dateInput, flex: 1, minWidth: 0 }}
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </>
-            )}
-            {/* Refresh Button */}
-            <button onClick={() => fetchLogs(franchiseId, targetUserId)} style={styles.refreshBtn} disabled={isRefreshing}>
-              <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
-            </button>
+              ) : (
+                // Range Inputs - Flex 1 to share space + minWidth 0
+                <>
+                  <input
+                    type="date"
+                    style={{ ...styles.dateInput, flex: 1, minWidth: 0 }}
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                  <span style={{ color: '#94a3b8', flexShrink: 0 }}>-</span>
+                  <input
+                    type="date"
+                    style={{ ...styles.dateInput, flex: 1, minWidth: 0 }}
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </>
+              )}
+              {/* Refresh Button */}
+              <button onClick={() => fetchLogs(franchiseId, targetUserId)} style={styles.refreshBtn} disabled={isRefreshing}>
+                <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 3. STATS CARDS */}
-      <div style={{
-        ...styles.statsRow,
-        flexDirection: 'row',
-        overflowX: isMobile ? 'auto' : 'visible'
-      }}>
-        <div style={{ ...styles.statCard, flex: 1 }}>
-          <div style={styles.statIconBox}><Timer size={20} color="white" /></div>
-          <div>
-            <div style={styles.statLabel}>Total Hours</div>
-            <div style={styles.statValue}>{stats.totalDuration}</div>
-            <div style={styles.statSub}>Selected Period</div>
+        {/* 3. STATS CARDS */}
+        <div style={{
+          ...styles.statsRow,
+          flexDirection: 'row',
+          overflowX: isMobile ? 'auto' : 'visible'
+        }}>
+          <div style={{ ...styles.statCard, flex: 1 }}>
+            <div style={styles.statIconBox}><Timer size={20} color="white" /></div>
+            <div>
+              <div style={styles.statLabel}>Total Hours</div>
+              <div style={styles.statValue}>{stats.totalDuration}</div>
+              <div style={styles.statSub}>Selected Period</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 4. DATA DISPLAY */}
-      {loading ? (
-        <div style={{ padding: '60px', textAlign: 'center' }}>
-          <Loader2 className="animate-spin" size={32} style={{ margin: '0 auto', color: THEME_GREEN }} />
-        </div>
-      ) : finalLogs.length > 0 ? (
-        isMobile ? (
-          // === MOBILE CARDS ===
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {finalLogs.map((log) => {
-              const isLoggedOut = !!log.logout_at;
-              const { name, id } = getStaffDetails(log);
-              return (
-                <div key={log.id} style={styles.mobileCard}>
-                  {/* Card Header */}
-                  <div style={styles.mobileCardHeader}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>
-                      <Calendar size={14} /> {new Date(log.login_at).toLocaleDateString('en-GB')}
-                    </div>
-                    {isLoggedOut ? (
-                      <span style={styles.badgeInactive}>Completed</span>
-                    ) : (
-                      <span style={styles.badgeActive}>Active Now</span>
-                    )}
-                  </div>
-                  {/* Card Body */}
-                  <div style={styles.mobileCardBody}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <div>
-                        <div style={{ fontSize: '16px', fontWeight: '800', color: TEXT_DARK }}>{name}</div>
-                        <div style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace' }}>ID: {id}</div>
+        {/* 4. DATA DISPLAY */}
+        {loading ? (
+          <div style={{ padding: '60px', textAlign: 'center' }}>
+            <Loader2 className="animate-spin" size={32} style={{ margin: '0 auto', color: THEME_GREEN }} />
+          </div>
+        ) : finalLogs.length > 0 ? (
+          isMobile ? (
+            // === MOBILE CARDS ===
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {finalLogs.map((log) => {
+                const isLoggedOut = !!log.logout_at;
+                const { name, id } = getStaffDetails(log);
+                return (
+                  <div key={log.id} style={styles.mobileCard}>
+                    {/* Card Header */}
+                    <div style={styles.mobileCardHeader}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>
+                        <Calendar size={14} /> {new Date(log.login_at).toLocaleDateString('en-GB')}
                       </div>
-                      {!isLoggedOut && (
-                        <button onClick={() => handleForceLogout(log.id)} style={styles.mobileForceBtn}>
-                          <PowerOff size={14} /> End Session
-                        </button>
+                      {isLoggedOut ? (
+                        <span style={styles.badgeInactive}>Completed</span>
+                      ) : (
+                        <span style={styles.badgeActive}>Active Now</span>
                       )}
                     </div>
-                    <div style={styles.mobileTimeGrid}>
-                      <div style={styles.mobileTimeItem}>
-                        <span style={styles.mobileTimeLabel}><LogIn size={10} /> Login</span>
-                        <span style={{ color: THEME_GREEN, fontWeight: '700' }}>{formatTime(log.login_at)}</span>
+                    {/* Card Body */}
+                    <div style={styles.mobileCardBody}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div>
+                          <div style={{ fontSize: '16px', fontWeight: '800', color: TEXT_DARK }}>{name}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace' }}>ID: {id}</div>
+                        </div>
+                        {!isLoggedOut && (
+                          <button onClick={() => handleForceLogout(log.id)} style={styles.mobileForceBtn}>
+                            <PowerOff size={14} /> End Session
+                          </button>
+                        )}
                       </div>
-                      <div style={styles.mobileTimeItem}>
-                        <span style={styles.mobileTimeLabel}><LogOut size={10} /> Logout</span>
-                        <span style={{ color: '#ef4444', fontWeight: '700' }}>{isLoggedOut ? formatTime(log.logout_at) : '-- : --'}</span>
-                      </div>
-                      <div style={styles.mobileTimeItem}>
-                        <span style={styles.mobileTimeLabel}><Hourglass size={10} /> Duration</span>
-                        <span style={{ fontWeight: '700' }}>{calculateDurationDisplay(log.login_at, log.logout_at)}</span>
+                      <div style={styles.mobileTimeGrid}>
+                        <div style={styles.mobileTimeItem}>
+                          <span style={styles.mobileTimeLabel}><LogIn size={10} /> Login</span>
+                          <span style={{ color: THEME_GREEN, fontWeight: '700' }}>{formatTime(log.login_at)}</span>
+                        </div>
+                        <div style={styles.mobileTimeItem}>
+                          <span style={styles.mobileTimeLabel}><LogOut size={10} /> Logout</span>
+                          <span style={{ color: '#ef4444', fontWeight: '700' }}>{isLoggedOut ? formatTime(log.logout_at) : '-- : --'}</span>
+                        </div>
+                        <div style={styles.mobileTimeItem}>
+                          <span style={styles.mobileTimeLabel}><Hourglass size={10} /> Duration</span>
+                          <span style={{ fontWeight: '700' }}>{calculateDurationDisplay(log.login_at, log.logout_at)}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            // === DESKTOP TABLE ===
+            <div style={styles.tableCard}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>DATE</th>
+                    <th style={styles.th}>NAME</th>
+                    <th style={styles.th}>ID</th>
+                    <th style={styles.th}>LOGIN</th>
+                    <th style={styles.th}>LOGOUT</th>
+                    <th style={styles.th}>DURATION</th>
+                    <th style={{ ...styles.th, textAlign: 'center' }}>STATUS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {finalLogs.map((log) => {
+                    const isLoggedOut = !!log.logout_at;
+                    const { name, id } = getStaffDetails(log);
+                    return (
+                      <tr key={log.id} style={styles.tr}>
+                        <td style={styles.td}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Calendar size={14} color="#64748b" />{new Date(log.login_at).toLocaleDateString('en-GB')}</div>
+                        </td>
+                        <td style={{ ...styles.td, fontWeight: '700', color: TEXT_DARK }}>{name}</td>
+                        <td style={styles.td}><span style={styles.monoBadge}>{id}</span></td>
+                        <td style={{ ...styles.td, color: THEME_GREEN, fontWeight: '700' }}>{formatTime(log.login_at)}</td>
+                        <td style={{ ...styles.td, color: '#ef4444' }}>{isLoggedOut ? formatTime(log.logout_at) : '-- : --'}</td>
+                        <td style={{ ...styles.td, fontWeight: '700' }}>{calculateDurationDisplay(log.login_at, log.logout_at)}</td>
+                        <td style={{ ...styles.td, textAlign: 'center' }}>
+                          {isLoggedOut ? <span style={styles.badgeInactive}>Completed</span> : (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={styles.badgeActive}>Active</span>
+                              <button onClick={() => handleForceLogout(log.id)} style={styles.forceBtn} title="Force Logout"><PowerOff size={12} /></button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
         ) : (
-          // === DESKTOP TABLE ===
-          <div style={styles.tableCard}>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>DATE</th>
-                  <th style={styles.th}>NAME</th>
-                  <th style={styles.th}>ID</th>
-                  <th style={styles.th}>LOGIN</th>
-                  <th style={styles.th}>LOGOUT</th>
-                  <th style={styles.th}>DURATION</th>
-                  <th style={{ ...styles.th, textAlign: 'center' }}>STATUS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {finalLogs.map((log) => {
-                  const isLoggedOut = !!log.logout_at;
-                  const { name, id } = getStaffDetails(log);
-                  return (
-                    <tr key={log.id} style={styles.tr}>
-                      <td style={styles.td}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Calendar size={14} color="#64748b" />{new Date(log.login_at).toLocaleDateString('en-GB')}</div>
-                      </td>
-                      <td style={{ ...styles.td, fontWeight: '700', color: TEXT_DARK }}>{name}</td>
-                      <td style={styles.td}><span style={styles.monoBadge}>{id}</span></td>
-                      <td style={{ ...styles.td, color: THEME_GREEN, fontWeight: '700' }}>{formatTime(log.login_at)}</td>
-                      <td style={{ ...styles.td, color: '#ef4444' }}>{isLoggedOut ? formatTime(log.logout_at) : '-- : --'}</td>
-                      <td style={{ ...styles.td, fontWeight: '700' }}>{calculateDurationDisplay(log.login_at, log.logout_at)}</td>
-                      <td style={{ ...styles.td, textAlign: 'center' }}>
-                        {isLoggedOut ? <span style={styles.badgeInactive}>Completed</span> : (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={styles.badgeActive}>Active</span>
-                            <button onClick={() => handleForceLogout(log.id)} style={styles.forceBtn} title="Force Logout"><PowerOff size={12} /></button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', background: 'white', borderRadius: '12px', border: `1px dashed ${BORDER_COLOR}` }}>
+            No login records found for this period.
           </div>
-        )
-      ) : (
-        <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', background: 'white', borderRadius: '12px', border: `1px dashed ${BORDER_COLOR}` }}>
-          No login records found for this period.
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
 
 const styles = {
-  // Added overflow-x-hidden to page to prevent whole page sliding
+  // Page Layout
   page: { background: BG_GRAY, minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: TEXT_DARK, boxSizing: 'border-box', overflowX: 'hidden' },
-  backBtn: { display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', fontSize: '14px', fontWeight: '700', color: TEXT_DARK, cursor: 'pointer', padding: 0 },
-  pageTitle: { margin: 0, fontWeight: '900', color: TEXT_DARK, textTransform: 'uppercase', letterSpacing: '-0.5px' },
-  franchiseBadge: { display: 'inline-block', padding: '6px 12px', background: '#e2e8f0', borderRadius: '8px', fontSize: '12px', fontWeight: '700', color: '#475569' },
+  container: { maxWidth: "1400px", margin: "0 auto" },
 
+  // HEADER STYLES (Copied from CentralProfiles)
+  header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
+  headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px' },
+  backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
+  heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
+  topRightActions: { display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 },
+  idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
+
+  // Controls Row
   controlsRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
 
-  // FIX: Added boxSizing border-box to avoid overflow
   searchContainer: { display: 'flex', alignItems: 'center', gap: '10px', background: 'white', border: `1px solid ${BORDER_COLOR}`, borderRadius: '10px', padding: '10px 15px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', boxSizing: 'border-box' },
   searchInput: { border: 'none', outline: 'none', fontSize: '14px', width: '100%', color: TEXT_DARK, background: 'transparent' },
 
@@ -460,7 +446,6 @@ const styles = {
   toggleBtn: { padding: '8px 12px', border: 'none', background: 'transparent', fontSize: '13px', fontWeight: '600', color: '#64748b', cursor: 'pointer', borderRadius: '6px', boxSizing: 'border-box' },
   toggleBtnActive: { padding: '8px 12px', border: 'none', background: 'white', fontSize: '13px', fontWeight: '700', color: THEME_GREEN, cursor: 'pointer', borderRadius: '6px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', boxSizing: 'border-box' },
 
-  // FIX: Added boxSizing here too
   dateInput: { padding: '8px', borderRadius: '8px', border: `1px solid ${BORDER_COLOR}`, outline: 'none', fontSize: '13px', color: TEXT_DARK, fontWeight: '600', background: 'white', boxSizing: 'border-box' },
   refreshBtn: { width: '36px', height: '36px', borderRadius: '8px', background: THEME_GREEN, color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 
