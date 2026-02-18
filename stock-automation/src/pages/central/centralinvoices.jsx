@@ -250,6 +250,7 @@ function CentralInvoices() {
     const [rangeMode, setRangeMode] = useState(false);
     const [singleDate, setSingleDate] = useState(new Date().toISOString().split('T')[0]);
     const [dateRange, setDateRange] = useState({ start: "", end: "" });
+    const [statusFilter, setStatusFilter] = useState("All"); // <-- NEW STATUS STATE
 
     const [showModal, setShowModal] = useState(false);
     const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -331,6 +332,7 @@ function CentralInvoices() {
         setSingleDate(new Date().toISOString().split('T')[0]);
         setDateRange({ start: "", end: "" });
         setSortConfig({ key: 'created_at', direction: 'descending' });
+        setStatusFilter("All"); // <-- RESET STATUS FILTER
         fetchInvoices();
     };
 
@@ -359,6 +361,7 @@ function CentralInvoices() {
             const fId = (inv.franchise_id || "").toString().toLowerCase();
             const custName = (inv.customer_name || "").toLowerCase();
             const matchesSearch = !search || fId.includes(q) || custName.includes(q);
+
             const invDate = inv.created_at?.split('T')[0];
             let matchesDate = true;
             if (rangeMode) {
@@ -366,7 +369,15 @@ function CentralInvoices() {
             } else {
                 if (singleDate) matchesDate = invDate === singleDate;
             }
-            return matchesSearch && matchesDate;
+
+            // --- NEW: MATCH STATUS FILTER ---
+            let matchesStatus = true;
+            if (statusFilter !== "All") {
+                const currentStatus = inv.status || 'Incoming';
+                matchesStatus = currentStatus.toLowerCase() === statusFilter.toLowerCase();
+            }
+
+            return matchesSearch && matchesDate && matchesStatus;
         });
 
         if (sortConfig.key) {
@@ -390,7 +401,7 @@ function CentralInvoices() {
             });
         }
         return data;
-    }, [search, singleDate, dateRange, rangeMode, invoices, sortConfig]);
+    }, [search, singleDate, dateRange, rangeMode, invoices, sortConfig, statusFilter]);
 
     const stats = useMemo(() => {
         const revenue = filteredInvoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
@@ -609,6 +620,22 @@ function CentralInvoices() {
                                 <h2 className="text-2xl font-black text-slate-800">₹{stats.revenue.toLocaleString('en-IN')}</h2>
                             </div>
                         </div>
+                    </div>
+
+                    {/* --- NEW STATUS TOGGLE BAR --- */}
+                    <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide w-full">
+                        {["All", "Incoming", "Packed", "Dispatched"].map((status) => (
+                            <button
+                                key={status}
+                                onClick={() => setStatusFilter(status)}
+                                className={`px-5 py-2.5 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${statusFilter === status
+                                        ? "bg-slate-900 text-white shadow-md shadow-black/10 scale-[1.02]"
+                                        : "bg-white text-slate-500 border-2 border-slate-100 hover:border-slate-300 hover:text-slate-700"
+                                    }`}
+                            >
+                                {status}
+                            </button>
+                        ))}
                     </div>
 
                     <div className="flex flex-col lg:flex-row gap-4 mb-6">
