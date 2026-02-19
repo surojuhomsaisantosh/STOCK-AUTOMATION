@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Search, Plus, Calendar, Edit2, Trash2, X, UserPlus, 
+  ArrowLeft, Search, Plus, Calendar, Edit2, Trash2, X, UserPlus,
   Loader2, Eye, EyeOff, Clock, User, Phone, Hash, ChevronRight, ChevronDown, Mail
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
@@ -17,14 +17,14 @@ const FranchiseProfiles = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [franchiseId, setFranchiseId] = useState("...");
   const [companyName, setCompanyName] = useState("");
-  
+
   // UI States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [expandedId, setExpandedId] = useState(null);
-  
+
   // Form States
   const [editingId, setEditingId] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -150,9 +150,9 @@ const FranchiseProfiles = () => {
         // CREATE NEW USER
         // 1. Create independent client to avoid logging out the admin
         const tempClient = createClient(
-            import.meta.env.VITE_SUPABASE_URL, 
-            import.meta.env.VITE_SUPABASE_ANON_KEY,
-            { auth: { persistSession: false } } // Critical: Do not persist this session
+          import.meta.env.VITE_SUPABASE_URL,
+          import.meta.env.VITE_SUPABASE_ANON_KEY,
+          { auth: { persistSession: false } } // Critical: Do not persist this session
         );
 
         const loginEmail = formData.email || `${formData.staff_id.toLowerCase().replace(/\s/g, '')}@${franchiseId.toLowerCase()}.com`;
@@ -208,152 +208,156 @@ const FranchiseProfiles = () => {
   );
 
   return (
-    <div style={{ ...styles.page, padding: isMobile ? "20px" : "40px" }}>
-      
-      {/* HEADER */}
-      <div style={styles.headerRow}>
-        <div style={{ flex: 1 }}>
-            <button onClick={() => navigate(-1)} style={styles.backBtn}>
-            <ArrowLeft size={20} /> <span style={{fontSize: '14px', fontWeight: '700'}}>Back</span>
-            </button>
-        </div>
-        
-        <h1 style={styles.mainHeading}>Profiles</h1>
-        
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-            <div style={styles.idBox}>
-                <span style={styles.idLabel}>ID :</span>
-                <span style={styles.idValue}>{franchiseId}</span>
-            </div>
-        </div>
-      </div>
+    <div style={styles.page}>
 
-      {/* TOOLBAR */}
-      <div style={{ ...styles.actionRow, flexDirection: isMobile ? "column" : "row" }}>
-        <div style={styles.searchContainer}>
-          <Search size={18} style={styles.searchIcon} />
-          <input
-            type="text"
-            placeholder="Search by Name or ID..."
-            style={styles.searchInput}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        <div style={{ display: 'flex', gap: '10px', width: isMobile ? '100%' : 'auto' }}>
-          {!isMobile && (
-            <div style={styles.dateBadge}>
-              <Calendar size={16} />
-              {new Date().toLocaleDateString('en-GB')}
-            </div>
-          )}
-          <button style={{ ...styles.addBtn, width: isMobile ? '100%' : 'auto' }} onClick={() => setIsModalOpen(true)}>
-            <Plus size={18} /> {isMobile ? "Add New" : "Add New Staff"}
+      {/* --- NEW HEADER INTEGRATED FROM POS MANAGEMENT --- */}
+      <header style={styles.header}>
+        <div style={styles.headerInner}>
+          <button onClick={() => navigate(-1)} style={styles.backBtn}>
+            <ArrowLeft size={18} /> <span>Back</span>
           </button>
-        </div>
-      </div>
 
-      {/* CONTENT: MOBILE LIST vs DESKTOP TABLE */}
-      {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
-            <Loader2 className="animate-spin" size={32} color={PRIMARY} />
+          <h1 style={styles.heading}>
+            Staff <span style={{ color: PRIMARY }}>Profiles</span>
+          </h1>
+
+          <div style={styles.idBox}>
+            ID : {franchiseId || "---"}
+          </div>
         </div>
-      ) : filteredProfiles.length === 0 ? (
-        <div style={styles.emptyState}>
+      </header>
+
+      {/* --- CONTENT WRAPPER WITH PADDING --- */}
+      <main style={{ ...styles.mainContent, padding: isMobile ? "0 15px 20px 15px" : "0 40px 20px 40px" }}>
+
+        {/* TOOLBAR */}
+        <div style={{ ...styles.actionRow, flexDirection: isMobile ? "column" : "row" }}>
+          <div style={styles.searchContainer}>
+            <Search size={18} style={styles.searchIcon} />
+            <input
+              type="text"
+              placeholder="Search by Name or ID..."
+              style={styles.searchInput}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', width: isMobile ? '100%' : 'auto' }}>
+            {!isMobile && (
+              <div style={styles.dateBadge}>
+                <Calendar size={16} />
+                {new Date().toLocaleDateString('en-GB')}
+              </div>
+            )}
+            <button style={{ ...styles.addBtn, width: isMobile ? '100%' : 'auto' }} onClick={() => setIsModalOpen(true)}>
+              <Plus size={18} /> {isMobile ? "Add New" : "Add New Staff"}
+            </button>
+          </div>
+        </div>
+
+        {/* CONTENT: MOBILE LIST vs DESKTOP TABLE */}
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
+            <Loader2 className="animate-spin" size={32} color={PRIMARY} />
+          </div>
+        ) : filteredProfiles.length === 0 ? (
+          <div style={styles.emptyState}>
             <User size={48} style={{ opacity: 0.2, marginBottom: '10px' }} />
             <p>No staff profiles found.</p>
-        </div>
-      ) : isMobile ? (
-        // --- MOBILE CARD VIEW ---
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '40px' }}>
-          {filteredProfiles.map((profile) => (
-            <div key={profile.id} style={styles.mobileCard}>
-              <div
-                onClick={() => setExpandedId(expandedId === profile.id ? null : profile.id)}
-                style={styles.mobileCardHeader}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={styles.avatar}>
-                    <User size={20} />
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: '800', fontSize: '14px', color: BLACK }}>{profile.name}</div>
-                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>ID: {profile.staff_id}</div>
-                  </div>
-                </div>
-                {expandedId === profile.id ? <ChevronDown size={18} color={PRIMARY} /> : <ChevronRight size={18} color="#cbd5e1" />}
-              </div>
-
-              {expandedId === profile.id && (
-                <div style={styles.mobileCardBody}>
-                  <div style={styles.infoGrid}>
-                    <div style={styles.infoItem}><Phone size={12} /> {profile.phone}</div>
-                    <div style={styles.infoItem}><Mail size={12} /> {profile.email || "No Email"}</div>
-                  </div>
-                  <div style={styles.mobileActions}>
-                    <button
-                      onClick={() => navigate('/franchise/timings', { state: { targetUserId: profile.id, targetName: profile.name } })}
-                      style={{ ...styles.mobileBtn, background: '#eff6ff', color: '#2563eb' }}
-                    >
-                      <Clock size={14} /> Timings
-                    </button>
-                    <button
-                      onClick={() => handleOpenEdit(profile)}
-                      style={{ ...styles.mobileBtn, background: '#f0fdf4', color: PRIMARY }}
-                    >
-                      <Edit2 size={14} /> Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(profile.id)}
-                      style={{ ...styles.mobileBtn, background: '#fef2f2', color: '#ef4444' }}
-                    >
-                      <Trash2 size={14} /> Delete
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      ) : (
-        // --- DESKTOP TABLE VIEW ---
-        <div style={styles.tableContainer}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={{ background: '#f8fafc' }}>
-                <th style={styles.th}>S.NO</th>
-                <th style={styles.th}>NAME</th>
-                <th style={styles.th}>STAFF ID</th>
-                <th style={styles.th}>PHONE</th>
-                <th style={styles.th}>EMAIL</th>
-                <th style={{ ...styles.th, textAlign: 'center' }}>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredProfiles.map((profile, index) => (
-                <tr key={profile.id} style={styles.tr}>
-                  <td style={styles.td}>{String(index + 1).padStart(2, '0')}</td>
-                  <td style={{ ...styles.td, fontWeight: '700' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}><User size={14}/></div>
-                        {profile.name}
+          </div>
+        ) : isMobile ? (
+          // --- MOBILE CARD VIEW ---
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '40px' }}>
+            {filteredProfiles.map((profile) => (
+              <div key={profile.id} style={styles.mobileCard}>
+                <div
+                  onClick={() => setExpandedId(expandedId === profile.id ? null : profile.id)}
+                  style={styles.mobileCardHeader}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={styles.avatar}>
+                      <User size={20} />
                     </div>
-                  </td>
-                  <td style={styles.td}><span style={styles.badge}>{profile.staff_id}</span></td>
-                  <td style={styles.td}>{profile.phone}</td>
-                  <td style={{ ...styles.td, fontSize: '13px', color: '#64748b' }}>{profile.email}</td>
-                  <td style={styles.actionTd}>
-                    <button onClick={() => navigate('/franchise/timings', { state: { targetUserId: profile.id, targetName: profile.name } })} style={styles.iconBtn} title="View Timings"><Clock size={16} /></button>
-                    <button onClick={() => handleOpenEdit(profile)} style={{ ...styles.iconBtn, color: PRIMARY }} title="Edit"><Edit2 size={16} /></button>
-                    <button onClick={() => handleDelete(profile.id)} style={{ ...styles.iconBtn, color: '#ef4444' }} title="Delete"><Trash2 size={16} /></button>
-                  </td>
+                    <div>
+                      <div style={{ fontWeight: '800', fontSize: '14px', color: BLACK }}>{profile.name}</div>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>ID: {profile.staff_id}</div>
+                    </div>
+                  </div>
+                  {expandedId === profile.id ? <ChevronDown size={18} color={PRIMARY} /> : <ChevronRight size={18} color="#cbd5e1" />}
+                </div>
+
+                {expandedId === profile.id && (
+                  <div style={styles.mobileCardBody}>
+                    <div style={styles.infoGrid}>
+                      <div style={styles.infoItem}><Phone size={12} /> {profile.phone}</div>
+                      <div style={styles.infoItem}><Mail size={12} /> {profile.email || "No Email"}</div>
+                    </div>
+                    <div style={styles.mobileActions}>
+                      <button
+                        onClick={() => navigate('/franchise/timings', { state: { targetUserId: profile.id, targetName: profile.name } })}
+                        style={{ ...styles.mobileBtn, background: '#eff6ff', color: '#2563eb' }}
+                      >
+                        <Clock size={14} /> Timings
+                      </button>
+                      <button
+                        onClick={() => handleOpenEdit(profile)}
+                        style={{ ...styles.mobileBtn, background: '#f0fdf4', color: PRIMARY }}
+                      >
+                        <Edit2 size={14} /> Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(profile.id)}
+                        style={{ ...styles.mobileBtn, background: '#fef2f2', color: '#ef4444' }}
+                      >
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          // --- DESKTOP TABLE VIEW ---
+          <div style={styles.tableContainer}>
+            <table style={styles.table}>
+              <thead>
+                <tr style={{ background: '#f8fafc' }}>
+                  <th style={styles.th}>S.NO</th>
+                  <th style={styles.th}>NAME</th>
+                  <th style={styles.th}>STAFF ID</th>
+                  <th style={styles.th}>PHONE</th>
+                  <th style={styles.th}>EMAIL</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>ACTIONS</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {filteredProfiles.map((profile, index) => (
+                  <tr key={profile.id} style={styles.tr}>
+                    <td style={styles.td}>{String(index + 1).padStart(2, '0')}</td>
+                    <td style={{ ...styles.td, fontWeight: '700' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}><User size={14} /></div>
+                        {profile.name}
+                      </div>
+                    </td>
+                    <td style={styles.td}><span style={styles.badge}>{profile.staff_id}</span></td>
+                    <td style={styles.td}>{profile.phone}</td>
+                    <td style={{ ...styles.td, fontSize: '13px', color: '#64748b' }}>{profile.email}</td>
+                    <td style={styles.actionTd}>
+                      <button onClick={() => navigate('/franchise/timings', { state: { targetUserId: profile.id, targetName: profile.name } })} style={styles.iconBtn} title="View Timings"><Clock size={16} /></button>
+                      <button onClick={() => handleOpenEdit(profile)} style={{ ...styles.iconBtn, color: PRIMARY }} title="Edit"><Edit2 size={16} /></button>
+                      <button onClick={() => handleDelete(profile.id)} style={{ ...styles.iconBtn, color: '#ef4444' }} title="Delete"><Trash2 size={16} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+      </main>
 
       {/* --- MODAL FORM --- */}
       {isModalOpen && (
@@ -369,7 +373,7 @@ const FranchiseProfiles = () => {
                 <label style={styles.label}>Full Name <span style={styles.req}>*</span></label>
                 <input required style={styles.input} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
               </div>
-              
+
               <div style={styles.field}>
                 <label style={styles.label}>Staff ID <span style={styles.req}>*</span></label>
                 <input required style={styles.input} value={formData.staff_id} onChange={e => setFormData({ ...formData, staff_id: e.target.value })} />
@@ -378,12 +382,12 @@ const FranchiseProfiles = () => {
               <div style={styles.field}>
                 <label style={styles.label}>{editingId ? "Reset Password" : "Password *"}</label>
                 <div style={{ position: 'relative' }}>
-                  <input 
-                    style={{ ...styles.input, width: '100%' }} 
-                    type={showPassword ? "text" : "password"} 
-                    value={formData.password} 
+                  <input
+                    style={{ ...styles.input, width: '100%' }}
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password}
                     onChange={e => setFormData({ ...formData, password: e.target.value })}
-                    placeholder={editingId ? "Leave empty to keep current" : "Min 6 chars"} 
+                    placeholder={editingId ? "Leave empty to keep current" : "Min 6 chars"}
                   />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -414,7 +418,7 @@ const FranchiseProfiles = () => {
               <div style={{ ...styles.modalFooter, gridColumn: isMobile ? 'span 1' : 'span 2' }}>
                 <button type="button" onClick={closeModal} style={styles.cancelBtn}>Cancel</button>
                 <button type="submit" disabled={submitting} style={styles.submitBtn}>
-                    {submitting ? <Loader2 className="animate-spin" size={16}/> : (editingId ? "Save Changes" : "Create Profile")}
+                  {submitting ? <Loader2 className="animate-spin" size={16} /> : (editingId ? "Save Changes" : "Create Profile")}
                 </button>
               </div>
             </form>
@@ -427,20 +431,22 @@ const FranchiseProfiles = () => {
 
 const styles = {
   page: { background: "#f9fafb", minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: BLACK },
-  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' },
-  backBtn: { display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: 0 },
-  mainHeading: { fontSize: '20px', fontWeight: "900", margin: 0, letterSpacing: '-0.5px', color: BLACK, textTransform: 'uppercase', position: 'absolute', left: '50%', transform: 'translateX(-50%)' },
-  idBox: { display: 'flex', alignItems: 'center', gap: '8px', background: '#fff', padding: '6px 12px', borderRadius: '10px', border: `1px solid ${BORDER}`, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
-  idLabel: { fontSize: '10px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase' },
-  idValue: { fontSize: '12px', fontWeight: '800', color: BLACK },
-  
+
+  // --- INTEGRATED HEADER STYLES ---
+  header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
+  headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', boxSizing: 'border-box' },
+  backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
+  heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
+  idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 },
+  mainContent: { width: "100%", display: "flex", flexDirection: "column", gap: "10px", boxSizing: 'border-box' },
+
   actionRow: { display: 'flex', gap: '15px', marginBottom: '25px', alignItems: 'center' },
   searchContainer: { flex: 1, position: 'relative', display: 'flex', alignItems: 'center', width: '100%' },
   searchIcon: { position: 'absolute', left: '16px', color: '#94a3b8' },
   searchInput: { width: '100%', padding: '12px 12px 12px 48px', borderRadius: '12px', border: `1px solid ${BORDER}`, outline: 'none', fontSize: '14px', color: BLACK, fontWeight: '500', transition: 'border 0.2s', background: 'white' },
   dateBadge: { display: 'flex', alignItems: 'center', gap: '8px', padding: '0 16px', borderRadius: '12px', background: '#f1f5f9', fontSize: '12px', fontWeight: '700', color: '#64748b' },
   addBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px 20px', borderRadius: '12px', background: PRIMARY, border: 'none', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer', transition: 'opacity 0.2s' },
-  
+
   emptyState: { textAlign: 'center', padding: '60px', color: '#94a3b8', fontSize: '14px', fontWeight: '600' },
 
   // Mobile Cards

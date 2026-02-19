@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   FiArrowLeft, FiSearch, FiCalendar, FiRefreshCw,
   FiCheckCircle, FiClock, FiList, FiX, FiPackage, FiAlertCircle, FiChevronRight,
-  FiPlus // <-- Added this import
+  FiPlus
 } from "react-icons/fi";
 
 const BRAND_GREEN = "rgb(0, 100, 55)";
@@ -145,37 +145,24 @@ const RequestPortal = () => {
   return (
     <div className="min-h-screen bg-[#F8F9FA] font-sans text-black relative pb-20">
 
-      {/* --- HEADER --- */}
-      <nav className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between shadow-sm transition-all">
-
-        {/* Left: Back & Mobile ID */}
-        <div className="flex items-center gap-4 md:gap-8 w-full md:w-auto">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] md:text-xs tracking-widest hover:text-[rgb(0,100,55)] transition-colors p-2 md:p-0 -ml-2 md:ml-0 shrink-0">
-            <FiArrowLeft size={18} />
-            <span>Back</span>
+      {/* --- NEW HEADER INTEGRATED --- */}
+      <header style={styles.header}>
+        <div style={styles.headerInner}>
+          <button onClick={() => navigate(-1)} style={styles.backBtn}>
+            <FiArrowLeft size={18} /> <span>Back</span>
           </button>
 
-          <h1 className="text-sm font-black uppercase tracking-widest md:hidden flex-1 text-center truncate">
-            My Requests
+          <h1 style={styles.heading}>
+            My <span style={{ color: BRAND_GREEN }}>Requests</span>
           </h1>
 
-          <div className="flex items-center justify-center bg-white border border-slate-200 px-2 py-1.5 rounded-lg shadow-sm md:hidden shrink-0">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mr-1.5">ID:</span>
-            <span className="text-[9px] font-black text-black">{profile?.franchise_id || "..."}</span>
+          <div style={styles.idBox}>
+            ID : {profile?.franchise_id || "---"}
           </div>
         </div>
+      </header>
 
-        <h1 className="text-xl font-black uppercase tracking-widest text-center hidden md:block absolute left-1/2 -translate-x-1/2">
-          My Requests
-        </h1>
-
-        <div className="hidden md:flex items-center justify-center bg-white border-2 border-slate-100 px-5 py-2.5 rounded-2xl shadow-sm">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">ID :</span>
-          <span className="text-sm font-black text-[rgb(0,100,55)]">{profile?.franchise_id || "Loading..."}</span>
-        </div>
-      </nav>
-
-      <div className="max-w-[1400px] mx-auto px-4 md:px-8 mt-6">
+      <div className="max-w-[1400px] mx-auto px-4 md:px-8">
 
         {/* --- TOOLBAR --- */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 mb-6 items-center">
@@ -271,7 +258,7 @@ const RequestPortal = () => {
                       <span className="text-xs font-black text-black">{req.franchise_id || "N/A"}</span>
                     </div>
                     <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase inline-flex items-center gap-1 border ${isAllFulfilled ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
-                        isPartial ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-amber-50 text-amber-700 border-amber-100"
+                      isPartial ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-amber-50 text-amber-700 border-amber-100"
                       }`}>
                       {isAllFulfilled ? <FiCheckCircle size={10} /> : <FiClock size={10} />}
                       {isAllFulfilled ? "Done" : "Pending"}
@@ -299,7 +286,7 @@ const RequestPortal = () => {
 
                   <div className="hidden md:flex justify-center">
                     <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase inline-flex items-center gap-2 border ${isAllFulfilled ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
-                        isPartial ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-amber-50 text-amber-700 border-amber-100"
+                      isPartial ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-amber-50 text-amber-700 border-amber-100"
                       }`}>
                       {isAllFulfilled ? <FiCheckCircle /> : isPartial ? <FiRefreshCw /> : <FiClock />}
                       {isAllFulfilled ? "Completed" : isPartial ? "In Progress" : "Pending"}
@@ -412,6 +399,16 @@ const RequestPortal = () => {
       `}</style>
     </div>
   );
+};
+
+// --- STYLES ---
+const styles = {
+  // --- INTEGRATED HEADER STYLES ---
+  header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
+  headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', boxSizing: 'border-box' },
+  backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
+  heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
+  idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 }
 };
 
 export default RequestPortal;
