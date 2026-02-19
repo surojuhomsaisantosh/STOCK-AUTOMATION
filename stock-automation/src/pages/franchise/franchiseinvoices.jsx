@@ -265,6 +265,8 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
 // --- MAIN PAGE ---
 function FranchiseInvoices() {
     const navigate = useNavigate();
+    const brandGreen = "rgb(0, 100, 55)";
+
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
@@ -422,17 +424,24 @@ function FranchiseInvoices() {
                 })()}
             </div>
 
-            <nav className="shrink-0 bg-white/95 border-b px-4 md:px-8 py-3 flex items-center justify-between no-print">
-                <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 font-black uppercase text-[10px]"><ArrowLeft size={16} /> Back</button>
-                <h1 className="text-lg md:text-xl font-black uppercase tracking-widest">Invoices</h1>
+            {/* --- NEW HEADER INTEGRATED FROM SETTINGS PAGE --- */}
+            <header className="no-print shrink-0" style={styles.header}>
+                <div style={styles.headerInner}>
+                    <button onClick={() => navigate(-1)} style={styles.backBtn}>
+                        <ArrowLeft size={18} /> <span>Back</span>
+                    </button>
 
-                <div className="bg-white border border-slate-200 shadow-sm rounded-lg px-3 py-1.5 flex items-center gap-2">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID:</span>
-                    <span className="font-mono text-xs font-bold text-slate-900">{currentFranchiseId}</span>
+                    <h1 style={styles.heading}>
+                        Franchise <span style={{ color: brandGreen }}>Invoices</span>
+                    </h1>
+
+                    <div style={styles.idBox}>
+                        ID : {currentFranchiseId || "---"}
+                    </div>
                 </div>
-            </nav>
+            </header>
 
-            <main className="flex-1 flex flex-col min-h-0 px-4 md:px-8 py-4 gap-4 no-print overflow-hidden">
+            <main className="flex-1 flex flex-col min-h-0 px-4 md:px-8 pb-4 gap-4 no-print overflow-hidden">
                 <div className="shrink-0 flex flex-col gap-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 
@@ -620,5 +629,15 @@ function FranchiseInvoices() {
         </div>
     );
 }
+
+// --- STYLES ---
+const styles = {
+    // --- INTEGRATED HEADER STYLES ---
+    header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
+    headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', boxSizing: 'border-box' },
+    backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
+    heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
+    idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 }
+};
 
 export default FranchiseInvoices;
