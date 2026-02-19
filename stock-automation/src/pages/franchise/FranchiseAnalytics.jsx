@@ -147,28 +147,22 @@ function FranchiseAnalytics() {
   return (
     <div className="analytics-page">
 
-      {/* HEADER */}
-      <nav className="nav-bar">
-        {/* Left: Back Button */}
-        <div className="nav-left">
-          <button onClick={() => navigate(-1)} className="back-btn">
-            <ArrowLeft size={18} /> <span className="back-text">Back</span>
+      {/* --- NEW HEADER INTEGRATED --- */}
+      <header style={styles.header}>
+        <div style={styles.headerInner}>
+          <button onClick={() => navigate(-1)} style={styles.backBtn}>
+            <ArrowLeft size={18} /> <span>Back</span>
           </button>
-        </div>
 
-        {/* Center: Title */}
-        <div className="nav-center">
-          <h1 className="header-title">Analytics</h1>
-        </div>
+          <h1 style={styles.heading}>
+            Franchise <span style={{ color: PRIMARY }}>Analytics</span>
+          </h1>
 
-        {/* Right: ID Box */}
-        <div className="nav-right">
-          <div className="id-box-styled">
-            <span className="id-label-text">ID :</span>
-            <span className="id-value-text">{franchiseId}</span>
+          <div style={styles.idBox}>
+            ID : {franchiseId || "---"}
           </div>
         </div>
-      </nav>
+      </header>
 
       <div className="main-container">
 
@@ -342,47 +336,6 @@ function FranchiseAnalytics() {
 
         .analytics-page { background: var(--bg); min-height: 100vh; font-family: 'Inter', sans-serif; color: var(--text-main); padding-bottom: 40px; }
 
-        /* HEADER */
-        .nav-bar {
-          background: var(--card-bg); height: 60px; padding: 0 16px;
-          display: flex; align-items: center; justify-content: space-between;
-          position: sticky; top: 0; z-index: 50; border-bottom: 1px solid var(--border);
-        }
-        .nav-left, .nav-right { flex: 1; display: flex; align-items: center; }
-        .nav-right { justify-content: flex-end; }
-        
-        .nav-center { position: absolute; left: 50%; transform: translateX(-50%); text-align: center; }
-        .header-title { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
-
-        .back-btn { background: none; border: none; display: flex; align-items: center; gap: 4px; color: var(--text-sub); font-weight: 600; cursor: pointer; padding: 8px 0; }
-        .back-text { display: inline; font-size: 14px; } 
-
-        /* ID BOX */
-        .id-box-styled {
-            background: #fff;
-            border: 1px solid #cbd5e1;
-            border-radius: 8px;
-            padding: 6px 12px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        .id-label-text {
-            font-size: 10px;
-            font-weight: 900;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-        }
-        .id-value-text {
-            font-size: 12px;
-            font-weight: 700;
-            color: #0f172a;
-            font-family: monospace;
-        }
-
         /* CONTROLS */
         .main-container { max-width: 1200px; margin: 0 auto; padding: 16px; }
         .controls-wrapper { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
@@ -458,7 +411,6 @@ function FranchiseAnalytics() {
 
         /* --- TABLET & DESKTOP --- */
         @media (min-width: 768px) {
-          .nav-bar { padding: 0 32px; height: 70px; }
           .controls-wrapper { flex-direction: row; justify-content: space-between; align-items: center; }
           .tab-group, .date-group { width: auto; }
           
@@ -526,5 +478,15 @@ function BillItems({ billId, type }) {
     </div>
   );
 }
+
+// --- STYLES ---
+const styles = {
+  // --- INTEGRATED HEADER STYLES ---
+  header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
+  headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', boxSizing: 'border-box' },
+  backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
+  heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
+  idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 }
+};
 
 export default FranchiseAnalytics;
