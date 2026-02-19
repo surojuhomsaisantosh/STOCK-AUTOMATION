@@ -64,6 +64,19 @@ const getMOQ = (item, currentUnit) => {
   return Number(item.min_order_quantity) || 1;
 };
 
+// --- CORE LOGIC: VALIDATE AND CLAMP QUANTITY ---
+const validateAndClampQty = (item, requestedQty, inputUnit) => {
+  const factor = getPriceMultiplier(item.unit, inputUnit);
+  const availableStock = Number(item.quantity);
+  const neededBaseQty = requestedQty * factor;
+
+  if (neededBaseQty > availableStock) {
+    const maxPossible = Math.floor((availableStock / factor) * 1000) / 1000;
+    return { valid: false, clamped: maxPossible, msg: `Limit: ${availableStock} ${item.unit}` };
+  }
+  return { valid: true, clamped: requestedQty, msg: "" };
+};
+
 const loadRazorpayScript = () => {
   return new Promise((resolve) => {
     if (window.Razorpay) {
@@ -95,7 +108,8 @@ const amountToWords = (price) => {
     str += (n_array[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n_array[5])] || b[n_array[5][0]] + ' ' + a[n_array[5][1]]) : '';
     return str;
   }
-  return inWords(num) + "Rupees Only";
+  // FIXED: Added space before "Rupees" to prevent formatting issues
+  return inWords(num) + " Rupees Only";
 };
 
 // --- SUB-COMPONENTS ---
@@ -139,7 +153,7 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
   return (
     <div className="a4-page flex flex-col bg-white text-black font-sans text-xs leading-normal relative">
       <div className="w-full border-2 border-black flex flex-col relative flex-1">
-        {/* Header Section - Compressed margins/padding */}
+        {/* Header Section */}
         <div className="p-3 border-b-2 border-black relative">
           <div className="absolute top-2 left-0 w-full text-center pointer-events-none">
             <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4 text-black">TAX INVOICE</h1>
@@ -190,7 +204,7 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
           </div>
         </div>
 
-        {/* Table - Optimized Row Heights (26px) & Padding */}
+        {/* Table */}
         <div className="flex-1 border-b-2 border-black relative">
           <table className="w-full text-left border-collapse text-black">
             <thead className="bg-slate-100 text-[10px] border-b-2 border-black text-black">
@@ -217,7 +231,6 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
                 </tr>
               ))}
 
-              {/* Generate empty rows to pad out to exactly 15 rows */}
               {Array.from({ length: emptyRowsCount }).map((_, idx) => (
                 <tr key={`empty-${idx}`} className="h-[26px]">
                   <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-transparent">-</td>
@@ -233,7 +246,7 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
           </table>
         </div>
 
-        {/* Footer - Compressed Layout to prevent Cutoff */}
+        {/* Footer */}
         <div className="flex mt-auto text-black">
           <div className="w-[60%] border-r-2 border-black flex flex-col">
             <div className="py-1.5 px-2 border-b-2 border-black min-h-[30px] flex flex-col justify-center bg-slate-50">
@@ -291,28 +304,37 @@ function StockOrder() {
   const [isCentral, setIsCentral] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const [qtyInput, setQtyInput] = useState({});
-  const [selectedUnit, setSelectedUnit] = useState({});
-
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [loadingStocks, setLoadingStocks] = useState(true);
   const [processingOrder, setProcessingOrder] = useState(false);
   const [toasts, setToasts] = useState([]);
-  const [printData, setPrintData] = useState(null);
-  const [lastOrderId, setLastOrderId] = useState(null);
-  const [orderSuccess, setOrderSuccess] = useState(false);
 
   // --- SESSION STORAGE INITIALIZATION ---
   const [search, setSearch] = useState(() => getSessionData("stock_search", ""));
   const [selectedCategory, setSelectedCategory] = useState(() => getSessionData("stock_category", "All"));
   const [showOnlyAvailable, setShowOnlyAvailable] = useState(() => getSessionData("stock_available", false));
 
-  // --- PERSISTENCE EFFECTS ---
-  useEffect(() => { sessionStorage.setItem("stock_search", JSON.stringify(search)); }, [search]);
-  useEffect(() => { sessionStorage.setItem("stock_category", JSON.stringify(selectedCategory)); }, [selectedCategory]);
-  useEffect(() => { sessionStorage.setItem("stock_available", JSON.stringify(showOnlyAvailable)); }, [showOnlyAvailable]);
+  // --- SESSION STORAGE FOR INPUTS & INVOICE RECOVERY ---
+  const [qtyInput, setQtyInput] = useState(() => getSessionData("stock_qty_input", {}));
+  const [selectedUnit, setSelectedUnit] = useState(() => getSessionData("stock_selected_unit", {}));
 
-  // Cart Management
+  const [printData, setPrintData] = useState(() => getSessionData("stock_print_data", null));
+  const [lastOrderId, setLastOrderId] = useState(() => getSessionData("stock_last_order_id", null));
+  const [orderSuccess, setOrderSuccess] = useState(() => getSessionData("stock_order_success", false));
+
+  // --- PREVENT BACKGROUND SCROLLING WHEN MODALS OPEN ---
+  useEffect(() => {
+    if (isCartOpen || orderSuccess) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isCartOpen, orderSuccess]);
+
+  // Cart Management (LocalStorage)
   const [cart, setCart] = useState(() => {
     try {
       const savedCart = localStorage.getItem("stockOrderCart");
@@ -326,6 +348,17 @@ function StockOrder() {
       return saved ? new Set(JSON.parse(saved)) : new Set();
     } catch (e) { return new Set(); }
   });
+
+  // --- PERSISTENCE EFFECTS ---
+  useEffect(() => { sessionStorage.setItem("stock_search", JSON.stringify(search)); }, [search]);
+  useEffect(() => { sessionStorage.setItem("stock_category", JSON.stringify(selectedCategory)); }, [selectedCategory]);
+  useEffect(() => { sessionStorage.setItem("stock_available", JSON.stringify(showOnlyAvailable)); }, [showOnlyAvailable]);
+
+  useEffect(() => { sessionStorage.setItem("stock_qty_input", JSON.stringify(qtyInput)); }, [qtyInput]);
+  useEffect(() => { sessionStorage.setItem("stock_selected_unit", JSON.stringify(selectedUnit)); }, [selectedUnit]);
+  useEffect(() => { sessionStorage.setItem("stock_print_data", JSON.stringify(printData)); }, [printData]);
+  useEffect(() => { sessionStorage.setItem("stock_last_order_id", JSON.stringify(lastOrderId)); }, [lastOrderId]);
+  useEffect(() => { sessionStorage.setItem("stock_order_success", JSON.stringify(orderSuccess)); }, [orderSuccess]);
 
   useEffect(() => {
     const handler = setTimeout(() => setDebouncedSearch(search), 300);
@@ -370,16 +403,65 @@ function StockOrder() {
     } finally { setLoadingStocks(false); }
   }, [addToast]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    const stockSubscription = supabase
+      .channel('public:stocks')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'stocks' },
+        (payload) => { fetchData(true); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(stockSubscription); };
+  }, [fetchData]);
+
   useEffect(() => { loadRazorpayScript(); }, []);
+
+  useEffect(() => {
+    if (stocks.length === 0) return;
+    setCart(prevCart => {
+      let hasChanges = false;
+      const updatedCart = prevCart.map(cartItem => {
+        const liveItem = stocks.find(s => s.id === cartItem.id);
+        if (liveItem) {
+          const check = validateAndClampQty(liveItem, cartItem.qty, cartItem.cartUnit);
+          if (!check.valid && check.clamped !== cartItem.qty) {
+            hasChanges = true;
+            return { ...cartItem, qty: check.clamped, displayQty: check.clamped };
+          }
+        }
+        return cartItem;
+      }).filter(item => item.qty > 0);
+
+      return hasChanges ? updatedCart : prevCart;
+    });
+  }, [stocks]);
 
   const sortedCategories = useMemo(() => {
     const uniqueCats = [...new Set(stocks.map(s => s.category).filter(Boolean))].sort();
     return ["All", ...uniqueCats];
   }, [stocks]);
 
+  const liveCart = useMemo(() => {
+    return cart.map(cartItem => {
+      const liveData = stocks.find(s => s.id === cartItem.id);
+      if (liveData) {
+        return {
+          ...cartItem,
+          ...liveData,
+          qty: cartItem.qty,
+          displayQty: cartItem.displayQty,
+          cartUnit: cartItem.cartUnit
+        };
+      }
+      return cartItem;
+    });
+  }, [cart, stocks]);
+
   const calculations = useMemo(() => {
-    const details = cart.map(item => {
+    const details = liveCart.map(item => {
       const multiplier = getPriceMultiplier(item.unit, item.cartUnit);
       const effectivePrice = item.price * multiplier;
       const subtotal = effectivePrice * item.qty;
@@ -397,7 +479,7 @@ function StockOrder() {
     const exactBill = parseFloat((totalSub + totalGst).toFixed(2));
     const roundedBill = Math.ceil(exactBill);
     return { items: details, subtotal: totalSub, totalGst, roundedBill, roundOff: roundedBill - exactBill };
-  }, [cart]);
+  }, [liveCart]);
 
   const filteredStocks = useMemo(() => {
     const baseList = stocks.filter(item => {
@@ -414,26 +496,40 @@ function StockOrder() {
     });
   }, [stocks, debouncedSearch, selectedCategory, showOnlyAvailable]);
 
-  // --- CORE LOGIC: VALIDATE AND CLAMP QUANTITY ---
-  const validateAndClampQty = (item, requestedQty, inputUnit) => {
-    const factor = getPriceMultiplier(item.unit, inputUnit);
-    const availableStock = Number(item.quantity);
-    const neededBaseQty = requestedQty * factor;
-
-    if (neededBaseQty > availableStock) {
-      const maxPossible = Math.floor((availableStock / factor) * 1000) / 1000;
-      return { valid: false, clamped: maxPossible, msg: `Limit: ${availableStock} ${item.unit}` };
-    }
-    return { valid: true, clamped: requestedQty, msg: "" };
-  };
-
   const handleUnitChange = (itemId, newUnit) => {
     const item = stocks.find(s => s.id === itemId);
     if (!item) return;
+
     setSelectedUnit(prev => ({ ...prev, [itemId]: newUnit }));
     const newMOQ = getMOQ(item, newUnit);
-    setQtyInput(prev => ({ ...prev, [itemId]: newMOQ }));
-    setCart(prev => prev.filter(c => c.id !== itemId));
+
+    const cartItem = cart.find(c => c.id === itemId);
+
+    if (cartItem) {
+      let newQty = cartItem.qty;
+
+      if (newQty < newMOQ) {
+        newQty = newMOQ;
+      }
+
+      const check = validateAndClampQty(item, newQty, newUnit);
+      if (!check.valid) {
+        addToast('error', 'Limit Reached', check.msg, 2000, `limit-${itemId}`);
+        newQty = check.clamped;
+      }
+
+      if (newQty > 0) {
+        setCart(prev => prev.map(c =>
+          c.id === itemId ? { ...c, cartUnit: newUnit, qty: newQty, displayQty: newQty } : c
+        ));
+        setQtyInput(prev => ({ ...prev, [itemId]: newQty }));
+      } else {
+        setCart(prev => prev.filter(i => i.id !== itemId));
+        setQtyInput(prev => ({ ...prev, [itemId]: 0 }));
+      }
+    } else {
+      setQtyInput(prev => ({ ...prev, [itemId]: newMOQ }));
+    }
   };
 
   const handleQtyInputChange = (itemId, val, isStepButton = false, direction = 0) => {
@@ -464,27 +560,37 @@ function StockOrder() {
   };
 
   const updateCartQty = (itemId, delta) => {
-    setCart(prev => prev.map(item => {
-      if (item.id === itemId) {
-        const isGrams = ["g", "grams", "gram", "gm", "gms", "ml", "milliliter"].includes(item.cartUnit.toLowerCase().trim());
-        const step = isGrams ? 50 : 1;
-        const stockItem = stocks.find(s => s.id === itemId);
-        const moq = getMOQ(stockItem, item.cartUnit);
+    setCart(prev => {
+      let updatedCart = prev.map(item => {
+        if (item.id === itemId) {
+          const isGrams = ["g", "grams", "gram", "gm", "gms", "ml", "milliliter"].includes(item.cartUnit.toLowerCase().trim());
+          const step = isGrams ? 50 : 1;
+          const stockItem = stocks.find(s => s.id === itemId);
+          const moq = getMOQ(stockItem, item.cartUnit);
 
-        let newQty = delta === 1 ? item.qty + step : (item.qty <= moq ? 0 : item.qty - step);
-        if (newQty <= 0) return null;
+          let newQty = delta === 1 ? item.qty + step : (item.qty <= moq ? 0 : item.qty - step);
 
-        if (stockItem) {
-          const check = validateAndClampQty(stockItem, newQty, item.cartUnit);
-          if (!check.valid) {
-            addToast('error', 'Limit Reached', check.msg);
-            return { ...item, qty: check.clamped, displayQty: check.clamped };
+          if (newQty <= 0) return null;
+
+          if (stockItem) {
+            const check = validateAndClampQty(stockItem, newQty, item.cartUnit);
+            if (!check.valid) {
+              addToast('error', 'Limit Reached', check.msg);
+              return { ...item, qty: check.clamped, displayQty: check.clamped };
+            }
           }
+          return { ...item, qty: newQty, displayQty: newQty };
         }
-        return { ...item, qty: newQty, displayQty: newQty };
+        return item;
+      }).filter(Boolean);
+
+      // FIXED: Also explicitly reset the UI input box to 0 if an item drops out of the cart via minus button
+      if (!updatedCart.find(i => i.id === itemId)) {
+        setQtyInput(qPrev => ({ ...qPrev, [itemId]: 0 }));
       }
-      return item;
-    }).filter(Boolean));
+
+      return updatedCart;
+    });
   };
 
   const handleAddToCart = (itemId) => {
@@ -560,15 +666,6 @@ function StockOrder() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !profile) throw new Error("Authentication failed.");
-
-      const itemIds = cart.map(i => i.id);
-      const { data: liveStocks } = await supabase.from('stocks').select('id, quantity, unit').in('id', itemIds);
-
-      for (const item of cart) {
-        const live = liveStocks.find(l => l.id === item.id);
-        const factor = getPriceMultiplier(live.unit, item.cartUnit);
-        if (!live || Number(live.quantity) < (item.qty * factor)) throw new Error(`${item.item_name} stock changed.`);
-      }
 
       const orderItems = calculations.items.map(i => ({
         stock_id: i.id,
@@ -677,13 +774,21 @@ function StockOrder() {
               <p className="text-slate-500 font-bold text-xs mb-8">Your order #{lastOrderId} has been placed.</p>
               <div className="space-y-3">
                 <button onClick={() => window.print()} className="w-full py-4 bg-black text-white rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center justify-center gap-2"><FiDownload /> Print Invoice</button>
+
                 <button
                   onClick={() => {
                     setOrderSuccess(false);
                     setPrintData(null);
+                    setLastOrderId(null);
                     setCart([]);
                     setQtyInput({});
                     setIsCartOpen(false);
+
+                    sessionStorage.removeItem("stock_print_data");
+                    sessionStorage.removeItem("stock_last_order_id");
+                    sessionStorage.removeItem("stock_order_success");
+                    sessionStorage.removeItem("stock_qty_input");
+
                     fetchData();
                   }}
                   className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase text-[11px]"
@@ -721,7 +826,7 @@ function StockOrder() {
                     <FiShoppingCart size={48} />
                     <p className="text-[11px] font-black uppercase tracking-widest">Cart is empty</p>
                   </div>
-                ) : cart.map(item => {
+                ) : liveCart.map(item => {
                   const multiplier = getPriceMultiplier(item.unit, item.cartUnit);
                   const displayPrice = item.price * multiplier;
                   const cartItemMoq = getMOQ(item, item.cartUnit);
@@ -771,36 +876,31 @@ function StockOrder() {
           </>
         )}
 
-        {/* HEADER */}
-        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
-          <nav className="w-full px-4 sm:px-6 py-3 flex items-center justify-between relative">
-            <div className="relative flex-shrink-0 z-30">
-              <button
-                onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/')}
-                className="flex items-center gap-2 font-black uppercase text-sm sm:text-base hover:text-slate-500 transition-colors"
-              >
-                <FiArrowLeft size={20} /> <span>Back</span>
-              </button>
-            </div>
+        {/* --- NEW HEADER INTEGRATED --- */}
+        <header className="print:hidden" style={styles.header}>
+          <div style={styles.headerInner}>
+            <button onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/')} style={styles.backBtn}>
+              <FiArrowLeft size={18} /> <span>Back</span>
+            </button>
 
-            <h1 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-lg sm:text-3xl font-black text-black tracking-wider text-center pointer-events-none z-10 whitespace-nowrap">
-              INVENTORY
+            <h1 style={styles.heading}>
+              Stock <span style={{ color: BRAND_COLOR }}>Inventory</span>
             </h1>
 
-            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-3 shrink-0 z-30">
-              <span className="text-[10px] sm:text-sm font-black uppercase bg-slate-100 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-slate-700 border border-slate-200 whitespace-nowrap">
-                ID: {profile?.franchise_id || '---'}
-              </span>
-              <button onClick={() => setIsCartOpen(true)} className="hidden sm:block relative p-2 sm:p-2.5 bg-white border border-slate-200 rounded-md hover:border-black transition-all shadow-sm group">
-                <FiShoppingCart size={18} className="sm:w-5 sm:h-5 group-hover:scale-110 transition-transform" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+              <div style={styles.idBox}>
+                ID : {profile?.franchise_id || '---'}
+              </div>
+              <button onClick={() => setIsCartOpen(true)} className="hidden sm:block relative p-2 bg-white border border-slate-200 rounded-md hover:border-black transition-all shadow-sm group cursor-pointer">
+                <FiShoppingCart size={18} className="group-hover:scale-110 transition-transform text-black" />
                 {cart.length > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 text-white text-[10px] font-black h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center rounded-md shadow-lg border-2 border-white" style={{ backgroundColor: BRAND_COLOR }}>
+                  <span className="absolute -top-2 -right-2 text-white text-[10px] font-black h-5 w-5 flex items-center justify-center rounded-full shadow-lg border-2 border-white" style={{ backgroundColor: BRAND_COLOR }}>
                     {cart.length}
                   </span>
                 )}
               </button>
             </div>
-          </nav>
+          </div>
         </header>
 
         {/* SEARCH & FILTERS */}
@@ -918,12 +1018,13 @@ function StockOrder() {
                             <div className="flex-1 flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden focus-within:border-black transition-all">
                               <button onClick={() => isInCart ? updateCartQty(item.id, -1) : handleQtyInputChange(item.id, null, true, -1)} className="px-3 sm:px-4 h-10 hover:bg-slate-200 text-slate-700 font-bold"><FiMinus size={14} /></button>
 
+                              {/* FIXED: Added `|| ""` to ensure this input never becomes technically "uncontrolled" if undefined is passed */}
                               <input
                                 type="number"
-                                value={isInCart ? cart.find(c => c.id === item.id).qty : (qtyInput[item.id] || "")}
+                                value={(isInCart ? liveCart.find(c => c.id === item.id)?.qty : qtyInput[item.id]) || ""}
                                 onChange={(e) => {
                                   if (isInCart) {
-                                    const cartItem = cart.find(c => c.id === item.id);
+                                    const cartItem = liveCart.find(c => c.id === item.id);
                                     handleManualInputCart(cartItem, e.target.value);
                                   } else {
                                     handleQtyInputChange(item.id, e.target.value);
@@ -936,14 +1037,14 @@ function StockOrder() {
                             </div>
                             <div className="relative w-full">
                               <select
-                                value={isInCart ? cart.find(c => c.id === item.id).cartUnit : unit}
-                                disabled={isInCart}
+                                value={isInCart ? liveCart.find(c => c.id === item.id)?.cartUnit : unit}
                                 onChange={(e) => handleUnitChange(item.id, e.target.value)}
-                                className={`w-full bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase py-2 pl-3 pr-8 text-left outline-none appearance-none ${isInCart ? 'cursor-not-allowed opacity-70 bg-slate-50' : 'hover:border-slate-400 cursor-pointer'}`}
+                                className={`w-full bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase py-2 pl-3 pr-8 text-left outline-none appearance-none hover:border-slate-400 focus:border-black cursor-pointer transition-colors`}
                               >
                                 <option value={item.unit}>{item.unit}</option>
                                 {item.alt_unit && item.alt_unit !== item.unit && item.alt_unit !== "None" && <option value={item.alt_unit}>{item.alt_unit}</option>}
                               </select>
+
                               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
                                 <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
                               </div>
@@ -984,11 +1085,11 @@ function StockOrder() {
           .a4-page {
             width: 210mm;
             height: 296.5mm;
-            padding: 5mm; /* Aggressively reduced padding to allow maximum inner height */
+            padding: 5mm; 
             margin: 0 auto;
             page-break-after: always;
             box-sizing: border-box;
-            overflow: hidden; /* Added to strictly enforce boundary */
+            overflow: hidden; 
           }
           .a4-page:last-child {
             page-break-after: auto;
@@ -1009,5 +1110,15 @@ function StockOrder() {
     </>
   );
 }
+
+// --- STYLES ---
+const styles = {
+  // --- INTEGRATED HEADER STYLES ---
+  header: { background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 50, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
+  headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', boxSizing: 'border-box' },
+  backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
+  heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
+  idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 }
+};
 
 export default StockOrder;
