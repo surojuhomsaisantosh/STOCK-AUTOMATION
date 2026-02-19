@@ -201,13 +201,8 @@ function FranchiseMenu() {
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
                 className={`px-5 py-2 md:px-6 md:py-2.5 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap border transition-all ${selectedCategory === cat
-<<<<<<< HEAD
-                    ? 'text-white border-transparent shadow-md'
-                    : 'bg-white text-black border-black/10 hover:border-black hover:text-black'
-=======
                   ? 'text-white border-transparent shadow-md'
                   : 'bg-white text-black border-black/10 hover:border-black hover:text-black'
->>>>>>> bb7880a704c7672092daba729b287ae60d6147f8
                   }`}
                 style={{ backgroundColor: selectedCategory === cat ? brandGreen : 'white' }}
               >
