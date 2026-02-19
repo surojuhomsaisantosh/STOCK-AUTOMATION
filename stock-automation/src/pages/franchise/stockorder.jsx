@@ -884,7 +884,11 @@ function StockOrder() {
             </button>
 
             <h1 style={styles.heading}>
+<<<<<<< HEAD
               ORDER <span style={{ color: BRAND_COLOR }}>STOCK</span>
+=======
+              Stock <span style={{ color: BRAND_COLOR }}>Inventory</span>
+>>>>>>> bb7880a704c7672092daba729b287ae60d6147f8
             </h1>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
