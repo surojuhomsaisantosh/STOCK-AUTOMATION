@@ -1,24 +1,24 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../../supabase/supabaseClient";
-import { 
-  ArrowLeft, Plus, Trash2, Edit2, 
-  Search, Calendar, X, Filter, ChevronDown, ChevronUp 
+import {
+  ArrowLeft, Plus, Trash2, Edit2,
+  Search, Calendar, X, Filter, ChevronDown, ChevronUp
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 function FranchiseMenu() {
   const navigate = useNavigate();
   const brandGreen = "rgb(0, 100, 55)";
-  
+
   // State
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [franchiseId, setFranchiseId] = useState("Loading...");
-  
+
   // Track which item is expanded on mobile
   const [expandedId, setExpandedId] = useState(null);
-  
+
   // Initialize category from Session Storage or default to ALL
   const [selectedCategory, setSelectedCategory] = useState(() => {
     return sessionStorage.getItem("franchise_menu_category") || "ALL";
@@ -61,7 +61,7 @@ function FranchiseMenu() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profile } = await supabase.from("profiles").select("franchise_id").eq("id", user.id).single();
-      
+
       if (profile?.franchise_id) {
         setFranchiseId(profile.franchise_id);
         const { data, error } = await supabase
@@ -69,7 +69,7 @@ function FranchiseMenu() {
           .select("*")
           .eq("franchise_id", profile.franchise_id)
           .order("created_at", { ascending: false });
-        
+
         if (error) throw error;
         setMenuItems(data || []);
       }
@@ -83,11 +83,11 @@ function FranchiseMenu() {
   const handleOpenModal = (item = null) => {
     if (item) {
       setEditingId(item.id);
-      setFormData({ 
-        item_name: item.item_name, 
-        price: item.price, 
-        category: item.category, 
-        is_active: item.is_active 
+      setFormData({
+        item_name: item.item_name,
+        price: item.price,
+        category: item.category,
+        is_active: item.is_active
       });
     } else {
       setEditingId(null);
@@ -99,12 +99,12 @@ function FranchiseMenu() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const payload = { 
+      const payload = {
         item_name: formData.item_name,
         price: parseFloat(formData.price),
         category: formData.category.toUpperCase().trim(),
         is_active: formData.is_active,
-        franchise_id: franchiseId 
+        franchise_id: franchiseId
       };
 
       if (editingId) {
@@ -137,43 +137,37 @@ function FranchiseMenu() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-black font-sans p-3 md:p-8">
-      <div className="max-w-[1600px] mx-auto space-y-4 md:space-y-6">
+    <div className="min-h-screen bg-gray-50 text-black font-sans pb-10">
 
-        {/* --- ROW 1: HEADER --- */}
-        <div className="flex flex-row items-center justify-between gap-2 md:gap-4 relative w-full">
-          {/* Back Button: Added -ml-2 to pull it towards the left edge */}
-          <div className="flex-none -ml-2 md:-ml-3">
-            <button 
-              onClick={() => navigate(-1)} 
-              className="flex items-center gap-1 md:gap-2 px-3 py-2 md:px-4 md:py-2 text-[10px] md:text-sm font-bold uppercase tracking-wider hover:bg-gray-200 rounded-lg transition-colors text-black border border-transparent hover:border-black/5"
-              style={{ color: brandGreen }}
-            >
-              <ArrowLeft size={16} strokeWidth={2.5} className="md:w-[18px] md:h-[18px]" /> Back
-            </button>
-          </div>
+      {/* --- NEW HEADER INTEGRATED FROM SETTINGS PAGE --- */}
+      <header style={styles.header}>
+        <div style={styles.headerInner}>
+          <button onClick={() => navigate(-1)} style={styles.backBtn}>
+            <ArrowLeft size={18} /> <span>Back</span>
+          </button>
 
-          <div className="flex-1 text-center min-w-0">
-            <h1 className="text-lg md:text-3xl font-black uppercase tracking-tight text-black truncate">Manage Menu</h1>
-          </div>
+          <h1 style={styles.heading}>
+            Manage <span style={{ color: brandGreen }}>Menu</span>
+          </h1>
 
-          <div className="flex-none">
-            <div className="bg-white border border-black/10 shadow-sm rounded-lg px-3 py-1.5 md:px-4 md:py-2 flex items-center gap-1 md:gap-2">
-              <span className="text-[9px] md:text-[11px] font-black uppercase tracking-widest text-black/60">ID:</span>
-              <span className="font-mono text-xs md:text-sm font-bold text-black">{franchiseId}</span>
-            </div>
+          <div style={styles.idBox}>
+            ID : {franchiseId || "---"}
           </div>
         </div>
+      </header>
 
-        {/* --- ROW 2: CONTROLS --- */}
-        <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-stretch mt-2">
+      {/* --- MAIN CONTENT WITH PADDING --- */}
+      <main className="max-w-[1600px] mx-auto px-4 md:px-8 space-y-4 md:space-y-6">
+
+        {/* --- CONTROLS --- */}
+        <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-stretch">
           <div className="flex-1 relative group">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               <Search className="text-black group-focus-within:text-emerald-600 transition-colors" size={18} />
             </div>
-            <input 
-              type="text" 
-              placeholder="Search items..." 
+            <input
+              type="text"
+              placeholder="Search items..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full h-12 md:h-14 pl-10 md:pl-12 pr-4 bg-white border border-black/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all font-medium text-black shadow-sm placeholder:text-black/40 uppercase tracking-wide text-sm md:text-base"
@@ -190,7 +184,7 @@ function FranchiseMenu() {
             </div>
           </div>
 
-          <button 
+          <button
             onClick={() => handleOpenModal()}
             className="h-12 md:h-14 px-6 md:px-8 rounded-xl text-white font-bold uppercase tracking-widest text-[10px] md:text-xs shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2"
             style={{ backgroundColor: brandGreen }}
@@ -199,18 +193,17 @@ function FranchiseMenu() {
           </button>
         </div>
 
-        {/* --- ROW 3: CATEGORIES --- */}
+        {/* --- CATEGORIES --- */}
         <div className="w-full overflow-hidden">
           <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
             {dynamicCategories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-5 py-2 md:px-6 md:py-2.5 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap border transition-all ${
-                  selectedCategory === cat
-                    ? 'text-white border-transparent shadow-md'
-                    : 'bg-white text-black border-black/10 hover:border-black hover:text-black'
-                }`}
+                className={`px-5 py-2 md:px-6 md:py-2.5 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap border transition-all ${selectedCategory === cat
+                  ? 'text-white border-transparent shadow-md'
+                  : 'bg-white text-black border-black/10 hover:border-black hover:text-black'
+                  }`}
                 style={{ backgroundColor: selectedCategory === cat ? brandGreen : 'white' }}
               >
                 {cat}
@@ -219,22 +212,22 @@ function FranchiseMenu() {
           </div>
         </div>
 
-        {/* --- ROW 4: TOTAL ITEMS CARD (Small & Right Aligned) --- */}
+        {/* --- TOTAL ITEMS CARD (Small & Right Aligned) --- */}
         <div className="flex justify-end">
-            <div className="inline-flex items-center gap-3 bg-white border border-black/10 rounded-lg px-4 py-2 shadow-sm">
-               <span className="text-[10px] font-black text-black/50 uppercase tracking-widest">
-                 {selectedCategory === 'ALL' ? 'Total Inventory' : `${selectedCategory}`}
-               </span>
-               <div className="w-px h-3 bg-black/10"></div>
-               <span className="font-mono text-sm font-black text-black">
-                 {filteredItems.length.toString().padStart(2, '0')}
-               </span>
-            </div>
+          <div className="inline-flex items-center gap-3 bg-white border border-black/10 rounded-lg px-4 py-2 shadow-sm">
+            <span className="text-[10px] font-black text-black/50 uppercase tracking-widest">
+              {selectedCategory === 'ALL' ? 'Total Inventory' : `${selectedCategory}`}
+            </span>
+            <div className="w-px h-3 bg-black/10"></div>
+            <span className="font-mono text-sm font-black text-black">
+              {filteredItems.length.toString().padStart(2, '0')}
+            </span>
+          </div>
         </div>
 
         {/* --- DATA DISPLAY --- */}
         <div className="bg-transparent md:bg-white md:rounded-xl md:border md:border-black/10 md:shadow-sm overflow-hidden flex flex-col">
-          
+
           {/* DESKTOP VIEW: TABLE (Hidden on Mobile) */}
           <div className="hidden md:block w-full">
             <table className="w-full text-left border-collapse">
@@ -279,14 +272,14 @@ function FranchiseMenu() {
           {/* MOBILE VIEW: EXPANDABLE LIST (Visible on Mobile) */}
           <div className="md:hidden flex flex-col gap-3">
             {loading ? (
-               <div className="py-20 text-center text-black font-medium animate-pulse uppercase tracking-widest">Loading...</div>
+              <div className="py-20 text-center text-black font-medium animate-pulse uppercase tracking-widest">Loading...</div>
             ) : filteredItems.length > 0 ? (
               filteredItems.map((item, index) => {
                 const isExpanded = expandedId === item.id;
-                
+
                 return (
-                  <div 
-                    key={item.id} 
+                  <div
+                    key={item.id}
                     onClick={() => toggleItem(item.id)}
                     className={`bg-white border border-black/10 rounded-xl overflow-hidden transition-all duration-300 ${isExpanded ? 'shadow-md ring-1 ring-black/5' : 'shadow-sm'}`}
                   >
@@ -297,7 +290,7 @@ function FranchiseMenu() {
                         <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-black/5 text-[10px] font-black text-black/60">
                           {(index + 1).toString().padStart(2, '0')}
                         </span>
-                        
+
                         {/* Item Details */}
                         <div className="flex flex-col">
                           <span className="font-black text-black uppercase text-sm leading-tight">{item.item_name}</span>
@@ -318,14 +311,14 @@ function FranchiseMenu() {
                     {/* Expandable Action Row */}
                     {isExpanded && (
                       <div className="px-4 pb-4 pt-0 flex gap-2 animate-in slide-in-from-top-2 duration-200">
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }} 
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }}
                           className="flex-1 flex items-center justify-center gap-2 p-3 bg-green-50 text-green-700 rounded-xl font-bold text-xs uppercase tracking-wider active:scale-95 transition-transform"
                         >
                           <Edit2 size={16} /> Edit
                         </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} 
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
                           className="flex-1 flex items-center justify-center gap-2 p-3 bg-red-50 text-red-600 rounded-xl font-bold text-xs uppercase tracking-wider active:scale-95 transition-transform"
                         >
                           <Trash2 size={16} /> Delete
@@ -336,13 +329,13 @@ function FranchiseMenu() {
                 );
               })
             ) : (
-               <div className="py-20 text-center text-black font-bold uppercase tracking-widest opacity-50">No Items Found</div>
+              <div className="py-20 text-center text-black font-bold uppercase tracking-widest opacity-50">No Items Found</div>
             )}
           </div>
-          
+
         </div>
 
-      </div>
+      </main>
 
       {/* --- MODAL (Overlay) --- */}
       {isModalOpen && (
@@ -356,21 +349,21 @@ function FranchiseMenu() {
                 <X size={24} />
               </button>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-5 md:space-y-6">
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-black">Item Name</label>
-                <input required type="text" value={formData.item_name} onChange={(e) => setFormData({...formData, item_name: e.target.value})} className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-black/10 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 outline-none font-bold text-black uppercase" placeholder="e.g. Cheese Burger" />
+                <input required type="text" value={formData.item_name} onChange={(e) => setFormData({ ...formData, item_name: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-black/10 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 outline-none font-bold text-black uppercase" placeholder="e.g. Cheese Burger" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-black">Price (₹)</label>
-                  <input required type="number" step="0.01" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-black/10 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 outline-none font-bold text-black" placeholder="0.00" />
+                  <input required type="number" step="0.01" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-black/10 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 outline-none font-bold text-black" placeholder="0.00" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-black">Category</label>
-                  <input required type="text" value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-black/10 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 outline-none font-bold text-black uppercase" placeholder="e.g. Sides" />
+                  <input required type="text" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-black/10 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 outline-none font-bold text-black uppercase" placeholder="e.g. Sides" />
                 </div>
               </div>
 
@@ -386,5 +379,15 @@ function FranchiseMenu() {
     </div>
   );
 }
+
+// --- STYLES ---
+const styles = {
+  // --- INTEGRATED HEADER STYLES ---
+  header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
+  headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', boxSizing: 'border-box' },
+  backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
+  heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
+  idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 }
+};
 
 export default FranchiseMenu;
