@@ -17,7 +17,6 @@ function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [franchiseId, setFranchiseId] = useState("");
   const [loginType, setLoginType] = useState("store");
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -38,13 +37,11 @@ function Login() {
 
     try {
       const cleanPassword = password.trim();
-      const cleanFranchiseId = franchiseId.trim().toUpperCase();
       const cleanEmail = email.trim().toLowerCase();
 
       // Basic Validations
+      if (!cleanEmail) throw new Error("Email address is required");
       if (!cleanPassword) throw new Error("Password is required");
-      if (!cleanFranchiseId) throw new Error("Franchise ID is required");
-      if (!cleanEmail) throw new Error("Email is required");
 
       // Sign in with Supabase Auth
       const { data: authData, error: authError } =
@@ -53,13 +50,13 @@ function Login() {
           password: cleanPassword,
         });
 
-      if (authError) throw new Error("Invalid Credentials. Please check your email and password.");
+      if (authError) throw new Error("Invalid credentials. Please check your email and password.");
 
       let userRole = "";
       let userFranchiseId = "";
       let finalProfileData = null;
 
-      // 1. Check if user is an Admin/Owner (profiles table)
+      // 1. Check if user is an Admin/Owner/Central (profiles table)
       let { data: ownerProfile } = await supabase
         .from("profiles")
         .select("*")
@@ -98,12 +95,6 @@ function Login() {
         } else {
           throw new Error("User profile not found in database.");
         }
-      }
-
-      // Security Check: Ensure Franchise ID entered matches the user's record
-      if (String(userFranchiseId).trim().toUpperCase() !== cleanFranchiseId) {
-        await supabase.auth.signOut();
-        throw new Error(`Access Denied: You are not registered under Franchise ${cleanFranchiseId}`);
       }
 
       await login(authData.user, finalProfileData);
@@ -158,7 +149,7 @@ function Login() {
               ...(loginType === "store" && styles.toggleActive),
             }}
           >
-            Store Mode
+            STORE
           </button>
           <button
             onClick={() => { setLoginType("admin"); setErrorMsg(""); }}
@@ -167,20 +158,13 @@ function Login() {
               ...(loginType === "admin" && styles.toggleActive),
             }}
           >
-            Admin Mode
+            ADMIN
           </button>
         </div>
 
         {errorMsg && <div style={styles.errorBox}>{errorMsg}</div>}
 
         <div style={styles.form}>
-          <input
-            style={styles.input}
-            placeholder="Franchise ID (e.g., TV-3)"
-            value={franchiseId}
-            onChange={(e) => setFranchiseId(e.target.value)}
-          />
-
           <input
             style={styles.input}
             type="email"
@@ -211,7 +195,7 @@ function Login() {
             onClick={handleLogin}
             disabled={isLoading}
           >
-            {isLoading ? "Verifying Credentials..." : "Login"}
+            {isLoading ? "Verifying..." : "Login"}
           </button>
         </div>
       </div>
