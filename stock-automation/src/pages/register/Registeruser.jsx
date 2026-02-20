@@ -31,12 +31,12 @@ const InputGroup = ({ icon: Icon, children, isFocused, label, isMobile }) => (
       display: "flex",
       alignItems: "center",
       border: `1.5px solid ${isFocused ? PRIMARY : BORDER}`,
-      borderRadius: "12px", // Slightly rounder for mobile
+      borderRadius: "12px",
       padding: "0 14px",
       background: isFocused ? "#fff" : "#fcfcfd",
       transition: "all 0.2s ease",
       boxShadow: isFocused ? `0 0 0 4px ${PRIMARY_LIGHT}` : "none",
-      height: isMobile ? "52px" : "48px" // Larger touch target on mobile
+      height: isMobile ? "52px" : "48px"
     }}>
       {Icon && <Icon size={18} color={isFocused ? PRIMARY : TEXT_MUTED} style={{ minWidth: "18px", marginRight: "12px" }} />}
       <div style={{ flex: 1, display: "flex", alignItems: "center", width: "100%" }}>{children}</div>
@@ -52,6 +52,9 @@ function RegisterUser() {
   const [adminId, setAdminId] = useState("...");
   const [suggestedId, setSuggestedId] = useState("");
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // New state to hold dynamically fetched companies
+  const [companiesList, setCompaniesList] = useState([]);
 
   const [formData, setFormData] = useState({
     company: "", franchise_id: "", name: "", phone: "", email: "",
@@ -70,14 +73,39 @@ function RegisterUser() {
         if (data) setAdminId(data.franchise_id);
       }
     };
+
+    // Fetch dynamic companies list from DB
+    const fetchCompanies = async () => {
+      try {
+        const { data, error } = await supabase.from('companies').select('company_name');
+        if (error) throw error;
+        if (data) {
+          setCompaniesList(data.map(c => c.company_name));
+        }
+      } catch (err) {
+        console.error("Error fetching companies:", err);
+      }
+    };
+
     getAdminProfile();
+    fetchCompanies();
+
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
     const fetchNextId = async () => {
       if (!formData.company) { setSuggestedId(""); return; }
-      let prefix = formData.company === "T vanamm" ? "TV-" : "TL-";
+
+      // Dynamically generate prefix based on selected company name (e.g., "T vanamm" -> "TV-")
+      const words = formData.company.trim().split(/\s+/);
+      let prefix = "";
+      if (words.length >= 2) {
+        prefix = (words[0][0] + words[1][0]).toUpperCase() + "-";
+      } else {
+        prefix = formData.company.substring(0, 2).toUpperCase() + "-";
+      }
+
       try {
         const { data } = await supabase.from('profiles').select('franchise_id').eq('company', formData.company);
         let maxNum = 0;
@@ -106,12 +134,20 @@ function RegisterUser() {
   };
 
   const handleSubmit = async () => {
+    // Basic validation to ensure required fields aren't empty
+    if (!formData.email || !formData.password || !formData.company) {
+      alert("Please fill in the required fields (Brand, Email, and Password).");
+      return;
+    }
+
     if (loading) return;
     setLoading(true);
+
     try {
       const tempSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
       });
+
       const { data: authData, error: authError } = await tempSupabase.auth.signUp({
         email: formData.email.trim(),
         password: formData.password,
@@ -133,8 +169,11 @@ function RegisterUser() {
         role: "franchise",
         country: "India"
       }]);
-      alert("Account Created Successfully!");
+
+      // Updated alert to reflect the real email verification process
+      alert(`Account created! A verification email has been sent to ${formData.email}. They must click the link to verify before logging in.`);
       navigate(-1);
+
     } catch (err) {
       alert(err.message);
     } finally {
@@ -178,8 +217,10 @@ function RegisterUser() {
               <select name="company" value={formData.company} onChange={handleChange} style={styles.selectInput}
                 onFocus={() => setFocusedField("company")} onBlur={() => setFocusedField(null)}>
                 <option value="">Choose...</option>
-                <option value="T vanamm">T vanamm</option>
-                <option value="T leaf">T leaf</option>
+                {/* Dynamically mapped companies here */}
+                {companiesList.map((compName, idx) => (
+                  <option key={idx} value={compName}>{compName}</option>
+                ))}
               </select>
             </InputGroup>
 

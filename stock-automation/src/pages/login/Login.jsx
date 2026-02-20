@@ -16,7 +16,6 @@ function Login() {
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
-  const [staffId, setStaffId] = useState("");
   const [password, setPassword] = useState("");
   const [franchiseId, setFranchiseId] = useState("");
   const [loginType, setLoginType] = useState("store");
@@ -40,34 +39,27 @@ function Login() {
     try {
       const cleanPassword = password.trim();
       const cleanFranchiseId = franchiseId.trim().toUpperCase();
-      let targetEmail = "";
+      const cleanEmail = email.trim().toLowerCase();
 
+      // Basic Validations
       if (!cleanPassword) throw new Error("Password is required");
+      if (!cleanFranchiseId) throw new Error("Franchise ID is required");
+      if (!cleanEmail) throw new Error("Email is required");
 
-      if (loginType === "store") {
-        if (!staffId.trim() || !cleanFranchiseId) {
-          throw new Error("Staff ID and Franchise ID are required");
-        }
-        targetEmail = `${staffId.trim()}@${cleanFranchiseId.toLowerCase()}.com`;
-      } else {
-        if (!email.trim() || !cleanFranchiseId) {
-          throw new Error("Email and Franchise ID are required");
-        }
-        targetEmail = email.trim().toLowerCase();
-      }
-
+      // Sign in with Supabase Auth
       const { data: authData, error: authError } =
         await supabase.auth.signInWithPassword({
-          email: targetEmail,
+          email: cleanEmail,
           password: cleanPassword,
         });
 
-      if (authError) throw new Error("Invalid Credentials");
+      if (authError) throw new Error("Invalid Credentials. Please check your email and password.");
 
       let userRole = "";
       let userFranchiseId = "";
       let finalProfileData = null;
 
+      // 1. Check if user is an Admin/Owner (profiles table)
       let { data: ownerProfile } = await supabase
         .from("profiles")
         .select("*")
@@ -79,6 +71,7 @@ function Login() {
         userFranchiseId = ownerProfile.franchise_id;
         finalProfileData = ownerProfile;
       } else {
+        // 2. Check if user is Staff (staff_profiles table)
         const { data: staffProfile } = await supabase
           .from("staff_profiles")
           .select("*")
@@ -89,6 +82,7 @@ function Login() {
           userRole = "staff";
           userFranchiseId = staffProfile.franchise_id;
 
+          // Fetch franchise-specific info to attach to the session
           const { data: franchiseInfo } = await supabase
             .from("profiles")
             .select("company, address, city, state, pincode, phone")
@@ -106,13 +100,15 @@ function Login() {
         }
       }
 
+      // Security Check: Ensure Franchise ID entered matches the user's record
       if (String(userFranchiseId).trim().toUpperCase() !== cleanFranchiseId) {
         await supabase.auth.signOut();
-        throw new Error(`You do not belong to Franchise ${cleanFranchiseId}`);
+        throw new Error(`Access Denied: You are not registered under Franchise ${cleanFranchiseId}`);
       }
 
       await login(authData.user, finalProfileData);
 
+      // Navigation Logic
       if (loginType === "store") {
         navigate("/store");
       } else {
@@ -185,21 +181,13 @@ function Login() {
             onChange={(e) => setFranchiseId(e.target.value)}
           />
 
-          {loginType === "store" ? (
-            <input
-              style={styles.input}
-              placeholder="Staff ID"
-              value={staffId}
-              onChange={(e) => setStaffId(e.target.value)}
-            />
-          ) : (
-            <input
-              style={styles.input}
-              placeholder="Admin Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          )}
+          <input
+            style={styles.input}
+            type="email"
+            placeholder={loginType === "store" ? "Staff Email" : "Admin Email"}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
 
           <div style={styles.passwordWrapper}>
             <input

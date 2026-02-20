@@ -20,23 +20,33 @@ function CentralSettings() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
+  // FIX: Define fetchProfile BEFORE calling it in useEffect
   useEffect(() => {
-    fetchProfile();
-  }, []);
+    const fetchProfile = async () => {
+      if (!authUser?.id) return;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("franchise_id")
+        .eq("id", authUser.id)
+        .single();
 
-  const fetchProfile = async () => {
-    if (!authUser?.id) return;
-    const { data } = await supabase
-      .from("profiles")
-      .select("franchise_id")
-      .eq("id", authUser.id)
-      .single();
-    if (data?.franchise_id) setFranchiseId(data.franchise_id);
-  };
+      if (!error && data?.franchise_id) {
+        setFranchiseId(data.franchise_id);
+      }
+    };
+
+    fetchProfile();
+  }, [authUser]);
 
   const handleChangePassword = async () => {
     setMsg("");
-    if (!newPassword || newPassword !== confirmPassword) {
+
+    // Basic validations
+    if (!newPassword || !confirmPassword) {
+      setMsg("Please fill in both fields");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
       setMsg("Passwords do not match");
       return;
     }
@@ -44,11 +54,23 @@ function CentralSettings() {
       setMsg("Minimum 6 characters required");
       return;
     }
+
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+    // Supabase v2 method for updating a logged-in user's password
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
     setLoading(false);
-    if (error) { setMsg(error.message); }
-    else { setMsg("Password updated successfully!"); setNewPassword(""); setConfirmPassword(""); }
+
+    if (error) {
+      setMsg(`Error: ${error.message}`);
+    } else {
+      setMsg("Password updated successfully!");
+      setNewPassword("");
+      setConfirmPassword("");
+    }
   };
 
   const handleLogout = async () => {

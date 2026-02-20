@@ -38,13 +38,14 @@ import CentralProfiles from "./pages/central/centralprofiles";
 import CentralStaffProfiles from "./pages/central/CentralStaffProfiles";
 import CentralStaffLogins from "./pages/central/CentralStaffLogins";
 import CentralVendors from "./pages/central/CentralVendors";
-import Accounts from "./pages/central/accounts";
 import PosManagement from "./pages/central/posmanagement";
 import Reports from "./pages/central/reports";
 import FranchiseReplies from "./pages/central/FranchiseReplies";
 import CentralStockMaster from "./pages/central/CentralStockMaster";
 // Updated Import Path based on your file structure
 import InvoiceDesign from "./pages/central/InvoiceDesign";
+// New Import for Package Bills
+import PackageBills from "./pages/central/PackageBills";
 
 /* CONTEXTS */
 import { AuthProvider } from "./context/AuthContext";
@@ -146,6 +147,16 @@ function App() {
               }
             />
 
+            {/* New Route for Package Bills */}
+            <Route
+              path="/central/package-bills"
+              element={
+                <ProtectedRoute allowedRoles={["central"]}>
+                  <PackageBills />
+                </ProtectedRoute>
+              }
+            />
+
             <Route
               path="/central/settings"
               element={
@@ -197,15 +208,6 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["central"]}>
                   <CentralStaffLogins />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/central/accounts"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <Accounts />
                 </ProtectedRoute>
               }
             />
