@@ -357,29 +357,40 @@ function CentralInvoices() {
 
     const filteredInvoices = useMemo(() => {
         let data = invoices.filter((inv) => {
+            // 1. Search Filter
             const q = search.toLowerCase();
             const fId = (inv.franchise_id || "").toString().toLowerCase();
             const custName = (inv.customer_name || "").toLowerCase();
             const matchesSearch = !search || fId.includes(q) || custName.includes(q);
 
-            const invDate = inv.created_at?.split('T')[0];
-            let matchesDate = true;
-            if (rangeMode) {
-                if (dateRange.start && dateRange.end) matchesDate = invDate >= dateRange.start && invDate <= dateRange.end;
-            } else {
-                if (singleDate) matchesDate = invDate === singleDate;
-            }
+            const currentStatus = (inv.status || 'Incoming').toLowerCase();
 
-            // --- NEW: MATCH STATUS FILTER ---
+            // 2. Date Filter (ONLY applies to 'dispatched' status)
+            let matchesDate = true;
+            if (currentStatus === 'dispatched') {
+                const invDate = inv.created_at?.split('T')[0];
+                if (rangeMode) {
+                    if (dateRange.start && dateRange.end) {
+                        matchesDate = invDate >= dateRange.start && invDate <= dateRange.end;
+                    }
+                } else {
+                    if (singleDate) {
+                        matchesDate = invDate === singleDate;
+                    }
+                }
+            }
+            // If status is incoming or packed, matchesDate remains true automatically!
+
+            // 3. Status Filter (Top toggle bar)
             let matchesStatus = true;
             if (statusFilter !== "All") {
-                const currentStatus = inv.status || 'Incoming';
-                matchesStatus = currentStatus.toLowerCase() === statusFilter.toLowerCase();
+                matchesStatus = currentStatus === statusFilter.toLowerCase();
             }
 
             return matchesSearch && matchesDate && matchesStatus;
         });
 
+        // Sort Logic
         if (sortConfig.key) {
             data.sort((a, b) => {
                 let aVal = a[sortConfig.key];
@@ -629,8 +640,8 @@ function CentralInvoices() {
                                 key={status}
                                 onClick={() => setStatusFilter(status)}
                                 className={`px-5 py-2.5 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${statusFilter === status
-                                        ? "bg-slate-900 text-white shadow-md shadow-black/10 scale-[1.02]"
-                                        : "bg-white text-slate-500 border-2 border-slate-100 hover:border-slate-300 hover:text-slate-700"
+                                    ? "bg-slate-900 text-white shadow-md shadow-black/10 scale-[1.02]"
+                                    : "bg-white text-slate-500 border-2 border-slate-100 hover:border-slate-300 hover:text-slate-700"
                                     }`}
                             >
                                 {status}
