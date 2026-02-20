@@ -39,10 +39,7 @@ function FranchiseSettingsCard() {
 
   const brandGreen = "rgb(0, 100, 55)";
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
+  // FIX: Define fetchProfile BEFORE useEffect
   const fetchProfile = async () => {
     if (!authUser?.id) return;
     try {
@@ -61,6 +58,10 @@ function FranchiseSettingsCard() {
     }
   };
 
+  useEffect(() => {
+    fetchProfile();
+  }, [authUser]);
+
   const openProfile = async () => {
     setShowProfileModal(true);
     setProfileLoading(true);
@@ -73,7 +74,7 @@ function FranchiseSettingsCard() {
     setConfirmPassword("");
     setPasswordMsg("");
     setShowSecurityModal(true);
-  }
+  };
 
   const handleUpdateProfile = async () => {
     setLoading(true);
@@ -88,8 +89,11 @@ function FranchiseSettingsCard() {
       })
       .eq("id", authUser.id);
 
-    if (error) setUpdateMsg("Error: " + error.message);
-    else setUpdateMsg("Profile updated successfully");
+    if (error) {
+      setUpdateMsg("Error: " + error.message);
+    } else {
+      setUpdateMsg("Profile updated successfully");
+    }
     setLoading(false);
   };
 
@@ -112,8 +116,9 @@ function FranchiseSettingsCard() {
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     setLoading(false);
 
-    if (error) setPasswordMsg(error.message);
-    else {
+    if (error) {
+      setPasswordMsg("Error: " + error.message);
+    } else {
       setPasswordMsg("Password updated successfully");
       setTimeout(() => setShowSecurityModal(false), 1500);
     }
@@ -133,7 +138,7 @@ function FranchiseSettingsCard() {
   return (
     <div className="min-h-screen bg-[#F8F9FA] text-slate-900 font-sans pb-20 relative">
 
-      {/* --- NEW HEADER INTEGRATED FROM POS MANAGEMENT --- */}
+      {/* --- HEADER --- */}
       <header style={styles.header}>
         <div style={styles.headerInner}>
           <button onClick={() => navigate(-1)} style={styles.backBtn}>
@@ -152,7 +157,7 @@ function FranchiseSettingsCard() {
 
       <main className="max-w-[1000px] mx-auto px-4 md:px-8 pb-8 md:pb-12">
 
-        {/* --- UNIFORM GRID LAYOUT --- */}
+        {/* --- GRID LAYOUT --- */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
 
           {/* 1. IDENTITY CARD */}
@@ -226,7 +231,6 @@ function FranchiseSettingsCard() {
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1"><Hash size={10} /> ID</label>
                       <p className="font-mono text-sm font-black text-slate-900">{profileData.franchise_id || "N/A"}</p>
                     </div>
-                    {/* Updated Location Box: No Truncate, Break Words */}
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1"><MapPin size={10} /> Loc</label>
                       <p className="text-xs font-black text-slate-900 uppercase break-words leading-snug">{profileData.address || "No Address"}</p>
@@ -263,9 +267,10 @@ function FranchiseSettingsCard() {
                   </div>
                 </div>
               )}
+              {/* FIXED ALERTS: Red for errors, Green for success */}
               {updateMsg && (
-                <div className="mt-6 flex items-center gap-3 text-[10px] font-black text-emerald-700 uppercase tracking-widest bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                  <Check size={14} /> {updateMsg}
+                <div className={`mt-6 flex items-center gap-3 text-[10px] font-black uppercase tracking-widest p-4 rounded-xl border ${updateMsg.includes("Error") ? "bg-rose-50 text-rose-700 border-rose-100" : "bg-emerald-50 text-emerald-700 border-emerald-100"}`}>
+                  {updateMsg.includes("Error") ? <X size={14} /> : <Check size={14} />} {updateMsg}
                 </div>
               )}
             </div>
@@ -317,7 +322,12 @@ function FranchiseSettingsCard() {
                   </button>
                 </div>
 
-                {passwordMsg && <p className="text-[10px] font-black uppercase text-center text-indigo-600 animate-pulse">{passwordMsg}</p>}
+                {/* FIXED ALERTS: Red for errors, Green for success */}
+                {passwordMsg && (
+                  <p className={`text-[10px] font-black uppercase text-center animate-pulse ${passwordMsg.includes("success") ? "text-emerald-600" : "text-rose-600"}`}>
+                    {passwordMsg}
+                  </p>
+                )}
 
                 <button
                   onClick={handleChangePassword}
@@ -343,7 +353,6 @@ function FranchiseSettingsCard() {
 
 // --- STYLES ---
 const styles = {
-  // --- INTEGRATED HEADER STYLES ---
   header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
   headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', boxSizing: 'border-box' },
   backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },

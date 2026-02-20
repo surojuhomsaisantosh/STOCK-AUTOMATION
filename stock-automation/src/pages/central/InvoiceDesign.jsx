@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   FiSearch, FiCalendar, FiPlus, FiSave, FiX, FiTrash2, FiEdit3
 } from "react-icons/fi";
-import { ArrowLeft } from "lucide-react"; // Imported for the new header
+import { ArrowLeft } from "lucide-react";
 
 const PRIMARY = "#065f46";
 const BACKGROUND = "#f9fafb";
@@ -59,20 +59,36 @@ function InvoiceDesign() {
 
   // --- DATA FETCHING ---
   const fetchProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-    setProfile(data);
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) return;
+
+      const { data, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (!profileError && data) {
+        setProfile(data);
+      }
+    } catch (err) {
+      console.error("Error fetching profile:", err);
+    }
   };
 
   const fetchCompanies = async () => {
-    const { data, error } = await supabase
-      .from("companies")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    if (error) console.error("Error fetching companies:", error);
-    else setCompanies(data || []);
+      if (error) throw error;
+      setCompanies(data || []);
+    } catch (error) {
+      console.error("Error fetching companies:", error);
+    }
   };
 
   // --- HANDLERS ---
@@ -90,15 +106,15 @@ function InvoiceDesign() {
 
   const handleEdit = (company) => {
     setFormData({
-      company_name: company.company_name,
+      company_name: company.company_name || "",
       company_email: company.company_email || "",
-      company_address: company.company_address,
-      company_gst: company.company_gst,
-      parent_company: company.parent_company,
-      bank_ifsc: company.bank_ifsc,
-      bank_acc_no: company.bank_acc_no,
-      bank_name: company.bank_name,
-      terms: company.terms
+      company_address: company.company_address || "",
+      company_gst: company.company_gst || "",
+      parent_company: company.parent_company || "",
+      bank_ifsc: company.bank_ifsc || "",
+      bank_acc_no: company.bank_acc_no || "",
+      bank_name: company.bank_name || "",
+      terms: company.terms || ""
     });
     setIsEditing(true);
     setEditId(company.id);
@@ -106,10 +122,11 @@ function InvoiceDesign() {
   };
 
   const handleSave = async () => {
-    if (!formData.company_name) {
+    if (!formData.company_name.trim()) {
       alert("Company Name is required");
       return;
     }
+
     setLoading(true);
     try {
       let error;
@@ -127,30 +144,46 @@ function InvoiceDesign() {
       }
 
       if (error) throw error;
+
       alert(isEditing ? "Updated Successfully!" : "Saved Successfully!");
       setShowModal(false);
       fetchCompanies();
     } catch (err) {
-      alert("Error: " + err.message);
+      console.error("Save Error:", err);
+      alert("Error saving data: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  // UPDATED: Now properly handles and reports deletion errors
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure? This cannot be undone.")) return;
-    const { error } = await supabase.from("companies").delete().eq("id", id);
-    if (!error) fetchCompanies();
+
+    try {
+      const { error } = await supabase
+        .from("companies")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      alert("Deleted successfully!");
+      fetchCompanies();
+    } catch (err) {
+      console.error("Delete Error:", err);
+      alert("Failed to delete: " + err.message + "\n\n(This might be due to foreign key constraints or database permissions.)");
+    }
   };
 
   const filteredCompanies = companies.filter(c =>
-    c.company_name.toLowerCase().includes(search.toLowerCase())
+    c.company_name?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div style={styles.page}>
 
-      {/* --- NEW HEADER (COPIED & ADAPTED) --- */}
+      {/* --- HEADER --- */}
       <div className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between shadow-sm gap-4">
         <div className="flex items-center justify-between w-full md:w-auto">
           <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-xs tracking-widest hover:text-black/70 transition-colors">

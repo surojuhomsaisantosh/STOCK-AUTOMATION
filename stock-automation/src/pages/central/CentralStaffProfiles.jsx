@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Search, Plus, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight, User, Phone, ChevronDown, Mail, MapPin
+  ArrowLeft, Search, Plus, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight, User, Phone, ChevronDown, MapPin, Mail
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "../../supabase/supabaseClient";
@@ -31,8 +31,9 @@ const CentralStaffProfiles = () => {
   const [editingId, setEditingId] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Added email back to formData
   const [formData, setFormData] = useState({
-    name: "", staff_id: "", password: "", phone: "", email: "", address: ""
+    name: "", staff_id: "", email: "", password: "", phone: "", address: ""
   });
 
   useEffect(() => {
@@ -83,9 +84,10 @@ const CentralStaffProfiles = () => {
 
     setCompanyName(franchiseData ? franchiseData.company : "Unknown Franchise");
 
+    // Fetch email as well
     const { data, error } = await supabase
       .from('staff_profiles')
-      .select('id, name, staff_id, phone, email, address, created_at')
+      .select('id, name, staff_id, email, phone, address, created_at')
       .eq('franchise_id', fid)
       .order('created_at', { ascending: false });
 
@@ -99,9 +101,9 @@ const CentralStaffProfiles = () => {
     setFormData({
       name: profile.name,
       staff_id: profile.staff_id,
+      email: profile.email || "",
       password: "",
       phone: profile.phone,
-      email: profile.email || "",
       address: profile.address || ""
     });
     setIsModalOpen(true);
@@ -110,12 +112,13 @@ const CentralStaffProfiles = () => {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingId(null);
-    setFormData({ name: "", staff_id: "", password: "", phone: "", email: "", address: "" });
+    setFormData({ name: "", staff_id: "", email: "", password: "", phone: "", address: "" });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!searchFranchiseId) return alert("No Franchise ID selected.");
+    if (!formData.email) return alert("Email is required.");
     setSubmitting(true);
 
     if (editingId) {
@@ -134,13 +137,14 @@ const CentralStaffProfiles = () => {
 
     try {
       if (editingId) {
+        // Update payload includes email
         const { error: profileError } = await supabase
           .from('staff_profiles')
           .update({
             name: formData.name,
             staff_id: formData.staff_id,
+            email: formData.email.trim().toLowerCase(),
             phone: formData.phone,
-            email: formData.email,
             address: formData.address
           })
           .eq('id', editingId);
@@ -159,13 +163,24 @@ const CentralStaffProfiles = () => {
         }
         fetchStaffProfiles(searchFranchiseId);
       } else {
-        const loginEmail = formData.email || `${formData.staff_id}@${searchFranchiseId.toLowerCase()}.com`;
         const tempSupabase = createClient(supabase.supabaseUrl, supabase.supabaseKey, { auth: { persistSession: false } });
-        const { data: authData, error: authError } = await tempSupabase.auth.signUp({ email: loginEmail, password: formData.password });
+
+        // Creating the user with their real email
+        const { data: authData, error: authError } = await tempSupabase.auth.signUp({
+          email: formData.email.trim().toLowerCase(),
+          password: formData.password
+        });
+
         if (authError) throw authError;
+
         const { password, ...dbPayload } = formData;
-        await supabase.from('staff_profiles').insert([{ ...dbPayload, id: authData.user.id, franchise_id: searchFranchiseId, email: loginEmail }]);
-        alert("Staff created successfully!");
+
+        // Save into staff_profiles
+        await supabase.from('staff_profiles').insert([
+          { ...dbPayload, id: authData.user.id, franchise_id: searchFranchiseId, email: formData.email.trim().toLowerCase() }
+        ]);
+
+        alert(`✅ Account created successfully! A verification email has been sent to ${formData.email}. They must click the verification link before logging in.`);
         fetchStaffProfiles(searchFranchiseId);
       }
       closeModal();
@@ -191,7 +206,6 @@ const CentralStaffProfiles = () => {
   return (
     <div style={styles.page}>
 
-      {/* --- NEW HEADER INTEGRATED FROM POS MANAGEMENT --- */}
       <header style={styles.header}>
         <div style={styles.headerInner}>
           <button onClick={() => navigate(-1)} style={styles.backBtn}>
@@ -210,7 +224,6 @@ const CentralStaffProfiles = () => {
 
       <main style={{ ...styles.mainContent, padding: isMobile ? "0 15px 20px 15px" : "0 40px 20px 40px" }}>
 
-        {/* SEARCH FRANCHISE CARD */}
         <div style={{ ...styles.filterCard, padding: isMobile ? '12px' : '15px' }}>
           <form onSubmit={handleFranchiseFetch} style={{ ...styles.filterForm, flexDirection: isMobile ? "column" : "row" }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: isMobile ? '100%' : 'auto' }}>
@@ -232,7 +245,6 @@ const CentralStaffProfiles = () => {
           </form>
         </div>
 
-        {/* LOCAL SEARCH & ADD */}
         <div style={{ ...styles.actionRow, flexDirection: isMobile ? "row" : "row", gap: isMobile ? '8px' : '15px' }}>
           <div style={{ ...styles.searchContainer, flex: 1 }}>
             <Search size={18} style={styles.searchIcon} color="#94a3b8" />
@@ -253,7 +265,6 @@ const CentralStaffProfiles = () => {
           </button>
         </div>
 
-        {/* LISTING VIEW */}
         {isMobile ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {loading ? (
@@ -331,7 +342,7 @@ const CentralStaffProfiles = () => {
         )}
       </main>
 
-      {/* MODAL (UNCHANGED LOGIC, UPDATED COLORS) */}
+      {/* MODAL */}
       {isModalOpen && (
         <div style={styles.modalOverlay} onClick={closeModal}>
           <div style={{ ...styles.modalContent, width: isMobile ? "95%" : "550px", borderRadius: "18px" }} onClick={e => e.stopPropagation()}>
@@ -346,8 +357,20 @@ const CentralStaffProfiles = () => {
             </div>
 
             <form onSubmit={handleSubmit} style={{ ...styles.formGrid, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
-              <div style={styles.inputGroup}><label style={styles.label}>Full Name *</label><input required style={styles.input} type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} /></div>
-              <div style={styles.inputGroup}><label style={styles.label}>Staff ID *</label><input required style={styles.input} type="text" value={formData.staff_id} onChange={e => setFormData({ ...formData, staff_id: e.target.value })} /></div>
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Full Name *</label>
+                <input required style={styles.input} type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+              </div>
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Staff ID *</label>
+                <input required style={styles.input} type="text" value={formData.staff_id} onChange={e => setFormData({ ...formData, staff_id: e.target.value })} />
+              </div>
+
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Phone Number *</label>
+                <input required style={styles.input} type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+              </div>
+
               <div style={styles.inputGroup}>
                 <label style={styles.label}>Password {!editingId && "*"}</label>
                 <div style={{ position: 'relative' }}>
@@ -355,12 +378,21 @@ const CentralStaffProfiles = () => {
                   <button type="button" onClick={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
                 </div>
               </div>
-              <div style={styles.inputGroup}><label style={styles.label}>Phone Number *</label><input required style={styles.input} type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} /></div>
-              <div style={{ ...styles.inputGroup, gridColumn: isMobile ? 'span 1' : 'span 2' }}><label style={styles.label}>Email Address</label><input style={styles.input} type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} /></div>
+
+              {/* EMAIL FIELD WITH DISCLAIMER */}
+              <div style={{ ...styles.inputGroup, gridColumn: isMobile ? 'span 1' : 'span 2' }}>
+                <label style={styles.label}>Email Address *</label>
+                <input required style={styles.input} type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="staff@domain.com" />
+                <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '6px', lineHeight: '1.4', fontWeight: '600', padding: '8px', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fee2e2' }}>
+                  <strong>Important:</strong> Please provide the staff member's direct email address. If they do not currently have an email account, one must be created prior to registration, as mandatory email verification is required to access the system.
+                </p>
+              </div>
+
               <div style={{ ...styles.inputGroup, gridColumn: isMobile ? 'span 1' : 'span 2' }}>
                 <label style={styles.label}>Residential Address</label>
                 <textarea style={{ ...styles.input, height: '50px', resize: 'none' }} value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
               </div>
+
               <div style={{ ...styles.modalFooter, gridColumn: isMobile ? "span 1" : "span 2" }}>
                 <button type="button" onClick={closeModal} style={styles.cancelBtn}>Cancel</button>
                 <button type="submit" disabled={submitting} style={styles.submitBtn}>{submitting ? "Saving..." : "Save Profile"}</button>
@@ -375,16 +407,12 @@ const CentralStaffProfiles = () => {
 
 const styles = {
   page: { background: "#f8fafc", minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: BLACK },
-
-  // --- INTEGRATED HEADER STYLES ---
   header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
   headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px' },
   backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
   heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
   idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 },
   mainContent: { width: "100%", display: "flex", flexDirection: "column", gap: "10px" },
-
-  // --- REST OF THE COMPONENT STYLES ---
   filterCard: { background: 'white', borderRadius: '16px', border: `1px solid ${BORDER}`, marginBottom: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' },
   filterForm: { display: 'flex', alignItems: 'center', gap: '12px' },
   filterLabel: { fontWeight: '700', fontSize: '13px', color: '#64748b' },
@@ -395,7 +423,6 @@ const styles = {
   searchIcon: { position: 'absolute', left: '14px' },
   searchInput: { width: '100%', padding: '12px 12px 12px 42px', borderRadius: '14px', border: `1.5px solid ${BORDER}`, outline: 'none', fontWeight: '600', fontSize: '14px', background: 'white' },
   addBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '12px 18px', background: GREEN, color: 'white', borderRadius: '14px', fontWeight: '800', border: 'none', cursor: 'pointer' },
-
   mobileCard: { background: 'white', borderRadius: '18px', border: `1.5px solid ${BORDER}`, overflow: 'hidden', transition: 'all 0.2s ease' },
   cardHeader: { padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' },
   cardAvatar: { width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' },
@@ -404,7 +431,6 @@ const styles = {
   cardInfoRow: { fontSize: '13px', fontWeight: '600', color: '#475569', display: 'flex', alignItems: 'center', gap: '10px' },
   cardActions: { display: 'flex', gap: '8px' },
   cardActionBtn: { flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '11px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' },
-
   tableContainer: { background: 'white', borderRadius: '20px', border: `1px solid ${BORDER}`, overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
   th: { padding: '16px 20px', fontSize: '11px', fontWeight: '900', color: '#64748b', borderBottom: `1px solid ${BORDER}`, textTransform: 'uppercase', letterSpacing: '0.5px' },
@@ -414,7 +440,6 @@ const styles = {
   timeBtn: { padding: '8px', borderRadius: '8px', background: '#eff6ff', color: '#2563eb', border: 'none', cursor: 'pointer' },
   editBtn: { padding: '8px', borderRadius: '8px', background: '#f0fdf4', color: GREEN, border: 'none', cursor: 'pointer' },
   deleteBtn: { padding: '8px', borderRadius: '8px', background: '#fef2f2', color: '#ef4444', border: 'none', cursor: 'pointer' },
-
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
   modalContent: { background: 'white', padding: '20px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', maxHeight: '95vh' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' },

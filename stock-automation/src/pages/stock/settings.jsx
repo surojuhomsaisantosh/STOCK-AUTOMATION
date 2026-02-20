@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
-import { FiArrowLeft, FiLock, FiLogOut } from "react-icons/fi";
+import { FiArrowLeft, FiLock, FiLogOut, FiEye, FiEyeOff } from "react-icons/fi";
 
 const BRAND_GREEN = "rgb(0, 100, 55)";
 
@@ -14,6 +14,11 @@ function Settings() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordMsg, setPasswordMsg] = useState("");
   const [displayId, setDisplayId] = useState("");
+
+  // Added states for Loading and Visibility
+  const [loading, setLoading] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     const savedId = sessionStorage.getItem("franchise_id");
@@ -36,20 +41,29 @@ function Settings() {
 
   const handleChangePassword = async () => {
     setPasswordMsg("");
+
+    // Validations
     if (!newPassword || !confirmPassword) {
-      setPasswordMsg("Please fill all fields");
+      setPasswordMsg("Error: Please fill all fields");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordMsg("Error: Minimum 6 characters required");
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordMsg("Passwords do not match");
+      setPasswordMsg("Error: Passwords do not match");
       return;
     }
 
+    setLoading(true);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setLoading(false);
+
     if (error) {
-      setPasswordMsg(error.message);
+      setPasswordMsg(`Error: ${error.message}`);
     } else {
-      setPasswordMsg("Password updated successfully");
+      setPasswordMsg("Success: Password updated successfully");
       setNewPassword("");
       setConfirmPassword("");
     }
@@ -57,13 +71,13 @@ function Settings() {
 
   return (
     <div className="min-h-screen bg-white text-[#111827] font-sans pb-10 md:pb-20">
-      
+
       {/* TOP NAVIGATION */}
       <nav className="border-b border-gray-200 px-4 md:px-8 py-4 md:py-6 bg-white sticky top-0 z-50 flex items-center justify-between">
-        
+
         {/* TOP LEFT: BACK BUTTON */}
-        <button 
-          onClick={() => navigate(-1)} 
+        <button
+          onClick={() => navigate(-1)}
           className="flex items-center gap-1 md:gap-2 text-xs md:text-sm font-bold text-gray-600 hover:text-black transition-colors"
         >
           <FiArrowLeft size={18} className="md:w-5 md:h-5" />
@@ -88,7 +102,7 @@ function Settings() {
 
       <div className="max-w-6xl mx-auto px-4 md:px-6 mt-8 md:mt-16">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-stretch">
-          
+
           {/* CARD 1: CHANGE PASSWORD */}
           <div className="bg-white border border-gray-200 p-6 md:p-10 rounded-[1.5rem] md:rounded-[2rem] shadow-sm flex flex-col h-full">
             <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8">
@@ -99,22 +113,46 @@ function Settings() {
             </div>
 
             <div className="space-y-3 md:space-y-4 flex-1">
-              <input
-                type="password"
-                placeholder="NEW PASSWORD"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-4 md:px-5 py-3 md:py-4 bg-[#f9fafb] border border-gray-200 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-bold outline-none focus:ring-2 ring-emerald-500/10 focus:border-emerald-600 transition-all"
-              />
-              <input
-                type="password"
-                placeholder="CONFIRM PASSWORD"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 md:px-5 py-3 md:py-4 bg-[#f9fafb] border border-gray-200 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-bold outline-none focus:ring-2 ring-emerald-500/10 focus:border-emerald-600 transition-all"
-              />
+
+              {/* New Password Input */}
+              <div className="relative">
+                <input
+                  type={showNew ? "text" : "password"}
+                  placeholder="NEW PASSWORD"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-4 md:px-5 py-3 md:py-4 bg-[#f9fafb] border border-gray-200 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-bold outline-none focus:ring-2 ring-emerald-500/10 focus:border-emerald-600 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNew(!showNew)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showNew ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                </button>
+              </div>
+
+              {/* Confirm Password Input */}
+              <div className="relative">
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  placeholder="CONFIRM PASSWORD"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-4 md:px-5 py-3 md:py-4 bg-[#f9fafb] border border-gray-200 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-bold outline-none focus:ring-2 ring-emerald-500/10 focus:border-emerald-600 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirm ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                </button>
+              </div>
+
+              {/* Color-Coded Messaging */}
               {passwordMsg && (
-                <p className="text-[10px] md:text-xs font-bold uppercase px-2 text-emerald-600">
+                <p className={`text-[10px] md:text-xs font-bold uppercase px-2 ${passwordMsg.includes("Error") ? "text-red-500" : "text-emerald-600"}`}>
                   {passwordMsg}
                 </p>
               )}
@@ -122,10 +160,11 @@ function Settings() {
 
             <button
               onClick={handleChangePassword}
+              disabled={loading}
               style={{ backgroundColor: BRAND_GREEN }}
-              className="mt-6 md:mt-8 w-full py-3 md:py-4 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-black uppercase tracking-widest text-white hover:opacity-90 active:scale-[0.98] transition-all shadow-lg shadow-emerald-900/10"
+              className="mt-6 md:mt-8 w-full py-3 md:py-4 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-black uppercase tracking-widest text-white hover:opacity-90 active:scale-[0.98] transition-all shadow-lg shadow-emerald-900/10 disabled:opacity-50"
             >
-              Update Password
+              {loading ? "UPDATING..." : "Update Password"}
             </button>
           </div>
 
@@ -139,9 +178,9 @@ function Settings() {
             </div>
 
             <div className="flex-1 flex items-center justify-center py-6">
-               <p className="text-gray-400 text-xs md:text-sm font-medium text-center">Manage session and security access</p>
+              <p className="text-gray-400 text-xs md:text-sm font-medium text-center">Manage session and security access</p>
             </div>
-            
+
             <button
               onClick={handleLogout}
               className="w-full py-3 md:py-4 rounded-xl md:rounded-2xl border border-red-100 bg-red-50 text-red-600 text-[11px] md:text-xs font-black uppercase tracking-widest hover:bg-red-600 hover:text-white active:scale-[0.98] transition-all"
