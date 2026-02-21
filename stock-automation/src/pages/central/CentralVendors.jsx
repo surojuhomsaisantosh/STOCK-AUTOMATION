@@ -56,32 +56,46 @@ const CentralVendors = () => {
 
   // --- DATA FETCHING ---
   const fetchUserData = async () => {
+    console.log("[DEBUG - AUTH] Fetching user data...");
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
-      // Security Check: Redirect if no user
       if (!user) {
+        console.warn("[DEBUG - AUTH] No user found. Redirecting to login.");
         navigate("/login");
         return;
       }
 
+      console.log(`[DEBUG - AUTH] User ID found: ${user.id}`);
+
+      // We are fetching role here too just for the debug logs to ensure it is 'central'
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('franchise_id')
+        .select('franchise_id, role')
         .eq('id', user.id)
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error("[DEBUG - AUTH] Error fetching profile:", profileError);
+        throw profileError;
+      }
+
+      console.log(`[DEBUG - AUTH] Profile fetched perfectly. Role: '${profile.role}', Franchise: '${profile.franchise_id}'`);
+
+      if (profile.role !== 'central') {
+        console.warn(`[DEBUG - AUTH WARNING] User role is '${profile.role}', NOT 'central'. RLS policies might block operations!`);
+      }
 
       setFranchiseId(profile?.franchise_id || "CENTRAL");
     } catch (err) {
-      console.error("User fetch error:", err);
+      console.error("[DEBUG - AUTH] Catch block hit:", err);
       setError("Failed to load user profile.");
       setLoading(false);
     }
   };
 
   const fetchVendors = async () => {
+    console.log(`[DEBUG - FETCH] Fetching vendors for Franchise ID: ${franchiseId}`);
     setLoading(true);
     setError(null);
     try {
@@ -91,10 +105,15 @@ const CentralVendors = () => {
         .eq('franchise_id', franchiseId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("[DEBUG - FETCH] Supabase error fetching vendors:", error);
+        throw error;
+      }
+
+      console.log(`[DEBUG - FETCH] Successfully fetched ${data?.length || 0} vendors.`);
       setVendors(data || []);
     } catch (err) {
-      console.error("Fetch Error:", err.message);
+      console.error("[DEBUG - FETCH] Catch block hit:", err.message);
       setError("Could not load vendors. Please check your connection.");
     } finally {
       setLoading(false);
@@ -120,16 +139,59 @@ const CentralVendors = () => {
     setIsModalOpen(true);
   };
 
+  // ==========================================
+  // EXTREME DEBUGGING IN DELETE FUNCTION
+  // ==========================================
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this vendor? This cannot be undone.")) return;
+
+    console.log(`\n--- [DEBUG DELETE START] ---`);
+    console.log(`Attempting to delete Vendor ID: ${id}`);
+
     try {
-      const { error } = await supabase.from('vendors').delete().eq('id', id);
-      if (error) throw error;
+      // Adding .select() is a massive hack to catch silent RLS failures
+      const response = await supabase
+        .from('vendors')
+        .delete()
+        .eq('id', id)
+        .select();
+
+      console.log(`[DEBUG - RAW RESPONSE]`, response);
+
+      if (response.error) {
+        console.error(`[DEBUG - SUPABASE ERROR OBJECT]`, response.error);
+        throw response.error;
+      }
+
+      // If there is no error, but data is empty, RLS blocked it silently!
+      if (!response.data || response.data.length === 0) {
+        console.warn(`[DEBUG - SILENT FAILURE] Supabase returned success, but 0 rows were deleted.`);
+        throw new Error("RLS Silent Failure: The database refused to delete the row, likely due to Row Level Security policies evaluating to false.");
+      }
+
+      console.log(`[DEBUG - SUCCESS] Vendor deleted successfully!`, response.data);
       setVendors(prev => prev.filter(v => v.id !== id));
+
+      // Optional: Give a success toast so you know it actually worked
+      // alert("Vendor deleted successfully."); 
+
     } catch (err) {
-      alert("Delete failed: " + err.message);
+      console.error("[DEBUG - CATCH BLOCK ERROR]", err);
+
+      // EXTREME ALERT: Spits out the exact database error code onto the screen
+      const debugMessage = `
+        DELETE FAILED!
+        -----------------------
+        Message: ${err.message || 'Unknown Error'}
+        Code: ${err.code || 'N/A'}
+        Details: ${err.details || 'N/A'}
+        Hint: ${err.hint || 'N/A'}
+      `;
+      alert(debugMessage);
     }
+    console.log(`--- [DEBUG DELETE END] ---\n`);
   };
+  // ==========================================
 
   const handlePhoneChange = (e) => {
     const val = e.target.value.replace(/\D/g, '');
@@ -148,6 +210,7 @@ const CentralVendors = () => {
     }
 
     setSubmitting(true);
+    console.log(`[DEBUG - SUBMIT] Attempting to ${editingId ? 'update' : 'insert'} vendor...`);
 
     try {
       const payload = {
@@ -168,17 +231,25 @@ const CentralVendors = () => {
           .from('vendors')
           .update(payload)
           .eq('id', editingId);
-        if (error) throw error;
+        if (error) {
+          console.error("[DEBUG - SUBMIT UPDATE ERROR]", error);
+          throw error;
+        }
       } else {
         const { error } = await supabase
           .from('vendors')
           .insert([payload]);
-        if (error) throw error;
+        if (error) {
+          console.error("[DEBUG - SUBMIT INSERT ERROR]", error);
+          throw error;
+        }
       }
+      console.log(`[DEBUG - SUBMIT] Success!`);
       setIsModalOpen(false);
       fetchVendors();
     } catch (err) {
-      alert("Error: " + err.message);
+      console.error("[DEBUG - SUBMIT CATCH]", err);
+      alert(`Save failed: ${err.message}\nCode: ${err.code || 'N/A'}`);
     } finally {
       setSubmitting(false);
     }
@@ -188,13 +259,10 @@ const CentralVendors = () => {
     if (!phone) return alert("No phone number available");
     let cleanNumber = phone.replace(/[^0-9]/g, '');
 
-    // Fix iOS missing country code issue 
-    // Usually required for API links to format correctly. Assuming India (+91) if 10 digits
     if (cleanNumber.length === 10) {
       cleanNumber = "91" + cleanNumber;
     }
 
-    // api.whatsapp.com is more universally reliable on iOS webviews/Safari than wa.me
     const url = `https://api.whatsapp.com/send?phone=${cleanNumber}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
@@ -210,10 +278,8 @@ const CentralVendors = () => {
     return vendors.filter(v => {
       const vendorCat = v.category || "";
 
-      // 1. Category Filter
       if (selectedCategory !== "All" && vendorCat !== selectedCategory) return false;
 
-      // 2. Text Search
       const searchLower = searchTerm.toLowerCase();
       const matchText = v.name.toLowerCase().includes(searchLower) ||
         vendorCat.toLowerCase().includes(searchLower) ||
