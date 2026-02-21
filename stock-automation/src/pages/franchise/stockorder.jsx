@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "../../supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
-import { renderToStaticMarkup } from "react-dom/server"; // <-- ADDED for Email HTML generation
+import { renderToStaticMarkup } from "react-dom/server";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import {
@@ -22,7 +22,7 @@ if (import.meta.env.DEV) {
 
   console.error = (...args) => {
     const msg = args[0]?.toString() || "";
-    if (IGNORED_ERRORS.some(e => msg.includes(e))) return; // Mute third-party tracking errors
+    if (IGNORED_ERRORS.some(e => msg.includes(e))) return;
     originalError(...args);
   };
 }
@@ -123,63 +123,26 @@ const amountToWords = (price) => {
 // CSS translation for the HTML-to-PDF engine
 const getEmailStyles = () => `
   <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    .pdf-container { background: white; margin: 0; padding: 0; }
+    /* Strict Box Sizing for all elements inside the PDF generator */
+    *, *::before, *::after { box-sizing: border-box !important; }
+    
+    body { background: white; margin: 0; padding: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    
     .a4-page { 
-      width: 794px; /* Strict A4 width at 96 DPI */
-      height: 1123px; /* Strict A4 height at 96 DPI */
-      background: white; 
-      margin: 0; 
-      padding: 20px;
-      box-sizing: border-box; 
-      position: relative; 
-      overflow: hidden; 
+      width: 794px !important; 
+      height: 1122px !important; 
+      background: white !important; 
+      margin: 0 !important; 
+      padding: 19px !important; /* ~5mm */
+      box-sizing: border-box !important; 
+      position: relative !important; 
+      overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
     }
-    .border-2 { border: 2px solid black; } 
-    .border-b-2 { border-bottom: 2px solid black; } 
-    .border-r-2 { border-right: 2px solid black; }
-    .border-t-2 { border-top: 2px solid black; }
-    .border-b { border-bottom: 1px solid black; } 
-    .border-slate-300 { border-color: #cbd5e1; }
-    .flex { display: flex; } 
-    .flex-col { flex-direction: column; } 
-    .justify-between { justify-content: space-between; } 
-    .items-center { align-items: center; }
-    .w-full { width: 100%; } 
-    .w-1\\/2 { width: 50%; } 
-    .w-\\[60\\%\\] { width: 60%; } 
-    .w-\\[40\\%\\] { width: 40%; }
-    .w-\\[70\\%\\] { width: 70%; }
-    .w-\\[30\\%\\] { width: 30%; }
-    .p-2 { padding: 0.5rem; } 
-    .p-3 { padding: 0.75rem; } 
-    .py-1 { padding: 0.25rem 0; } 
-    .py-0\\.5 { padding: 0.125rem 0; } 
-    .py-1\\.5 { padding: 0.375rem 0; } 
-    .px-2 { padding: 0 0.5rem; } 
-    .px-1\\.5 { padding: 0 0.375rem; }
-    .text-center { text-align: center; } 
-    .text-right { text-align: right; } 
-    .text-left { text-align: left; }
-    .font-bold { font-weight: bold; } 
-    .font-black { font-weight: 900; } 
-    .uppercase { text-transform: uppercase; } 
-    .italic { font-style: italic; }
-    .text-\\[8px\\] { font-size: 8px; } 
-    .text-\\[9px\\] { font-size: 9px; } 
-    .text-\\[10px\\] { font-size: 10px; } 
-    .text-\\[11px\\] { font-size: 11px; } 
-    .text-xs { font-size: 12px; } 
-    .text-sm { font-size: 14px; } 
-    .text-base { font-size: 16px; } 
-    .text-xl { font-size: 20px; }
-    .bg-slate-50 { background-color: #f8fafc; } 
-    .bg-slate-100 { background-color: #f1f5f9; } 
-    .bg-slate-200 { background-color: #e2e8f0; }
-    table { width: 100%; border-collapse: collapse; } 
-    th, td { padding: 4px; }
   </style>
 `;
+
 // --- SUB-COMPONENTS ---
 const ToastContainer = ({ toasts, removeToast }) => (
   <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 w-full max-w-xs pointer-events-none print:hidden">
@@ -219,98 +182,97 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
   return (
     <div className="a4-page flex flex-col bg-white text-black font-sans text-xs leading-normal relative">
       <div className="w-full border-2 border-black flex flex-col relative flex-1">
+
+        {/* Title Block */}
+        <div className="text-center py-2 border-b-2 border-black bg-white">
+          <h1 className="text-xl font-black uppercase tracking-widest text-black underline underline-offset-4">TAX INVOICE</h1>
+        </div>
+
         {/* Header Section */}
-        <div className="p-3 border-b-2 border-black relative">
-          <div className="absolute top-2 left-0 w-full text-center pointer-events-none">
-            <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4 text-black">TAX INVOICE</h1>
+        <div className="flex justify-between items-start p-3 border-b-2 border-black bg-white">
+          <div className="w-[60%] text-left">
+            <span className="uppercase font-black text-[10px] underline mb-1 block text-black">Registered Office:</span>
+            <p className="whitespace-pre-wrap text-[10px] leading-tight pr-4 text-black">{companyDetails?.company_address || ""}</p>
+            <div className="mt-1 space-y-0.5 text-[10px]">
+              {companyDetails?.company_gst && <p className="text-black">GSTIN: <span className="font-black">{companyDetails.company_gst}</span></p>}
+              {companyDetails?.company_email && <p className="text-black">Email: {companyDetails.company_email}</p>}
+            </div>
           </div>
-          <div className="flex justify-between items-center mt-5 pt-3">
-            <div className="text-left z-10 w-[55%]">
-              <div className="font-bold leading-relaxed text-[10px]">
-                <span className="uppercase underline mb-1 block text-black font-black">Registered Office:</span>
-                <p className="whitespace-pre-wrap break-words text-black leading-tight">{companyDetails?.company_address || ""}</p>
-                <div className="mt-1 space-y-0.5">
-                  {companyDetails?.company_gst && <p className="text-black">GSTIN: <span className="font-black">{companyDetails.company_gst}</span></p>}
-                  {companyDetails?.company_email && <p className="text-black">Email: {companyDetails.company_email}</p>}
-                </div>
-              </div>
-            </div>
-            <div className="z-10 flex flex-col items-center text-center max-w-[40%]">
-              {currentLogo ? (
-                <img src={currentLogo} alt="Logo" className="h-12 w-auto object-contain mb-1" />
-              ) : (
-                <div className="h-10 w-24 border border-dashed border-gray-400 flex items-center justify-center text-[9px] text-black mb-1">NO LOGO</div>
-              )}
-              <h2 className="text-base font-black uppercase text-black break-words text-center leading-tight">{companyName}</h2>
-            </div>
+          <div className="w-[40%] flex flex-col items-end text-right justify-center">
+            {currentLogo ? (
+              <img src={currentLogo} alt="Logo" className="h-12 w-auto object-contain mb-1" />
+            ) : (
+              <div className="h-10 w-24 border border-dashed border-gray-400 flex items-center justify-center text-[9px] mb-1">NO LOGO</div>
+            )}
+            <h2 className="text-[14px] font-black uppercase leading-tight text-black">{companyName}</h2>
           </div>
         </div>
 
         {/* Invoice Info */}
-        <div className="flex border-b-2 border-black bg-slate-50 print:bg-transparent text-black">
-          <div className="w-1/2 border-r-2 border-black py-1 px-3">
-            <span className="font-bold text-black uppercase text-[9px]">Invoice No:</span>
-            <p className="font-black text-sm text-black">#{orderId || 'PENDING'}</p>
+        <div className="flex border-b-2 border-black bg-slate-50 text-black">
+          <div className="w-1/2 border-r-2 border-black py-1.5 px-3">
+            <span className="font-bold uppercase text-[9px]">Invoice No:</span>
+            <p className="font-black text-sm">#{orderId || 'PENDING'}</p>
           </div>
-          <div className="w-1/2 py-1 px-3">
-            <span className="font-bold text-black uppercase text-[9px]">Invoice Date:</span>
-            <p className="font-black text-sm text-black">{invDate}</p>
+          <div className="w-1/2 py-1.5 px-3">
+            <span className="font-bold uppercase text-[9px]">Invoice Date:</span>
+            <p className="font-black text-sm">{invDate}</p>
           </div>
         </div>
 
         {/* Bill To */}
-        <div className="flex border-b-2 border-black text-black">
-          <div className="w-[70%] p-2 border-r-2 border-black">
-            <span className="font-black uppercase underline text-[10px] tracking-widest text-black mb-1 block">Bill To:</span>
-            <h3 className="text-sm font-black uppercase leading-tight text-black">{profile?.name || ""}</h3>
-            <p className="font-bold text-[10px] mt-0.5 uppercase leading-snug whitespace-pre-wrap break-words text-black">
+        <div className="flex border-b-2 border-black bg-white text-black">
+          <div className="w-[70%] p-3 border-r-2 border-black">
+            <span className="font-black uppercase underline text-[10px] tracking-widest mb-1 block">Bill To:</span>
+            <h3 className="text-sm font-black uppercase leading-tight">{profile?.name || ""}</h3>
+            <p className="font-bold text-[10px] mt-0.5 uppercase leading-snug whitespace-pre-wrap pr-2">
               {profile?.address || ""}<br />
               {profile?.city ? `${profile.city}` : ''} {profile?.state ? `, ${profile.state}` : ''} {profile?.pincode ? ` - ${profile.pincode}` : ''}
             </p>
           </div>
-          <div className="w-[30%] p-2 flex flex-col justify-center pl-4 text-black">
-            <div className="mb-1.5"><span className="text-[10px] font-bold block mb-0.5">ID: </span><span className="text-sm font-black block text-black leading-none">{profile?.franchise_id || ""}</span></div>
-            {profile?.phone && (<div><span className="text-[10px] font-bold block mb-0.5">Ph: </span><span className="text-sm font-black block text-black leading-none">{profile.phone}</span></div>)}
+          <div className="w-[30%] p-3 flex flex-col justify-center text-black">
+            <div className="mb-1.5"><span className="text-[10px] font-bold block mb-0.5">ID: </span><span className="text-sm font-black block leading-none">{profile?.franchise_id || ""}</span></div>
+            {profile?.phone && (<div><span className="text-[10px] font-bold block mb-0.5">Ph: </span><span className="text-sm font-black block leading-none">{profile.phone}</span></div>)}
           </div>
         </div>
 
         {/* Table */}
-        <div className="flex-1 border-b-2 border-black relative">
-          <table className="w-full text-left border-collapse text-black">
-            <thead className="bg-slate-100 text-[10px] border-b-2 border-black text-black">
+        <div className="flex-1 border-b-2 border-black flex flex-col bg-white">
+          <table className="w-full text-left bg-white border-collapse text-black">
+            <thead className="bg-slate-100 text-[10px] border-b-2 border-black">
               <tr>
-                <th className="py-1 px-2 border-r-2 border-black w-10 text-center">S.No</th>
-                <th className="py-1 px-2 border-r-2 border-black">Item Description</th>
-                <th className="py-1 px-2 border-r-2 border-black w-14 text-center">Qty</th>
-                <th className="py-1 px-2 border-r-2 border-black w-20 text-right">Rate</th>
-                <th className="py-1 px-2 border-r-2 border-black w-12 text-center">GST%</th>
-                <th className="py-1 px-2 border-r-2 border-black w-16 text-right">GST Amt</th>
-                <th className="py-1 px-2 w-24 text-right">Amount</th>
+                <th className="py-1.5 px-2 border-r-2 border-black w-10 text-center">S.No</th>
+                <th className="py-1.5 px-2 border-r-2 border-black">Item Description</th>
+                <th className="py-1.5 px-2 border-r-2 border-black w-14 text-center">Qty</th>
+                <th className="py-1.5 px-2 border-r-2 border-black w-20 text-right">Rate</th>
+                <th className="py-1.5 px-2 border-r-2 border-black w-12 text-center">GST%</th>
+                <th className="py-1.5 px-2 border-r-2 border-black w-16 text-right">GST Amt</th>
+                <th className="py-1.5 px-2 w-24 text-right">Amount</th>
               </tr>
             </thead>
-            <tbody className="text-[10px] font-bold text-black">
+            <tbody className="text-[10px] font-bold">
               {itemsChunk.map((item, idx) => (
-                <tr key={idx} className="h-[26px] overflow-hidden">
-                  <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-black">{(pageIndex * ITEMS_PER_INVOICE_PAGE) + idx + 1}</td>
-                  <td className="py-0.5 px-2 border-r-2 border-b border-black uppercase truncate max-w-[150px] text-black overflow-hidden whitespace-nowrap">{item.item_name}</td>
-                  <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-black">{item.displayQty} {item.cartUnit}</td>
-                  <td className="py-0.5 px-2 border-r-2 border-b border-black text-right text-black">{formatCurrency(item.effectivePrice || item.price)}</td>
-                  <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-black">{item.gst_rate || 0}%</td>
-                  <td className="py-0.5 px-2 border-r-2 border-b border-black text-right text-black">{formatCurrency(item.preciseGst || 0)}</td>
-                  <td className="py-0.5 px-2 border-b border-black text-right text-black">{formatCurrency(item.preciseSubtotal + (item.preciseGst || 0))}</td>
+                <tr key={idx} className="h-[26px] overflow-hidden border-b border-black">
+                  <td className="py-0.5 px-2 border-r-2 border-black text-center text-black">{(pageIndex * ITEMS_PER_INVOICE_PAGE) + idx + 1}</td>
+                  <td className="py-0.5 px-2 border-r-2 border-black uppercase truncate whitespace-nowrap overflow-hidden text-black">{item.item_name}</td>
+                  <td className="py-0.5 px-2 border-r-2 border-black text-center text-black">{item.displayQty} {item.cartUnit}</td>
+                  <td className="py-0.5 px-2 border-r-2 border-black text-right text-black">{formatCurrency(item.effectivePrice || item.price)}</td>
+                  <td className="py-0.5 px-2 border-r-2 border-black text-center text-black">{item.gst_rate || 0}%</td>
+                  <td className="py-0.5 px-2 border-r-2 border-black text-right text-black">{formatCurrency(item.preciseGst || 0)}</td>
+                  <td className="py-0.5 px-2 text-right text-black">{formatCurrency(item.preciseSubtotal + (item.preciseGst || 0))}</td>
                 </tr>
               ))}
 
               {/* Generate empty rows to pad out to exactly 15 rows */}
               {Array.from({ length: emptyRowsCount }).map((_, idx) => (
-                <tr key={`empty-${idx}`} className="h-[26px]">
-                  <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-transparent">-</td>
-                  <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
-                  <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
-                  <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
-                  <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
-                  <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
-                  <td className="py-0.5 px-2 border-b border-black"></td>
+                <tr key={`empty-${idx}`} className="h-[26px] border-b border-black">
+                  <td className="py-0.5 px-2 border-r-2 border-black text-center text-transparent">-</td>
+                  <td className="py-0.5 px-2 border-r-2 border-black"></td>
+                  <td className="py-0.5 px-2 border-r-2 border-black"></td>
+                  <td className="py-0.5 px-2 border-r-2 border-black"></td>
+                  <td className="py-0.5 px-2 border-r-2 border-black"></td>
+                  <td className="py-0.5 px-2 border-r-2 border-black"></td>
+                  <td className="py-0.5 px-2"></td>
                 </tr>
               ))}
             </tbody>
@@ -318,37 +280,39 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
         </div>
 
         {/* Footer */}
-        <div className="flex mt-auto text-black">
+        <div className="flex mt-auto bg-white text-black">
           <div className="w-[60%] border-r-2 border-black flex flex-col">
-            <div className="py-1.5 px-2 border-b-2 border-black min-h-[30px] flex flex-col justify-center bg-slate-50">
-              <span className="font-bold text-[9px] text-black uppercase">Total Amount in Words:</span>
-              <p className="font-black italic capitalize text-[10px] mt-0.5 text-black leading-tight">{amountToWords(data.roundedBill || 0)}</p>
+            <div className="py-1.5 px-3 border-b-2 border-black bg-slate-50 min-h-[30px] flex flex-col justify-center">
+              <span className="font-bold text-[9px] uppercase">Total Amount in Words:</span>
+              <p className="font-black italic capitalize text-[10px] mt-0.5 leading-tight">{amountToWords(data.roundedBill || 0)}</p>
             </div>
-            <div className="p-2 flex-1 flex flex-col justify-between">
+
+            <div className="p-3 flex-1 flex flex-col justify-between">
               <div>
-                <p className="font-black uppercase underline text-[11px] mb-1.5 text-black">Bank Details</p>
-                <div className="grid grid-cols-[50px_1fr] gap-y-0.5 text-[10px] font-bold uppercase text-black leading-tight">
-                  <span>Bank:</span> <span className="text-black">{companyDetails?.bank_name || ""}</span>
-                  <span>A/c No:</span> <span className="text-black">{companyDetails?.bank_acc_no || ""}</span>
-                  <span>IFSC:</span> <span className="text-black">{companyDetails?.bank_ifsc || ""}</span>
+                <p className="font-black uppercase underline text-[10px] mb-1.5">Bank Details</p>
+                <div className="flex flex-col gap-0.5 text-[10px] font-bold uppercase leading-tight">
+                  <div className="flex"><span className="w-14 inline-block text-black">Bank:</span> <span className="text-black">{companyDetails?.bank_name || ""}</span></div>
+                  <div className="flex"><span className="w-14 inline-block text-black">A/c No:</span> <span className="text-black">{companyDetails?.bank_acc_no || ""}</span></div>
+                  <div className="flex"><span className="w-14 inline-block text-black">IFSC:</span> <span className="text-black">{companyDetails?.bank_ifsc || ""}</span></div>
                 </div>
               </div>
               <div className="mt-2 pt-1.5 border-t border-slate-300">
-                <p className="font-black uppercase underline text-[10px] mb-1 text-black">Terms & Conditions:</p>
-                <p className="text-[8px] text-black whitespace-pre-wrap leading-tight">{companyDetails?.terms || "No terms available."}</p>
+                <p className="font-black uppercase underline text-[10px] mb-1">Terms & Conditions:</p>
+                <p className="text-[8px] whitespace-pre-wrap leading-tight">{companyDetails?.terms || "No terms available."}</p>
               </div>
             </div>
           </div>
 
-          <div className="w-[40%] flex flex-col text-[10px] text-black">
-            <div className="flex justify-between py-1 px-1.5 border-b border-black text-black"><span>Taxable</span><span>{formatCurrency(taxableAmount)}</span></div>
-            <div className="flex justify-between py-1 px-1.5 border-b border-slate-300 text-black"><span>Total GST</span><span>{formatCurrency(data.totalGst || 0)}</span></div>
+          <div className="w-[40%] flex flex-col text-[10px]">
+            <div className="flex justify-between py-1 px-2 border-b border-black text-black"><span>Taxable</span><span>{formatCurrency(taxableAmount)}</span></div>
+            <div className="flex justify-between py-1 px-2 border-b border-slate-300 text-black"><span>Total GST</span><span>{formatCurrency(data.totalGst || 0)}</span></div>
             <div className="flex justify-between py-0.5 px-2 border-b border-slate-300 text-black text-[9px] bg-slate-50 pl-4"><span>CGST</span><span>{formatCurrency(cgst)}</span></div>
             <div className="flex justify-between py-0.5 px-2 border-b border-black text-black text-[9px] bg-slate-50 pl-4"><span>SGST</span><span>{formatCurrency(sgst)}</span></div>
 
-            <div className="flex justify-between py-1 px-1.5 border-b border-black text-black"><span>Round Off</span><span>{formatCurrency(data.roundOff || 0)}</span></div>
-            <div className="flex justify-between py-1.5 px-2 border-b-2 border-black bg-slate-200 text-black"><span className="font-black uppercase text-black">Total</span><span className="font-black text-black">{formatCurrency(data.roundedBill || 0)}</span></div>
-            <div className="flex-1 flex flex-col justify-end p-2 text-center">
+            <div className="flex justify-between py-1 px-2 border-b border-black text-black"><span>Round Off</span><span>{formatCurrency(data.roundOff || 0)}</span></div>
+            <div className="flex justify-between py-1.5 px-2 border-b-2 border-black bg-slate-200 text-black"><span className="font-black uppercase">Total</span><span className="font-black">{formatCurrency(data.roundedBill || 0)}</span></div>
+
+            <div className="flex-1 flex flex-col justify-end p-2 text-center min-h-[50px]">
               {pageIndex < totalPages - 1 && <p className="text-[8px] mb-1 font-bold italic text-slate-500">Continued on next page...</p>}
               <p className="font-black border-t border-black pt-1 uppercase text-[8px] text-black">Authorized Signature</p>
             </div>
@@ -356,7 +320,7 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
         </div>
       </div>
 
-      {/* PAGE NUMBER ADDED AT THE BOTTOM RIGHT */}
+      {/* Page Number safely outside the main border wrapper */}
       <div className="absolute bottom-1 right-2 print:bottom-1.5 print:right-2 text-[9px] font-black text-black">
         Page {pageIndex + 1} of {totalPages}
       </div>
@@ -723,7 +687,7 @@ function StockOrder() {
             // Set fixed exact width for A4 so Flexbox behaves perfectly
             tempDiv.style.cssText = "position: absolute; top: -10000px; left: -10000px; width: 794px; background: white; z-index: -100;";
 
-            // CRITICAL FIX: Prepend the getEmailStyles() so html2canvas knows exactly how to size it
+            // Prepend the getEmailStyles() so html2canvas knows exactly how to size it
             tempDiv.innerHTML = getEmailStyles() + invoiceHtmlRaw;
             document.body.appendChild(tempDiv);
 
@@ -740,7 +704,7 @@ function StockOrder() {
                 useCORS: true,
                 backgroundColor: "#ffffff",
                 width: 794,   // Lock to A4 width at 96 DPI
-                height: 1123, // Lock to A4 height at 96 DPI
+                height: 1122, // Lock to A4 height at 96 DPI
                 windowWidth: 794, // Prevents media queries from squishing the layout
                 onclone: (documentClone) => {
                   const element = documentClone.querySelectorAll('.a4-page')[i];
@@ -764,6 +728,7 @@ function StockOrder() {
             // 4. Extract Base64 string & cleanup DOM
             const pdfBase64 = pdf.output('datauristring').split(',')[1];
             document.body.removeChild(tempDiv);
+
             // --- SEND INVOICE VIA EMAIL WITH PDF ATTACHMENT ---
             try {
               const { data: { session } } = await supabase.auth.getSession();
@@ -790,7 +755,7 @@ function StockOrder() {
                 headers: { Authorization: `Bearer ${session?.access_token}` }
               });
             } catch (efErr) {
-              console.error("DEBUG: Edge Function call failed:", efErr);
+              console.error("Email sending failed:", efErr);
             }
 
             // Finish and reset UI
