@@ -296,10 +296,17 @@ function InvoicesBilling() {
 
     const fetchCompanies = async () => {
         const cached = getSessionItem('cached_companies');
-        if (cached) { setCompanies(cached); return; }
+        // FIX: Only use cache if it actually has data inside it!
+        if (cached && cached.length > 0) {
+            setCompanies(cached);
+            return;
+        }
         try {
             const { data, error } = await supabase.from("companies").select("*");
-            if (data) { setCompanies(data); setSessionItem('cached_companies', data); }
+            if (data && data.length > 0) {
+                setCompanies(data);
+                setSessionItem('cached_companies', data);
+            }
         } catch (err) { console.error(err); }
     };
 
@@ -315,7 +322,12 @@ function InvoicesBilling() {
         });
     }, [invoices, searchQuery, filterType, singleDate, startDate, endDate]);
 
-    const getCompanyDetails = (franchiseId) => companies.find(c => c.franchise_id === franchiseId) || companies[0] || {};
+    const getCompanyDetails = (franchiseId) => {
+        if (!franchiseId || !companies.length) return companies[0] || {};
+        // FIX: Make the match completely case-insensitive just to be safe
+        return companies.find(c => c.franchise_id?.toUpperCase() === franchiseId.toUpperCase()) || companies[0] || {};
+    };
+
     const getCompanyLogo = (companyName) => {
         if (!companyName) return null;
         const name = companyName.toLowerCase();

@@ -53,13 +53,12 @@ function RegisterUser() {
   const [suggestedId, setSuggestedId] = useState("");
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-  // New state to hold dynamically fetched companies
   const [companiesList, setCompaniesList] = useState([]);
 
   const [formData, setFormData] = useState({
     company: "", franchise_id: "", name: "", phone: "", email: "",
     password: "", branch_location: "", role: "franchise", country: "India",
-    state: "", city: "", pincode: "", addressLine: ""
+    state: "", city: "", pincode: "", addressLine: "", nearestBusStop: ""
   });
 
   useEffect(() => {
@@ -74,7 +73,6 @@ function RegisterUser() {
       }
     };
 
-    // Fetch dynamic companies list from DB
     const fetchCompanies = async () => {
       try {
         const { data, error } = await supabase.from('companies').select('company_name');
@@ -97,7 +95,6 @@ function RegisterUser() {
     const fetchNextId = async () => {
       if (!formData.company) { setSuggestedId(""); return; }
 
-      // Dynamically generate prefix based on selected company name (e.g., "T vanamm" -> "TV-")
       const words = formData.company.trim().split(/\s+/);
       let prefix = "";
       if (words.length >= 2) {
@@ -134,7 +131,6 @@ function RegisterUser() {
   };
 
   const handleSubmit = async () => {
-    // Basic validation to ensure required fields aren't empty
     if (!formData.email || !formData.password || !formData.company) {
       alert("Please fill in the required fields (Brand, Email, and Password).");
       return;
@@ -163,6 +159,7 @@ function RegisterUser() {
         email: formData.email.trim().toLowerCase(),
         branch_location: formData.branch_location.trim(),
         address: formData.addressLine.trim(),
+        nearest_bus_stop: formData.nearestBusStop.trim(),
         city: formData.city.trim().toUpperCase(),
         state: formData.state,
         pincode: formData.pincode.trim(),
@@ -170,7 +167,6 @@ function RegisterUser() {
         country: "India"
       }]);
 
-      // Updated alert to reflect the real email verification process
       alert(`Account created! A verification email has been sent to ${formData.email}. They must click the link to verify before logging in.`);
       navigate(-1);
 
@@ -183,28 +179,22 @@ function RegisterUser() {
 
   return (
     <div style={styles.pageContainer}>
-      {/* --- HEADER --- */}
       <div style={{ ...styles.headerBar, padding: isMobile ? "0 12px" : "0 24px" }}>
         <button onClick={() => navigate(-1)} style={styles.backButton}>
           <ArrowLeft size={isMobile ? 22 : 18} />
-          {!isMobile && <span style={{ marginLeft: "8px" }}>Back</span>}
+          {/* Removed the isMobile check so "Back" always displays */}
+          <span style={{ marginLeft: "8px" }}>Back</span>
         </button>
-
         <h1 style={{ ...styles.title, fontSize: isMobile ? "17px" : "20px" }}>New Franchise</h1>
-
         <div style={styles.idBoxWrapper}>
           <div style={{ ...styles.idBox, fontSize: isMobile ? "11px" : "13px" }}>
-            {isMobile ? "" : "ADMIN: "}{adminId}
+            ID : {adminId}
           </div>
         </div>
       </div>
 
       <div style={{ ...styles.mainContent, padding: isMobile ? "12px" : "32px" }}>
-        <div style={{
-          ...styles.formCard,
-          padding: isMobile ? "24px 16px" : "40px",
-          borderRadius: isMobile ? "20px" : "16px"
-        }}>
+        <div style={{ ...styles.formCard, padding: isMobile ? "24px 16px" : "40px", borderRadius: isMobile ? "20px" : "16px" }}>
 
           {/* SECTION 1: BRAND */}
           <div style={styles.sectionHeader}>
@@ -217,7 +207,6 @@ function RegisterUser() {
               <select name="company" value={formData.company} onChange={handleChange} style={styles.selectInput}
                 onFocus={() => setFocusedField("company")} onBlur={() => setFocusedField(null)}>
                 <option value="">Choose...</option>
-                {/* Dynamically mapped companies here */}
                 {companiesList.map((compName, idx) => (
                   <option key={idx} value={compName}>{compName}</option>
                 ))}
@@ -308,6 +297,13 @@ function RegisterUser() {
             </InputGroup>
           </div>
 
+          <div style={{ marginBottom: "24px" }}>
+            <InputGroup icon={MapPin} isFocused={focusedField === "nearestBusStop"} label="Nearest Bus Stop" isMobile={isMobile}>
+              <input name="nearestBusStop" value={formData.nearestBusStop} placeholder="e.g. Jubilee Hills Checkpost" onChange={handleChange} style={styles.cleanInput}
+                onFocus={() => setFocusedField("nearestBusStop")} onBlur={() => setFocusedField(null)} />
+            </InputGroup>
+          </div>
+
           <button onClick={handleSubmit} disabled={loading} style={{ ...styles.button, padding: isMobile ? "18px" : "16px" }}>
             {loading ? "Creating Account..." : "Create Franchise Account"}
           </button>
@@ -328,19 +324,19 @@ const styles = {
   idBox: { padding: "6px 12px", backgroundColor: "#f1f5f9", borderRadius: "8px", color: PRIMARY, fontWeight: "700", border: `1px solid ${BORDER}` },
   mainContent: { flex: 1, overflowY: "auto", width: "100%", boxSizing: "border-box" },
   formCard: { display: "flex", flexDirection: "column", maxWidth: "850px", width: "100%", margin: "0 auto", backgroundColor: "#fff", border: `1px solid ${BORDER}`, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" },
-  sectionHeader: { display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", marginTop: "8px" },
+  sectionHeader: { display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px", marginTop: "8px" },
   sectionTitle: { fontSize: "13px", fontWeight: "800", color: TEXT_MAIN, textTransform: "uppercase", letterSpacing: "0.8px", margin: 0 },
   inputLabel: { fontSize: "12px", fontWeight: "600", color: TEXT_MUTED, marginBottom: "8px", display: "block" },
   suggestionWrapper: { width: "100%" },
   suggestionBox: { display: "flex", alignItems: "center", padding: "0 14px", backgroundColor: "#f0fdf4", border: `1.5px dashed ${PRIMARY}`, borderRadius: "12px", color: PRIMARY, fontWeight: "700", cursor: "pointer", fontSize: "14px" },
 
-  gridRowTwo: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" },
-  gridRowThree: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" },
-  flexColumn: { display: "flex", flexDirection: "column", gap: "20px" },
+  gridRowTwo: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", marginBottom: "24px" },
+  gridRowThree: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "24px", marginBottom: "24px" },
+  flexColumn: { display: "flex", flexDirection: "column", gap: "24px", marginBottom: "24px" },
 
   cleanInput: { width: "100%", border: "none", outline: "none", fontSize: "16px", background: "transparent", color: TEXT_MAIN },
   selectInput: { width: "100%", border: "none", outline: "none", fontSize: "16px", background: "transparent", cursor: "pointer", color: TEXT_MAIN },
   eyeButton: { background: "transparent", border: "none", cursor: "pointer", color: TEXT_MUTED, padding: "4px" },
-  divider: { height: "1px", backgroundColor: BORDER, margin: "24px 0" },
-  button: { width: "100%", borderRadius: "14px", border: "none", backgroundColor: PRIMARY, color: "#fff", fontSize: "16px", fontWeight: "700", cursor: "pointer", marginTop: "24px", transition: "opacity 0.2s" }
+  divider: { height: "1px", backgroundColor: BORDER, margin: "8px 0 32px 0" },
+  button: { width: "100%", borderRadius: "14px", border: "none", backgroundColor: PRIMARY, color: "#fff", fontSize: "16px", fontWeight: "700", cursor: "pointer", marginTop: "8px", transition: "opacity 0.2s" }
 };
