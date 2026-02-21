@@ -176,7 +176,7 @@ function CentralProfiles() {
 
       <div style={{ ...styles.container, padding: isMobile ? "20px 15px" : "20px" }}>
 
-        {/* SEARCH & DATE BAR (Count removed from here) */}
+        {/* SEARCH & DATE BAR */}
         <div style={{
           ...styles.actionBar,
           flexDirection: isMobile ? 'column' : 'row',
@@ -200,7 +200,6 @@ function CentralProfiles() {
               </div>
             )}
           </div>
-          {/* Removed Count Badge from here */}
         </div>
 
         {/* FILTERS & ACTION ROW */}
@@ -230,7 +229,6 @@ function CentralProfiles() {
               <ChevronDown size={14} color="#6b7280" />
             </div>
 
-            {/* MOVED HERE & COLORED BLACK */}
             <span style={{
               fontSize: '11px',
               fontWeight: '800',
@@ -369,14 +367,20 @@ function CentralProfiles() {
                   <label style={styles.label}>Full Name</label>
                   <input style={styles.modalInput} name="name" value={editForm.name || ""} onChange={handleInputChange} />
                 </div>
+
+                {/* UPDATED SYSTEM ROLE DROPDOWN WRAPPER */}
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>System Role</label>
-                  <select style={styles.modalSelect} name="role" value={editForm.role || ""} onChange={handleInputChange}>
-                    <option value="central">Central</option>
-                    <option value="franchise">Franchise</option>
-                    <option value="stock">Stock Manager</option>
-                  </select>
+                  <div style={styles.selectWrapper}>
+                    <select style={styles.modalSelect} name="role" value={editForm.role || ""} onChange={handleInputChange}>
+                      <option value="central">Central</option>
+                      <option value="franchise">Franchise</option>
+                      <option value="stock">Stock Manager</option>
+                    </select>
+                    <ChevronDown size={18} color="#9ca3af" style={styles.selectIcon} />
+                  </div>
                 </div>
+
               </div>
               <div style={{ ...styles.formRow, flexDirection: isMobile ? 'column' : 'row' }}>
                 <div style={styles.inputGroup}>
@@ -453,7 +457,6 @@ const styles = {
   page: { background: "#fff", minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: "#111827" },
   container: { maxWidth: "1400px", margin: "0 auto" },
 
-  // NEW HEADER STYLES
   header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
   headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px' },
   backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
@@ -461,19 +464,16 @@ const styles = {
   topRightActions: { display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 },
   idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
 
-  // Updated Register Button Style
   registerBtn: { display: "flex", alignItems: "center", gap: "8px", background: ACTION_GREEN, color: "#fff", border: "none", padding: "8px 24px", borderRadius: "12px", fontSize: "12px", fontWeight: "800", cursor: "pointer", height: '46px' },
 
-  // Existing Styles ...
   actionBar: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" },
-  filterRow: { display: "flex" }, // Updated in inline style
+  filterRow: { display: "flex" },
   companyFilterWrapper: { display: "flex", alignItems: "center", gap: "10px", background: "#fff", border: `1.5px solid ${BORDER}`, padding: "8px 15px", borderRadius: "12px" },
   companySelect: { border: "none", background: "none", outline: "none", fontSize: "13px", fontWeight: "600", color: "#374151", cursor: "pointer", appearance: "none" },
   dateSection: { display: "flex", alignItems: "center", gap: "10px", background: "#f3f4f6", padding: "0 16px", borderRadius: "14px", border: `1px solid ${BORDER}`, height: "46px" },
   dateText: { fontSize: "12px", fontWeight: "700", color: "#4b5563", textTransform: "uppercase" },
   searchWrapper: { display: "flex", alignItems: "center", gap: "12px", background: "#f9fafb", border: `1.5px solid ${BORDER}`, borderRadius: "16px", padding: "0 16px", height: "46px" },
   searchInput: { border: "none", background: "none", padding: "14px 0", outline: "none", fontSize: "14px", width: "100%", fontWeight: "500" },
-  // countBadge removed as it is now inline styled
   tableWrapper: { border: `1px solid ${BORDER}`, borderRadius: "24px", overflow: "hidden" },
   table: { width: "100%", borderCollapse: "collapse", textAlign: "left" },
   thRow: { background: "#f3f4f6", borderBottom: `2px solid ${PRIMARY}` },
@@ -484,7 +484,6 @@ const styles = {
   roleBadge: { padding: "4px 12px", borderRadius: "20px", fontSize: "10px", fontWeight: "800", display: "inline-block" },
   actionIconBtn: { background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: "4px", borderRadius: "4px" },
 
-  // MOBILE CARD STYLES
   mobileCard: { background: '#fff', borderRadius: '24px', border: `1.5px solid ${BORDER}`, padding: '18px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' },
   cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' },
   avatar: { width: '44px', height: '44px', borderRadius: '14px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: PRIMARY },
@@ -498,7 +497,6 @@ const styles = {
   mobileActionBtnUpdate: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '12px', background: '#f0fdf4', border: 'none', color: ACTION_GREEN, fontWeight: '800', fontSize: '11px' },
   mobileActionBtnDelete: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '12px', background: '#fef2f2', border: 'none', color: DANGER_RED, fontWeight: '800', fontSize: '11px' },
 
-  // MODAL STYLES
   modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: 'blur(6px)' },
   modal: { background: "#fff", borderRadius: "32px", padding: "25px", boxShadow: "0 25px 50px rgba(0,0,0,0.25)" },
   modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px" },
@@ -507,7 +505,24 @@ const styles = {
   inputGroup: { display: "flex", flexDirection: "column", gap: "8px", flex: 1 },
   label: { fontSize: "11px", fontWeight: "800", color: "#9ca3af", textTransform: 'uppercase' },
   modalInput: { padding: "14px", borderRadius: "14px", border: `1.5px solid ${BORDER}`, outline: "none", fontSize: "14px", background: '#f9fafb' },
-  modalSelect: { padding: "14px", borderRadius: "14px", border: `1.5px solid ${BORDER}`, outline: "none", fontSize: "14px", background: '#f9fafb' },
+
+  // IMPROVED MODAL SELECT STYLES
+  selectWrapper: { position: 'relative', display: 'flex', alignItems: 'center', width: '100%' },
+  modalSelect: {
+    padding: "14px",
+    paddingRight: "40px",
+    borderRadius: "14px",
+    border: `1.5px solid ${BORDER}`,
+    outline: "none",
+    fontSize: "14px",
+    background: '#f9fafb',
+    width: "100%",
+    appearance: "none",
+    cursor: "pointer",
+    fontWeight: "500"
+  },
+  selectIcon: { position: 'absolute', right: '14px', pointerEvents: 'none' },
+
   saveBtn: { background: ACTION_GREEN, color: "#fff", border: "none", padding: "18px", borderRadius: "18px", fontWeight: "800", cursor: "pointer", marginTop: '10px', fontSize: '13px' },
   closeBtn: { background: "none", border: "none", color: "#9ca3af", cursor: "pointer" },
   loader: { height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700", color: PRIMARY }
