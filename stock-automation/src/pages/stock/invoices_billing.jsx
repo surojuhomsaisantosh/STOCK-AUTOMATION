@@ -1,13 +1,8 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { supabase } from "../../supabase/supabaseClient";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { FiArrowLeft, FiPrinter, FiSearch, FiCalendar, FiX, FiFileText } from "react-icons/fi";
-
-// --- ASSET IMPORTS ---
-import jkshLogo from "../../assets/jksh_logo.jpeg";
-import tleafLogo from "../../assets/tleaf_logo.jpeg";
-import tvanammLogo from "../../assets/tvanamm_logo.jpeg";
 
 // --- THEME CONSTANTS ---
 const THEME_COLOR = "rgb(0, 100, 55)"; // Deep Green
@@ -57,9 +52,13 @@ const amountToWords = (price) => {
 
 
 // --- INVOICE PRINT COMPONENT ---
-const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalPages, itemsChunk }) => {
+const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsChunk }) => {
     if (!order) return null;
     const companyName = companyDetails?.company_name || "";
+
+    // DYNAMIC LOGO FROM BUCKET URL
+    const currentLogo = companyDetails?.logo_url || null;
+
     const invDate = new Date(order.created_at).toLocaleDateString('en-GB');
     const taxableAmount = Number(order.subtotal) || 0;
     const totalGst = Number(order.tax_amount) || 0;
@@ -69,13 +68,11 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
     const roundOff = Number(order.round_off) || 0;
     const orderId = order.id ? order.id.substring(0, 8) : 'PENDING';
 
-    // Calculate empty rows needed to lock the table height exactly for 15 items
     const emptyRowsCount = Math.max(0, ITEMS_PER_INVOICE_PAGE - itemsChunk.length);
 
     return (
         <div className="a4-page flex flex-col bg-white text-black font-sans text-xs leading-normal relative">
             <div className="w-full border-2 border-black flex flex-col relative flex-1">
-                {/* Header Section */}
                 <div className="p-3 border-b-2 border-black relative">
                     <div className="absolute top-2 left-0 w-full text-center pointer-events-none">
                         <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4 text-black">TAX INVOICE</h1>
@@ -93,7 +90,12 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                         </div>
                         <div className="z-10 flex flex-col items-center text-center max-w-[40%]">
                             {currentLogo ? (
-                                <img src={currentLogo} alt="Logo" className="h-12 w-auto object-contain mb-1" />
+                                <img
+                                    src={currentLogo}
+                                    alt="Logo"
+                                    crossOrigin="anonymous"
+                                    className="h-12 w-auto object-contain mb-1"
+                                />
                             ) : (
                                 <div className="h-10 w-24 border border-dashed border-gray-400 flex items-center justify-center text-[9px] text-black mb-1">NO LOGO</div>
                             )}
@@ -102,7 +104,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </div>
                 </div>
 
-                {/* Invoice Info */}
                 <div className="flex border-b-2 border-black bg-slate-50 print:bg-transparent text-black">
                     <div className="w-1/2 border-r-2 border-black py-1 px-3">
                         <span className="font-bold text-black uppercase text-[9px]">Invoice No:</span>
@@ -114,7 +115,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </div>
                 </div>
 
-                {/* Bill To */}
                 <div className="flex border-b-2 border-black text-black">
                     <div className="w-[70%] p-2 border-r-2 border-black">
                         <span className="font-black uppercase underline text-[10px] tracking-widest text-black mb-1 block">Bill To:</span>
@@ -129,7 +129,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </div>
                 </div>
 
-                {/* Table - Optimized Row Heights (26px) & Padding */}
                 <div className="flex-1 border-b-2 border-black relative">
                     <table className="w-full text-left border-collapse text-black">
                         <thead className="bg-slate-100 text-[10px] border-b-2 border-black text-black">
@@ -151,8 +150,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                                 const gstRate = Number(item.gst_rate) || 0;
                                 const gstAmt = subtotal * (gstRate / 100);
                                 const finalAmount = Number(item.total) || (subtotal + gstAmt);
-
-                                // Embed HSN directly in the title column so we maintain exact CSS limits
                                 const hsnText = item.stocks?.hsn_code || item.hsn_code ? ` (HSN: ${item.stocks?.hsn_code || item.hsn_code})` : '';
 
                                 return (
@@ -170,7 +167,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                                 );
                             })}
 
-                            {/* Generate empty rows to pad out to exactly 15 rows */}
                             {Array.from({ length: emptyRowsCount }).map((_, idx) => (
                                 <tr key={`empty-${idx}`} className="h-[26px]">
                                     <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-transparent">-</td>
@@ -186,7 +182,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </table>
                 </div>
 
-                {/* Footer */}
                 <div className="flex mt-auto text-black">
                     <div className="w-[60%] border-r-2 border-black flex flex-col">
                         <div className="py-1.5 px-2 border-b-2 border-black min-h-[30px] flex flex-col justify-center bg-slate-50">
@@ -224,8 +219,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </div>
                 </div>
             </div>
-
-            {/* PAGE NUMBER ADDED AT THE BOTTOM RIGHT */}
             <div className="absolute bottom-1 right-2 print:bottom-1.5 print:right-2 text-[9px] font-black text-black">
                 Page {pageIndex + 1} of {totalPages}
             </div>
@@ -252,13 +245,9 @@ function InvoicesBilling() {
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
 
-    // --- Body Scroll Lock ---
     useEffect(() => {
-        if (selectedInvoice) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'unset';
-        }
+        if (selectedInvoice) document.body.style.overflow = 'hidden';
+        else document.body.style.overflow = 'unset';
         return () => { document.body.style.overflow = 'unset'; };
     }, [selectedInvoice]);
 
@@ -275,7 +264,7 @@ function InvoicesBilling() {
     const fetchFranchiseProfile = async () => {
         try {
             if (!user?.id) return;
-            const { data, error } = await supabase.from('profiles').select('franchise_id').eq('id', user.id).single();
+            const { data } = await supabase.from('profiles').select('franchise_id').eq('id', user.id).single();
             if (data) setSelectedFranchiseId(data.franchise_id || "N/A");
         } catch (err) { console.error(err); }
     };
@@ -296,13 +285,12 @@ function InvoicesBilling() {
 
     const fetchCompanies = async () => {
         const cached = getSessionItem('cached_companies');
-        // FIX: Only use cache if it actually has data inside it!
         if (cached && cached.length > 0) {
             setCompanies(cached);
             return;
         }
         try {
-            const { data, error } = await supabase.from("companies").select("*");
+            const { data } = await supabase.from("companies").select("*");
             if (data && data.length > 0) {
                 setCompanies(data);
                 setSessionItem('cached_companies', data);
@@ -324,17 +312,7 @@ function InvoicesBilling() {
 
     const getCompanyDetails = (franchiseId) => {
         if (!franchiseId || !companies.length) return companies[0] || {};
-        // FIX: Make the match completely case-insensitive just to be safe
         return companies.find(c => c.franchise_id?.toUpperCase() === franchiseId.toUpperCase()) || companies[0] || {};
-    };
-
-    const getCompanyLogo = (companyName) => {
-        if (!companyName) return null;
-        const name = companyName.toLowerCase();
-        if (name.includes("vanamm")) return tvanammLogo;
-        if (name.includes("leaf")) return tleafLogo;
-        if (name.includes("jksh")) return jkshLogo;
-        return null;
     };
 
     return (
@@ -343,37 +321,22 @@ function InvoicesBilling() {
                 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
                 
                 @media print {
                   body { background: white; margin: 0; padding: 0; }
                   .print-only { display: block !important; width: 100%; }
                   @page { size: A4; margin: 0; }
-                  .a4-page {
-                    width: 210mm;
-                    height: 296.5mm;
-                    padding: 5mm;
-                    margin: 0 auto;
-                    page-break-after: always;
-                    box-sizing: border-box;
-                    overflow: hidden;
-                  }
-                  .a4-page:last-child {
-                    page-break-after: auto;
-                  }
-                  * {
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
-                  }
+                  .a4-page { width: 210mm; height: 296.5mm; padding: 5mm; margin: 0 auto; page-break-after: always; box-sizing: border-box; overflow: hidden; }
+                  .a4-page:last-child { page-break-after: auto; }
+                  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                   .main-ui, .preview-modal { display: none !important; }
                 }
             `}</style>
 
-            {/* --- ACTUAL PRINT CONTAINER (ROOT LEVEL) --- */}
+            {/* --- ACTUAL PRINT CONTAINER --- */}
             <div className="print-only hidden print:block bg-white">
                 {selectedInvoice && (() => {
                     const companyDetails = getCompanyDetails(selectedInvoice.franchise_id);
-                    const selectedLogo = getCompanyLogo(companyDetails.company_name);
                     const fullItems = selectedInvoice.invoice_items || [];
                     const pages = [];
 
@@ -389,7 +352,6 @@ function InvoicesBilling() {
                             key={index}
                             order={selectedInvoice}
                             companyDetails={companyDetails}
-                            currentLogo={selectedLogo}
                             pageIndex={index}
                             totalPages={pages.length}
                             itemsChunk={chunk}
@@ -399,14 +361,11 @@ function InvoicesBilling() {
             </div>
 
             <div className="main-ui print:hidden">
-                {/* --- NAVIGATION BAR --- */}
                 <nav className="border-b border-slate-200 bg-white sticky top-0 z-50 h-16 shadow-sm">
                     <div className="max-w-7xl mx-auto px-4 md:px-8 h-full flex items-center justify-between relative">
-                        <div className="z-20 flex items-center">
-                            <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-black hover:opacity-60 transition-all">
-                                <FiArrowLeft size={18} /> <span>Back</span>
-                            </button>
-                        </div>
+                        <button onClick={() => navigate(-1)} className="z-20 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-black hover:opacity-60 transition-all">
+                            <FiArrowLeft size={18} /> <span>Back</span>
+                        </button>
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                             <h1 className="text-sm md:text-xl font-black uppercase tracking-[0.2em] text-black">Invoices</h1>
                         </div>
@@ -419,12 +378,11 @@ function InvoicesBilling() {
                 </nav>
 
                 <div className="max-w-7xl mx-auto px-4 md:px-6 mt-6">
-                    {/* --- FILTERS --- */}
-                    <div className="bg-white p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] shadow-xl mb-6 flex flex-col gap-6 filters-container">
+                    <div className="bg-white p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] shadow-xl mb-6 flex flex-col gap-6">
                         <div className="flex flex-col md:flex-row gap-4 items-stretch">
                             <div className="relative flex-1 group">
                                 <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                <input type="text" placeholder="Search Client, ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-11 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white transition-all text-sm font-bold shadow-inner" onFocus={(e) => e.target.style.borderColor = THEME_COLOR} onBlur={(e) => e.target.style.borderColor = 'transparent'} />
+                                <input type="text" placeholder="Search Client, ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-11 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white transition-all text-sm font-bold shadow-inner" style={{ focus: { borderColor: THEME_COLOR } }} />
                             </div>
                             <div className="bg-white border border-gray-100 rounded-2xl p-3 flex items-center justify-center shadow-md md:w-48 shrink-0">
                                 <div className="flex flex-col items-center">
@@ -448,21 +406,18 @@ function InvoicesBilling() {
                                         <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="flex-1 bg-transparent px-2 py-1.5 text-xs font-bold outline-none" />
                                     </div>
                                 )}
-                                {(singleDate || (startDate && endDate)) && (<button onClick={() => { setSingleDate(''); setStartDate(''); setEndDate(''); }} className="ml-3 p-2 text-red-500 hover:bg-red-50 rounded-lg"><FiX /></button>)}
                             </div>
                         </div>
                     </div>
 
-                    {/* --- MOBILE CARD VIEW --- */}
                     <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-4 pb-10">
                         {filteredInvoices.map((inv) => (
-                            <div key={inv.id} onClick={() => setSelectedInvoice(inv)} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 active:scale-[0.98] transition-transform cursor-pointer">
+                            <div key={inv.id} onClick={() => setSelectedInvoice(inv)} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 cursor-pointer">
                                 <div className="flex justify-between items-start mb-4">
                                     <span className="px-3 py-1 rounded-md text-white font-black text-[9px] uppercase tracking-wider" style={{ backgroundColor: THEME_COLOR }}>{inv.franchise_id}</span>
                                     <span className="text-[10px] font-bold text-gray-400">{new Date(inv.created_at).toLocaleDateString('en-GB')}</span>
                                 </div>
                                 <h4 className="text-sm font-black text-gray-800 uppercase line-clamp-1">{inv.customer_name}</h4>
-                                <p className="text-[10px] text-gray-500 line-clamp-2 mt-1">{inv.customer_address || "N/A"}</p>
                                 <div className="mt-4 pt-4 border-t border-slate-50 flex justify-between items-center">
                                     <span className="text-[9px] font-bold text-slate-400 uppercase">Grand Total</span>
                                     <span className="text-base font-black text-black">₹{Number(inv.total_amount).toLocaleString()}</span>
@@ -471,7 +426,6 @@ function InvoicesBilling() {
                         ))}
                     </div>
 
-                    {/* --- DESKTOP TABLE VIEW --- */}
                     <div className="hidden lg:block bg-white border border-slate-100 rounded-[2.5rem] shadow-xl overflow-hidden">
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-gray-50 border-b border-gray-100 text-xs uppercase font-black tracking-wider text-black">
@@ -492,7 +446,6 @@ function InvoicesBilling() {
                 </div>
             </div>
 
-            {/* --- PREVIEW MODAL --- */}
             {selectedInvoice && (
                 <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm preview-modal print:hidden">
                     <div className="absolute inset-0" onClick={() => setSelectedInvoice(null)} />
@@ -503,55 +456,40 @@ function InvoicesBilling() {
                         </div>
 
                         <div className="flex-1 overflow-hidden p-4 md:p-6 bg-[#F8F9FA]">
-                            {(() => {
-                                const inv = selectedInvoice;
-                                const items = inv.invoice_items || [];
-                                const taxableAmount = Number(inv.subtotal) || 0;
-                                const totalTaxAmount = Number(inv.tax_amount) || 0;
-                                const roundOff = Number(inv.round_off) || 0;
-                                const gstPercent = items[0]?.gst_rate || 18;
-
-                                return (
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-                                        {/* Item Details with Scrollbar */}
-                                        <div className="lg:col-span-2 bg-white rounded-3xl p-5 shadow-sm border border-gray-200 flex flex-col h-full overflow-hidden">
-                                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-4 flex items-center gap-2 shrink-0"><FiFileText size={14} /> Ordered Items ({items.length})</h4>
-                                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 overscroll-contain">
-                                                <div className="space-y-3 pb-2">
-                                                    {items.map((item, i) => (
-                                                        <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-50 rounded-xl border border-gray-100 gap-2">
-                                                            <div className="flex items-start gap-3">
-                                                                <div className="w-7 h-7 shrink-0 rounded bg-white border border-gray-200 flex items-center justify-center font-black text-gray-400 text-[10px]">{i + 1}</div>
-                                                                <div><h5 className="font-bold text-gray-800 text-[11px] sm:text-xs uppercase tracking-tight line-clamp-1">{item.item_name}</h5><div className="text-[9px] font-bold text-gray-400 uppercase">Rate: ₹{Number(item.price).toFixed(2)}</div></div>
-                                                            </div>
-                                                            <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-200">
-                                                                <span className="text-[9px] font-black text-gray-500 bg-white px-2 py-1 rounded border">x {item.quantity} {item.unit}</span>
-                                                                <span className="font-black text-xs text-gray-900 text-right min-w-[60px]">₹{Number(item.total).toFixed(2)}</span>
-                                                            </div>
-                                                        </div>
-                                                    ))}
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+                                <div className="lg:col-span-2 bg-white rounded-3xl p-5 shadow-sm border border-gray-200 flex flex-col h-full overflow-hidden">
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-4 flex items-center gap-2 shrink-0"><FiFileText size={14} /> Ordered Items</h4>
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 overscroll-contain">
+                                        <div className="space-y-3 pb-2">
+                                            {(selectedInvoice.invoice_items || []).map((item, i) => (
+                                                <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-50 rounded-xl border border-gray-100 gap-2">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="w-7 h-7 shrink-0 rounded bg-white border border-gray-200 flex items-center justify-center font-black text-gray-400 text-[10px]">{i + 1}</div>
+                                                        <div><h5 className="font-bold text-gray-800 text-[11px] sm:text-xs uppercase tracking-tight line-clamp-1">{item.item_name}</h5></div>
+                                                    </div>
+                                                    <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-200">
+                                                        <span className="text-[9px] font-black text-gray-500 bg-white px-2 py-1 rounded border">x {item.quantity} {item.unit}</span>
+                                                        <span className="font-black text-xs text-gray-900 text-right min-w-[60px]">₹{Number(item.total).toFixed(2)}</span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Summary (Fixed) */}
-                                        <div className="lg:col-span-1 flex flex-col gap-4">
-                                            <div className="bg-white rounded-[1.5rem] p-5 shadow-xl border border-slate-100 shrink-0">
-                                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-4">Payment Summary</h4>
-                                                <div className="space-y-3">
-                                                    <div className="flex justify-between items-center text-[11px] font-bold text-gray-500"><span>Taxable Amount</span><span className="text-gray-800 font-black">₹{taxableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
-                                                    <div className="flex justify-between items-center text-[11px] font-bold text-gray-500"><span>CGST ({gstPercent / 2}%)</span><span className="text-gray-600">+ ₹{(totalTaxAmount / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
-                                                    <div className="flex justify-between items-center text-[11px] font-bold text-gray-500"><span>SGST ({gstPercent / 2}%)</span><span className="text-gray-600">+ ₹{(totalTaxAmount / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
-                                                    <div className="flex justify-between items-center text-[11px] font-bold text-gray-500"><span>Round Off</span><span className={roundOff < 0 ? 'text-red-500' : 'text-gray-600'}>{roundOff >= 0 ? '+' : ''} ₹{roundOff.toFixed(2)}</span></div>
-                                                    <div className="my-2 border-t border-dashed border-gray-100"></div>
-                                                    <div className="flex justify-between items-end pt-1"><span className="text-[10px] font-black uppercase text-gray-900">Grand Total</span><span className="text-2xl font-black leading-none" style={{ color: THEME_COLOR }}>₹{Number(inv.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
-                                                </div>
-                                            </div>
-                                            <button onClick={() => window.print()} className="w-full py-4 rounded-xl text-white font-black uppercase text-[10px] tracking-widest shadow-lg flex items-center justify-center gap-3 transition-all hover:brightness-110 active:scale-95" style={{ backgroundColor: THEME_COLOR }}><FiPrinter size={16} /> Print Invoice</button>
+                                            ))}
                                         </div>
                                     </div>
-                                );
-                            })()}
+                                </div>
+
+                                <div className="lg:col-span-1 flex flex-col gap-4">
+                                    <div className="bg-white rounded-[1.5rem] p-5 shadow-xl border border-slate-100 shrink-0">
+                                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-4">Payment Summary</h4>
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between items-center text-[11px] font-bold text-gray-500"><span>Taxable</span><span className="text-gray-800 font-black">₹{Number(selectedInvoice.subtotal).toLocaleString()}</span></div>
+                                            <div className="flex justify-between items-center text-[11px] font-bold text-gray-500"><span>Total Tax</span><span className="text-gray-600">+ ₹{Number(selectedInvoice.tax_amount).toLocaleString()}</span></div>
+                                            <div className="my-2 border-t border-dashed border-gray-100"></div>
+                                            <div className="flex justify-between items-end pt-1"><span className="text-[10px] font-black uppercase text-gray-900">Grand Total</span><span className="text-2xl font-black leading-none" style={{ color: THEME_COLOR }}>₹{Number(selectedInvoice.total_amount).toLocaleString()}</span></div>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => window.print()} className="w-full py-4 rounded-xl text-white font-black uppercase text-[10px] tracking-widest shadow-lg flex items-center justify-center gap-3 transition-all hover:brightness-110 active:scale-95" style={{ backgroundColor: THEME_COLOR }}><FiPrinter size={16} /> Print Invoice</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

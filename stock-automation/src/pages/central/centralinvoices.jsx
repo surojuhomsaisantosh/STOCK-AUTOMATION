@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
@@ -7,10 +7,6 @@ import {
     FileText, IndianRupee, Printer, Phone, Hash, ShoppingBag, Shield, Activity, Calendar, Inbox,
     ArrowUp, ArrowDown, ArrowUpDown, MapPin
 } from "lucide-react";
-
-// --- ASSETS ---
-import tvanammLogo from "../../assets/tvanamm_logo.jpeg";
-import tleafLogo from "../../assets/tleaf_logo.jpeg";
 
 const PRIMARY = "rgb(0, 100, 55)";
 const ITEMS_PER_INVOICE_PAGE = 15;
@@ -47,9 +43,12 @@ const amountToWords = (price) => {
 
 
 // --- INVOICE PRINT COMPONENT ---
-const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalPages, itemsChunk }) => {
+const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsChunk }) => {
     if (!order) return null;
     const companyName = companyDetails?.company_name || "";
+
+    // FETCH LOGO FROM DATABASE (Storage Bucket URL)
+    const currentLogo = companyDetails?.logo_url || null;
 
     const invDate = new Date(order.created_at).toLocaleDateString('en-GB', {
         day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata'
@@ -71,13 +70,11 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
             "All legal matters subject to Hyderabad jurisdiction",
         ];
 
-    // Calculate empty rows needed to lock the table height exactly for 15 items
     const emptyRowsCount = Math.max(0, ITEMS_PER_INVOICE_PAGE - itemsChunk.length);
 
     return (
         <div className="a4-page flex flex-col bg-white text-black font-sans text-xs leading-normal relative">
             <div className="w-full border-2 border-black flex flex-col relative flex-1">
-                {/* Header Section */}
                 <div className="p-3 border-b-2 border-black relative">
                     <div className="absolute top-2 left-0 w-full text-center pointer-events-none">
                         <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4 text-black">TAX INVOICE</h1>
@@ -95,7 +92,12 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                         </div>
                         <div className="z-10 flex flex-col items-center text-center max-w-[40%]">
                             {currentLogo ? (
-                                <img src={currentLogo} alt="Logo" className="h-12 w-auto object-contain mb-1" />
+                                <img
+                                    src={currentLogo}
+                                    alt="Logo"
+                                    crossOrigin="anonymous"
+                                    className="h-12 w-auto object-contain mb-1"
+                                />
                             ) : (
                                 <div className="h-10 w-24 border border-dashed border-gray-400 flex items-center justify-center text-[9px] text-black mb-1">NO LOGO</div>
                             )}
@@ -104,7 +106,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </div>
                 </div>
 
-                {/* Invoice Info */}
                 <div className="flex border-b-2 border-black bg-slate-50 print:bg-transparent text-black">
                     <div className="w-1/2 border-r-2 border-black py-1 px-3">
                         <span className="font-bold text-black uppercase text-[9px]">Invoice No:</span>
@@ -116,7 +117,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </div>
                 </div>
 
-                {/* Bill To */}
                 <div className="flex border-b-2 border-black text-black">
                     <div className="w-[70%] p-2 border-r-2 border-black">
                         <span className="font-black uppercase underline text-[10px] tracking-widest text-black mb-1 block">Bill To:</span>
@@ -131,7 +131,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </div>
                 </div>
 
-                {/* Table - Optimized Row Heights (26px) & Padding */}
                 <div className="flex-1 border-b-2 border-black relative">
                     <table className="w-full text-left border-collapse text-black">
                         <thead className="bg-slate-100 text-[10px] border-b-2 border-black text-black">
@@ -153,8 +152,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                                 const gstRate = Number(item.gst_rate) || 0;
                                 const gstAmt = subtotal * (gstRate / 100);
                                 const finalAmount = Number(item.total) || (subtotal + gstAmt);
-
-                                // Embed HSN directly in the title column so we maintain exact CSS limits
                                 const hsnText = item.stocks?.hsn_code || item.hsn_code ? ` (HSN: ${item.stocks?.hsn_code || item.hsn_code})` : '';
 
                                 return (
@@ -171,8 +168,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                                     </tr>
                                 );
                             })}
-
-                            {/* Generate empty rows to pad out to exactly 15 rows */}
                             {Array.from({ length: emptyRowsCount }).map((_, idx) => (
                                 <tr key={`empty-${idx}`} className="h-[26px]">
                                     <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-transparent">-</td>
@@ -188,7 +183,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </table>
                 </div>
 
-                {/* Footer */}
                 <div className="flex mt-auto text-black">
                     <div className="w-[60%] border-r-2 border-black flex flex-col">
                         <div className="py-1.5 px-2 border-b-2 border-black min-h-[30px] flex flex-col justify-center bg-slate-50">
@@ -216,7 +210,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                         <div className="flex justify-between py-1 px-1.5 border-b border-slate-300 text-black"><span>Total GST</span><span>{formatCurrency(totalGst)}</span></div>
                         <div className="flex justify-between py-0.5 px-2 border-b border-slate-300 text-black text-[9px] bg-slate-50 pl-4"><span>CGST</span><span>{formatCurrency(cgst)}</span></div>
                         <div className="flex justify-between py-0.5 px-2 border-b border-black text-black text-[9px] bg-slate-50 pl-4"><span>SGST</span><span>{formatCurrency(sgst)}</span></div>
-
                         <div className="flex justify-between py-1 px-1.5 border-b border-black text-black"><span>Round Off</span><span>{formatCurrency(roundOff)}</span></div>
                         <div className="flex justify-between py-1.5 px-2 border-b-2 border-black bg-slate-200 text-black"><span className="font-black uppercase text-black">Total</span><span className="font-black text-black">{formatCurrency(roundedBill)}</span></div>
                         <div className="flex-1 flex flex-col justify-end p-2 text-center">
@@ -226,8 +219,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </div>
                 </div>
             </div>
-
-            {/* PAGE NUMBER ADDED AT THE BOTTOM RIGHT */}
             <div className="absolute bottom-1 right-2 print:bottom-1.5 print:right-2 text-[9px] font-black text-black">
                 Page {pageIndex + 1} of {totalPages}
             </div>
@@ -250,21 +241,29 @@ function CentralInvoices() {
     const [rangeMode, setRangeMode] = useState(false);
     const [singleDate, setSingleDate] = useState(new Date().toISOString().split('T')[0]);
     const [dateRange, setDateRange] = useState({ start: "", end: "" });
-    const [statusFilter, setStatusFilter] = useState("All"); // <-- NEW STATUS STATE
+    const [statusFilter, setStatusFilter] = useState("All");
 
     const [showModal, setShowModal] = useState(false);
     const [selectedInvoice, setSelectedInvoice] = useState(null);
     const [items, setItems] = useState([]);
     const [itemsLoading, setItemsLoading] = useState(false);
 
-    // --- SORT STATE ---
     const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'descending' });
 
     useEffect(() => {
         if (!user) return;
-        fetchInvoices();
-        fetchUserProfile();
-        fetchCompanyDetails();
+
+        const initData = async () => {
+            setLoading(true);
+            const profile = await fetchUserProfile();
+            if (profile?.company) {
+                await fetchCompanyDetails(profile.company);
+            }
+            await fetchInvoices(false);
+            setLoading(false);
+        };
+
+        initData();
 
         const channel = supabase
             .channel('realtime-invoices')
@@ -276,16 +275,25 @@ function CentralInvoices() {
 
     const fetchUserProfile = async () => {
         try {
-            const { data } = await supabase.from('profiles').select('franchise_id').eq('id', user.id).single();
-            if (data) setUserProfile(data);
+            const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+            if (data) {
+                setUserProfile(data);
+                return data;
+            }
         } catch (e) { console.error(e); }
     };
 
-    const fetchCompanyDetails = async () => {
+    // FIXED: Strictly matches the company name from the user profile
+    const fetchCompanyDetails = async (profileCompany) => {
         try {
-            const { data } = await supabase.from('companies').select('*').order('created_at', { ascending: false }).limit(1).single();
+            const { data, error } = await supabase
+                .from('companies')
+                .select('*')
+                .eq('company_name', profileCompany)
+                .single();
+
             if (data) setCompanyDetails(data);
-        } catch (err) { console.error(err); }
+        } catch (err) { console.error("Company fetch error:", err); }
     };
 
     const fetchInvoices = async (showLoading = true) => {
@@ -295,7 +303,7 @@ function CentralInvoices() {
             if (error) throw error;
             setInvoices(data || []);
         } catch (error) { console.error(error); }
-        finally { setLoading(false); }
+        finally { if (showLoading) setLoading(false); }
     };
 
     const formatDateTime = (dateStr) => {
@@ -332,13 +340,11 @@ function CentralInvoices() {
         setSingleDate(new Date().toISOString().split('T')[0]);
         setDateRange({ start: "", end: "" });
         setSortConfig({ key: 'created_at', direction: 'descending' });
-        setStatusFilter("All"); // <-- RESET STATUS FILTER
+        setStatusFilter("All");
         fetchInvoices();
     };
 
-    const handlePrint = () => {
-        window.print();
-    };
+    const handlePrint = () => { window.print(); };
 
     const handleSort = (key) => {
         let direction = 'ascending';
@@ -357,15 +363,12 @@ function CentralInvoices() {
 
     const filteredInvoices = useMemo(() => {
         let data = invoices.filter((inv) => {
-            // 1. Search Filter
             const q = search.toLowerCase();
             const fId = (inv.franchise_id || "").toString().toLowerCase();
             const custName = (inv.customer_name || "").toLowerCase();
             const matchesSearch = !search || fId.includes(q) || custName.includes(q);
-
             const currentStatus = (inv.status || 'Incoming').toLowerCase();
 
-            // 2. Date Filter (ONLY applies to 'dispatched' status)
             let matchesDate = true;
             if (currentStatus === 'dispatched') {
                 const invDate = inv.created_at?.split('T')[0];
@@ -374,14 +377,10 @@ function CentralInvoices() {
                         matchesDate = invDate >= dateRange.start && invDate <= dateRange.end;
                     }
                 } else {
-                    if (singleDate) {
-                        matchesDate = invDate === singleDate;
-                    }
+                    if (singleDate) matchesDate = invDate === singleDate;
                 }
             }
-            // If status is incoming or packed, matchesDate remains true automatically!
 
-            // 3. Status Filter (Top toggle bar)
             let matchesStatus = true;
             if (statusFilter !== "All") {
                 matchesStatus = currentStatus === statusFilter.toLowerCase();
@@ -390,22 +389,14 @@ function CentralInvoices() {
             return matchesSearch && matchesDate && matchesStatus;
         });
 
-        // Sort Logic
         if (sortConfig.key) {
             data.sort((a, b) => {
                 let aVal = a[sortConfig.key];
                 let bVal = b[sortConfig.key];
-                if (sortConfig.key === 'total_amount') {
-                    aVal = Number(aVal);
-                    bVal = Number(bVal);
-                }
-                if (sortConfig.key === 'created_at') {
-                    aVal = new Date(aVal);
-                    bVal = new Date(bVal);
-                }
+                if (sortConfig.key === 'total_amount') { aVal = Number(aVal); bVal = Number(bVal); }
+                if (sortConfig.key === 'created_at') { aVal = new Date(aVal); bVal = new Date(bVal); }
                 if (typeof aVal === 'string') aVal = aVal.toLowerCase();
                 if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-
                 if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
                 if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
                 return 0;
@@ -436,46 +427,28 @@ function CentralInvoices() {
                   .screen-content { display: none !important; }
                   .print-content { display: block !important; width: 100%; }
                   @page { size: A4; margin: 0; }
-                  .a4-page {
-                    width: 210mm;
-                    height: 296.5mm;
-                    padding: 5mm;
-                    margin: 0 auto;
-                    page-break-after: always;
-                    box-sizing: border-box;
-                    overflow: hidden;
-                  }
-                  .a4-page:last-child {
-                    page-break-after: auto;
-                  }
-                  * {
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
-                  }
+                  .a4-page { width: 210mm; height: 296.5mm; padding: 5mm; margin: 0 auto; page-break-after: always; box-sizing: border-box; overflow: hidden; }
+                  .a4-page:last-child { page-break-after: auto; }
+                  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                 }
                 .print-content { display: none; }
             `}</style>
 
-            {/* --- ACTUAL PRINT CONTAINER (ROOT LEVEL) --- */}
             <div className="print-content bg-white">
                 {selectedInvoice && (() => {
-                    const currentLogo = companyDetails?.parent_company?.toLowerCase().includes("leaf") ? tleafLogo : tvanammLogo;
                     const fullItems = items || [];
                     const pages = [];
-
                     if (fullItems.length === 0) pages.push([]);
                     else {
                         for (let i = 0; i < fullItems.length; i += ITEMS_PER_INVOICE_PAGE) {
                             pages.push(fullItems.slice(i, i + ITEMS_PER_INVOICE_PAGE));
                         }
                     }
-
                     return pages.map((chunk, index) => (
                         <FullPageInvoice
                             key={index}
                             order={selectedInvoice}
                             companyDetails={companyDetails}
-                            currentLogo={currentLogo}
                             pageIndex={index}
                             totalPages={pages.length}
                             itemsChunk={chunk}
@@ -485,11 +458,9 @@ function CentralInvoices() {
             </div>
 
             <div className="screen-content">
-                {/* --- INVOICE MODAL (CENTERED & FIXED SIZE) --- */}
                 {showModal && selectedInvoice && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setShowModal(false)} />
-
                         <div className="relative w-full max-w-[800px] h-[90vh] bg-white rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden">
                             <div className="p-6 border-b-2 border-slate-100 flex items-center justify-between bg-white shrink-0">
                                 <div className="flex items-center gap-3">
@@ -505,55 +476,27 @@ function CentralInvoices() {
                                     <button onClick={handlePrint} className="hidden md:flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-colors">
                                         <Printer size={14} /> Print
                                     </button>
-                                    <button onClick={() => setShowModal(false)} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors">
-                                        <X size={20} />
-                                    </button>
+                                    <button onClick={() => setShowModal(false)} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"><X size={20} /></button>
                                 </div>
                             </div>
-
                             <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
                                     <div className="bg-white p-5 rounded-2xl border-l-4 shadow-sm border border-slate-100" style={{ borderLeftColor: PRIMARY }}>
-                                        <div className="flex items-center gap-3 mb-3">
-                                            <Shield size={16} className="text-slate-400" />
-                                            <span className="text-[10px] font-black uppercase text-slate-400">Origin Office</span>
-                                        </div>
+                                        <div className="flex items-center gap-3 mb-3"><Shield size={16} className="text-slate-400" /><span className="text-[10px] font-black uppercase text-slate-400">Origin Office</span></div>
                                         <p className="text-base font-black text-slate-800">Franchise ID: {selectedInvoice.franchise_id}</p>
                                         <p className="text-xs font-bold text-slate-500 mt-1">{selectedInvoice.branch_location || 'Main Outlets'}</p>
-                                        {selectedInvoice.customer_address && (
-                                            <div className="flex items-start gap-2 mt-3 pt-3 border-t border-slate-100">
-                                                <MapPin size={12} className="text-slate-400 mt-0.5 shrink-0" />
-                                                <p className="text-[10px] font-bold text-slate-500 uppercase leading-relaxed">{selectedInvoice.customer_address}</p>
-                                            </div>
-                                        )}
                                     </div>
                                     <div className="bg-white p-5 rounded-2xl border-l-4 shadow-sm border border-slate-100" style={{ borderLeftColor: '#3b82f6' }}>
-                                        <div className="flex items-center gap-3 mb-3">
-                                            <Activity size={16} className="text-slate-400" />
-                                            <span className="text-[10px] font-black uppercase text-slate-400">Status</span>
-                                        </div>
-                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${getStatusStyle(selectedInvoice.status)}`}>
-                                            {selectedInvoice.status || 'Incoming'}
-                                        </span>
+                                        <div className="flex items-center gap-3 mb-3"><Activity size={16} className="text-slate-400" /><span className="text-[10px] font-black uppercase text-slate-400">Status</span></div>
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${getStatusStyle(selectedInvoice.status)}`}>{selectedInvoice.status || 'Incoming'}</span>
                                         <p className="text-[10px] font-bold text-slate-400 mt-2">{formatDateTime(selectedInvoice.created_at)}</p>
                                     </div>
                                 </div>
-
-                                {/* MODAL TABLE - WITH BORDERS AND HOVER EFFECT */}
                                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-8">
-                                    <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-                                        <ShoppingBag size={16} className="text-slate-400" />
-                                        <span className="text-xs font-black uppercase text-slate-600">Order Items</span>
-                                    </div>
+                                    <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2"><ShoppingBag size={16} className="text-slate-400" /><span className="text-xs font-black uppercase text-slate-600">Order Items</span></div>
                                     <table className="w-full text-left border-separate border-spacing-y-2 px-4">
                                         <thead className="text-[10px] font-black uppercase text-slate-400">
-                                            <tr>
-                                                <th className="p-4">Item</th>
-                                                <th className="p-4 text-center">Qty</th>
-                                                <th className="p-4 text-right">Price</th>
-                                                <th className="p-4 text-center">Tax</th>
-                                                <th className="p-4 text-right">Total</th>
-                                            </tr>
+                                            <tr><th className="p-4">Item</th><th className="p-4 text-center">Qty</th><th className="p-4 text-right">Price</th><th className="p-4 text-center">Tax</th><th className="p-4 text-right">Total</th></tr>
                                         </thead>
                                         <tbody className="text-sm font-bold text-slate-700">
                                             {itemsLoading ? (
@@ -564,18 +507,18 @@ function CentralInvoices() {
                                                 const taxAmount = basePrice * (gstRate / 100);
                                                 const lineTotal = basePrice + taxAmount;
                                                 return (
-                                                    <tr key={item.id} className="bg-white shadow-sm border border-slate-100 rounded-xl hover:bg-slate-50 hover:border-slate-300 hover:shadow-md transition-all cursor-default group">
-                                                        <td className="p-4 rounded-l-xl border-y border-l border-slate-100 group-hover:border-slate-300">
+                                                    <tr key={item.id} className="bg-white shadow-sm border border-slate-100 rounded-xl">
+                                                        <td className="p-4 rounded-l-xl border-y border-l border-slate-100">
                                                             <div className="font-black text-slate-800">{item.item_name}</div>
                                                             <div className="text-[10px] text-slate-400 mt-0.5">SKU: {item.stock_id?.slice(0, 8)}</div>
                                                         </td>
-                                                        <td className="p-4 text-center border-y border-slate-100 group-hover:border-slate-300">{item.quantity} {item.unit}</td>
-                                                        <td className="p-4 text-right border-y border-slate-100 group-hover:border-slate-300">₹{Number(item.price).toFixed(2)}</td>
-                                                        <td className="p-4 text-center text-xs border-y border-slate-100 group-hover:border-slate-300">
+                                                        <td className="p-4 text-center border-y border-slate-100">{item.quantity} {item.unit}</td>
+                                                        <td className="p-4 text-right border-y border-slate-100">₹{Number(item.price).toFixed(2)}</td>
+                                                        <td className="p-4 text-center text-xs border-y border-slate-100">
                                                             <div className="text-slate-500">{gstRate}%</div>
                                                             <div className="text-[10px] text-emerald-600">+₹{taxAmount.toFixed(2)}</div>
                                                         </td>
-                                                        <td className="p-4 text-right font-black rounded-r-xl border-y border-r border-slate-100 group-hover:border-slate-300">₹{lineTotal.toFixed(2)}</td>
+                                                        <td className="p-4 text-right font-black rounded-r-xl border-y border-r border-slate-100">₹{lineTotal.toFixed(2)}</td>
                                                     </tr>
                                                 )
                                             })}
@@ -583,7 +526,6 @@ function CentralInvoices() {
                                     </table>
                                 </div>
                             </div>
-
                             <div className="p-6 border-t-2 border-slate-100 bg-white shrink-0">
                                 <div className="flex justify-between items-center bg-slate-900 text-white p-5 rounded-2xl shadow-lg">
                                     <span className="text-xs font-black uppercase tracking-widest text-slate-400">Total Payable</span>
@@ -604,36 +546,26 @@ function CentralInvoices() {
                         </button>
                     </div>
                     <h1 className="text-sm md:text-xl font-black uppercase tracking-[0.2em] text-black text-center absolute left-1/2 -translate-x-1/2">Invoices</h1>
-
-                    {/* --- UPDATED HEADER ID BOX --- */}
                     <div className="flex items-center">
                         <div className="flex items-center bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">ID :</span>
                             <span className="text-xs font-black text-black">{userProfile?.franchise_id || "..."}</span>
                         </div>
                     </div>
-
                 </nav>
 
                 <div className="max-w-[1400px] mx-auto px-4 md:px-8 mt-6 md:mt-8">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                         <div className="bg-white border-2 border-slate-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-all hover:border-black/10">
                             <div className="h-12 w-12 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100"><FileText size={24} /></div>
-                            <div>
-                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Total Records</p>
-                                <h2 className="text-2xl font-black text-slate-800">{stats.total}</h2>
-                            </div>
+                            <div><p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Total Records</p><h2 className="text-2xl font-black text-slate-800">{stats.total}</h2></div>
                         </div>
                         <div className="bg-white border-2 border-slate-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-all hover:border-black/10">
                             <div className="h-12 w-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100"><IndianRupee size={24} /></div>
-                            <div>
-                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Total Billing</p>
-                                <h2 className="text-2xl font-black text-slate-800">₹{stats.revenue.toLocaleString('en-IN')}</h2>
-                            </div>
+                            <div><p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Total Billing</p><h2 className="text-2xl font-black text-slate-800">₹{stats.revenue.toLocaleString('en-IN')}</h2></div>
                         </div>
                     </div>
 
-                    {/* --- NEW STATUS TOGGLE BAR --- */}
                     <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide w-full">
                         {["All", "Incoming", "Packed", "Dispatched"].map((status) => (
                             <button
@@ -652,7 +584,7 @@ function CentralInvoices() {
                     <div className="flex flex-col lg:flex-row gap-4 mb-6">
                         <div className="relative w-full lg:flex-1 h-12 md:h-14 group">
                             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-black transition-colors" size={18} />
-                            <input placeholder="SEARCH NAME OR FRANCHISE ID..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full h-full pl-14 pr-6 bg-white border-2 border-slate-100 focus:border-black rounded-2xl text-[10px] md:text-xs font-black outline-none transition-all uppercase placeholder:text-slate-300 shadow-sm" />
+                            <input placeholder="SEARCH NAME OR FRANCHISE ID..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full h-full pl-14 pr-6 bg-white border-2 border-slate-100 focus:border-black rounded-2xl text-[10px] md:text-xs font-black outline-none transition-all uppercase shadow-sm" />
                         </div>
                         <div className="flex items-center gap-2 w-full lg:w-auto h-12 md:h-14">
                             <div className="flex-1 flex items-center bg-white rounded-2xl border-2 border-slate-100 p-1 h-full min-w-0 shadow-sm">
@@ -682,24 +614,12 @@ function CentralInvoices() {
                                 <thead className="sticky top-0 z-10">
                                     <tr className="bg-slate-50 text-slate-400">
                                         <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 w-16 sticky top-0 bg-slate-50 z-20 shadow-sm">S.No</th>
-                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('id')}>
-                                            Invoice <SortIcon columnKey="id" />
-                                        </th>
-                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('franchise_id')}>
-                                            Franchise ID <SortIcon columnKey="franchise_id" />
-                                        </th>
-                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('customer_name')}>
-                                            Customer <SortIcon columnKey="customer_name" />
-                                        </th>
-                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('status')}>
-                                            Status <SortIcon columnKey="status" />
-                                        </th>
-                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('created_at')}>
-                                            Date & Time <SortIcon columnKey="created_at" />
-                                        </th>
-                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 text-right cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('total_amount')}>
-                                            Amount <SortIcon columnKey="total_amount" />
-                                        </th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('id')}>Invoice <SortIcon columnKey="id" /></th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('franchise_id')}>Franchise ID <SortIcon columnKey="franchise_id" /></th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('customer_name')}>Customer <SortIcon columnKey="customer_name" /></th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('status')}>Status <SortIcon columnKey="status" /></th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('created_at')}>Date & Time <SortIcon columnKey="created_at" /></th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest border-b-2 border-slate-100 text-right cursor-pointer hover:text-black transition-colors sticky top-0 bg-slate-50 z-20 shadow-sm" onClick={() => handleSort('total_amount')}>Amount <SortIcon columnKey="total_amount" /></th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -712,10 +632,7 @@ function CentralInvoices() {
                                             <td className="p-6 text-[10px] font-bold text-slate-400">{index + 1}.</td>
                                             <td className="p-6"><span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black">#{inv.id.toString().slice(-6).toUpperCase()}</span></td>
                                             <td className="p-6"><span className="text-xs font-black text-slate-700">{inv.franchise_id}</span></td>
-                                            <td className="p-6">
-                                                <div className="text-xs font-black text-slate-800">{inv.customer_name}</div>
-                                                <div className="text-[10px] font-bold text-slate-400">{inv.customer_phone}</div>
-                                            </td>
+                                            <td className="p-6"><div className="text-xs font-black text-slate-800">{inv.customer_name}</div><div className="text-[10px] font-bold text-slate-400">{inv.customer_phone}</div></td>
                                             <td className="p-6"><span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase border ${getStatusStyle(inv.status)}`}>{inv.status || 'Incoming'}</span></td>
                                             <td className="p-6 text-xs font-bold text-slate-500 uppercase">{formatDateTime(inv.created_at)}</td>
                                             <td className="p-6 text-right text-sm font-black" style={{ color: PRIMARY }}>₹{Number(inv.total_amount).toLocaleString('en-IN')}</td>

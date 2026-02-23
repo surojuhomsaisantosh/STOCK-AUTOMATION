@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
-import myLogo from "./assets/jksh_logo.jpeg";
+import { supabase } from "./supabase/supabaseClient";
 
 /* AUTH */
 import Login from "./pages/login/Login";
@@ -42,9 +42,7 @@ import PosManagement from "./pages/central/posmanagement";
 import Reports from "./pages/central/reports";
 import FranchiseReplies from "./pages/central/FranchiseReplies";
 import CentralStockMaster from "./pages/central/CentralStockMaster";
-// Updated Import Path based on your file structure
 import InvoiceDesign from "./pages/central/InvoiceDesign";
-// New Import for Package Bills
 import PackageBills from "./pages/central/PackageBills";
 
 /* CONTEXTS */
@@ -64,13 +62,37 @@ function SettingsWrapper() {
 }
 
 function App() {
-  // UseEffect to update ONLY the favicon from src/assets
+  // UseEffect to update the Favicon dynamically from Supabase Storage
   useEffect(() => {
-    const link = document.querySelector("link[rel~='icon']");
-    if (link) {
-      link.href = myLogo;
-      link.type = "image/jpeg";
-    }
+    const updateFavicon = async () => {
+      try {
+        // Query the JKSH logo specifically from your companies table
+        const { data } = await supabase
+          .from('companies')
+          .select('logo_url')
+          .ilike('company_name', '%JKSH%')
+          .maybeSingle();
+
+        const faviconUrl = data?.logo_url;
+
+        if (faviconUrl) {
+          const link = document.querySelector("link[rel~='icon']");
+          if (link) {
+            link.href = faviconUrl;
+          } else {
+            // Create link tag if it doesn't exist
+            const newLink = document.createElement('link');
+            newLink.rel = 'icon';
+            newLink.href = faviconUrl;
+            document.getElementsByTagName('head')[0].appendChild(newLink);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to update favicon dynamically:", err);
+      }
+    };
+
+    updateFavicon();
   }, []);
 
   return (
@@ -147,7 +169,6 @@ function App() {
               }
             />
 
-            {/* New Route for Package Bills */}
             <Route
               path="/central/package-bills"
               element={
@@ -166,7 +187,6 @@ function App() {
               }
             />
 
-            {/* New Route for Invoice Design */}
             <Route
               path="/central/invoice-design"
               element={
@@ -330,7 +350,6 @@ function App() {
               }
             />
 
-            {/* UPDATED: Uses the SettingsWrapper helper for dedicated dashboard navigation */}
             <Route
               path="/franchise/settings"
               element={

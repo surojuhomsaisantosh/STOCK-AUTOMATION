@@ -2,10 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../supabase/supabaseClient";
-import { Eye, EyeOff } from "lucide-react";
-
-// Import the logo from your assets folder
-import logo from "../../assets/jksh_logo.jpeg";
+import { Eye, EyeOff, Loader2 } from "lucide-react"; // Added Loader2 for logo placeholder
 
 const PRIMARY = "#065f46";
 const BORDER = "#e5e7eb";
@@ -21,13 +18,33 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [dynamicLogo, setDynamicLogo] = useState(null); // State for the storage logo
 
-  // Mobile Detection Logic
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
+
+    // --- FETCH JKSH LOGO FROM STORAGE ---
+    const fetchJkshLogo = async () => {
+      try {
+        // Query the companies table to find the JKSH entry specifically
+        const { data, error } = await supabase
+          .from('companies')
+          .select('logo_url')
+          .ilike('company_name', '%JKSH%') // Find the company name containing JKSH
+          .maybeSingle();
+
+        if (data?.logo_url) {
+          setDynamicLogo(data.logo_url);
+        }
+      } catch (err) {
+        console.error("Logo fetch failed:", err);
+      }
+    };
+
+    fetchJkshLogo();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -39,16 +56,13 @@ function Login() {
       const cleanPassword = password.trim();
       const cleanEmail = email.trim().toLowerCase();
 
-      // Basic Validations
       if (!cleanEmail) throw new Error("Email address is required");
       if (!cleanPassword) throw new Error("Password is required");
 
-      // Sign in with Supabase Auth
-      const { data: authData, error: authError } =
-        await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password: cleanPassword,
-        });
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: cleanPassword,
+      });
 
       if (authError) throw new Error("Invalid credentials. Please check your email and password.");
 
@@ -56,7 +70,6 @@ function Login() {
       let userFranchiseId = "";
       let finalProfileData = null;
 
-      // 1. Check if user is an Admin/Owner/Central (profiles table)
       let { data: ownerProfile } = await supabase
         .from("profiles")
         .select("*")
@@ -68,7 +81,6 @@ function Login() {
         userFranchiseId = ownerProfile.franchise_id;
         finalProfileData = ownerProfile;
       } else {
-        // 2. Check if user is Staff (staff_profiles table)
         const { data: staffProfile } = await supabase
           .from("staff_profiles")
           .select("*")
@@ -79,7 +91,6 @@ function Login() {
           userRole = "staff";
           userFranchiseId = staffProfile.franchise_id;
 
-          // Fetch franchise-specific info to attach to the session
           const { data: franchiseInfo } = await supabase
             .from("profiles")
             .select("company, address, city, state, pincode, phone")
@@ -90,6 +101,7 @@ function Login() {
           finalProfileData = {
             ...staffProfile,
             role: "staff",
+            staff_profile_id: staffProfile.id,
             ...franchiseInfo
           };
         } else {
@@ -97,17 +109,17 @@ function Login() {
         }
       }
 
-      await login(authData.user, finalProfileData);
+      let finalLoginMode = loginType;
+      if (userRole === "staff") {
+        finalLoginMode = "store";
+      }
 
-      // Navigation Logic
-      if (loginType === "store") {
+      await login(authData.user, finalProfileData, finalLoginMode);
+
+      if (finalLoginMode === "store") {
         navigate("/store");
       } else {
-        const routes = {
-          central: "central",
-          franchise: "franchiseowner",
-          stock: "stockmanager",
-        };
+        const routes = { central: "central", franchise: "franchiseowner", stock: "stockmanager" };
         navigate(`/dashboard/${routes[userRole] || "franchiseowner"}`);
       }
     } catch (err) {
@@ -120,81 +132,40 @@ function Login() {
 
   return (
     <div style={styles.page}>
-      <div style={{
-        ...styles.card,
-        width: isMobile ? "90%" : "420px",
-        padding: isMobile ? "30px 20px" : "40px"
-      }}>
+      <div style={{ ...styles.card, width: isMobile ? "90%" : "420px", padding: isMobile ? "30px 20px" : "40px" }}>
         <div style={styles.logoContainer}>
-          <img src={logo} alt="JKSH Logo" style={{
-            ...styles.logo,
-            width: isMobile ? "110px" : "140px"
-          }} />
+          {dynamicLogo ? (
+            <img
+              src={dynamicLogo}
+              alt="JKSH Logo"
+              style={{ ...styles.logo, width: isMobile ? "110px" : "140px" }}
+            />
+          ) : (
+            // Placeholder while loading or if fetch fails
+            <div style={{ ...styles.logo, width: isMobile ? "110px" : "140px", height: isMobile ? "60px" : "80px", display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Loader2 className="animate-spin text-slate-200" size={24} />
+            </div>
+          )}
         </div>
 
-        <h1 style={{
-          ...styles.title,
-          fontSize: isMobile ? "18px" : "22px",
-          marginBottom: isMobile ? "20px" : "28px"
-        }}>JKSH United Pvt.Ltd</h1>
+        <h1 style={{ ...styles.title, fontSize: isMobile ? "18px" : "22px", marginBottom: isMobile ? "20px" : "28px" }}>JKSH United Pvt.Ltd</h1>
 
-        <div style={{
-          ...styles.toggleBar,
-          marginBottom: isMobile ? "20px" : "28px"
-        }}>
-          <button
-            onClick={() => { setLoginType("store"); setErrorMsg(""); }}
-            style={{
-              ...styles.toggleButton,
-              ...(loginType === "store" && styles.toggleActive),
-            }}
-          >
-            STORE
-          </button>
-          <button
-            onClick={() => { setLoginType("admin"); setErrorMsg(""); }}
-            style={{
-              ...styles.toggleButton,
-              ...(loginType === "admin" && styles.toggleActive),
-            }}
-          >
-            ADMIN
-          </button>
+        <div style={{ ...styles.toggleBar, marginBottom: isMobile ? "20px" : "28px" }}>
+          <button onClick={() => { setLoginType("store"); setErrorMsg(""); }} style={{ ...styles.toggleButton, ...(loginType === "store" && styles.toggleActive) }}>STORE</button>
+          <button onClick={() => { setLoginType("admin"); setErrorMsg(""); }} style={{ ...styles.toggleButton, ...(loginType === "admin" && styles.toggleActive) }}>ADMIN</button>
         </div>
 
         {errorMsg && <div style={styles.errorBox}>{errorMsg}</div>}
 
         <div style={styles.form}>
-          <input
-            style={styles.input}
-            type="email"
-            placeholder={loginType === "store" ? "Staff Email" : "Admin Email"}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-
+          <input style={styles.input} type="email" placeholder={loginType === "store" ? "Staff Email" : "Admin Email"} value={email} onChange={(e) => setEmail(e.target.value)} />
           <div style={styles.passwordWrapper}>
-            <input
-              style={styles.inputPassword}
-              type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <button
-              type="button"
-              style={styles.eyeBtn}
-              onClick={() => setShowPassword(!showPassword)}
-            >
+            <input style={styles.inputPassword} type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <button type="button" style={styles.eyeBtn} onClick={() => setShowPassword(!showPassword)}>
               {showPassword ? <EyeOff size={18} color={BLACK} /> : <Eye size={18} color={BLACK} />}
             </button>
           </div>
-
-          <button
-            style={styles.button}
-            onClick={handleLogin}
-            disabled={isLoading}
-          >
+          <button style={styles.button} onClick={handleLogin} disabled={isLoading}>
             {isLoading ? "Verifying..." : "Login"}
           </button>
         </div>
@@ -204,42 +175,10 @@ function Login() {
 }
 
 const styles = {
-  page: {
-    height: "100vh",
-    width: "100vw",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    background: "#f3f4f6",
-    fontFamily: '"Inter", sans-serif'
-  },
-  card: {
-    background: "#fff",
-    borderRadius: "32px",
-    border: `1.5px solid ${BORDER}`,
-    textAlign: "center",
-    boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    boxSizing: "border-box"
-  },
-  logoContainer: {
-    marginBottom: "24px",
-    display: "flex",
-    justifyContent: "center",
-    width: "100%"
-  },
-  logo: {
-    height: "auto",
-    borderRadius: "16px",
-    objectFit: "contain",
-    display: "block",
-    padding: "8px",
-    background: "#fff",
-    border: `1px solid ${BORDER}`,
-    filter: "drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.05))"
-  },
+  page: { height: "100vh", width: "100vw", display: "flex", justifyContent: "center", alignItems: "center", background: "#f3f4f6", fontFamily: '"Inter", sans-serif' },
+  card: { background: "#fff", borderRadius: "32px", border: `1.5px solid ${BORDER}`, textAlign: "center", boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', display: "flex", flexDirection: "column", alignItems: "center", boxSizing: "border-box" },
+  logoContainer: { marginBottom: "24px", display: "flex", justifyContent: "center", width: "100%", minHeight: '80px' },
+  logo: { height: "auto", borderRadius: "16px", objectFit: "contain", display: "block", padding: "8px", background: "#fff", border: `1px solid ${BORDER}`, filter: "drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.05))" },
   title: { fontWeight: "900", color: BLACK, letterSpacing: '-0.5px', width: "100%" },
   toggleBar: { display: "flex", background: "#f3f4f6", borderRadius: "16px", padding: "6px", width: "100%", boxSizing: "border-box" },
   toggleButton: { flex: 1, padding: "12px", border: "none", background: "transparent", borderRadius: "12px", fontSize: "12px", fontWeight: "800", color: "#6b7280", cursor: "pointer", transition: '0.2s' },
