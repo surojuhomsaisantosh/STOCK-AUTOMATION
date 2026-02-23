@@ -2,7 +2,13 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../supabase/supabaseClient";
+<<<<<<< HEAD
 import { Eye, EyeOff, Loader2 } from "lucide-react"; // Added Loader2 for logo placeholder
+=======
+import { Eye, EyeOff } from "lucide-react";
+
+import logo from "../../assets/jksh_logo.jpeg";
+>>>>>>> d621456b56f4a993d0a960079386bf9b89d00e76
 
 const PRIMARY = "#065f46";
 const BORDER = "#e5e7eb";
@@ -98,6 +104,7 @@ function Login() {
             .limit(1)
             .maybeSingle();
 
+          // FIX: Explicitly map staff_profile_id so it doesn't log as null
           finalProfileData = {
             ...staffProfile,
             role: "staff",
@@ -109,13 +116,26 @@ function Login() {
         }
       }
 
+<<<<<<< HEAD
       let finalLoginMode = loginType;
       if (userRole === "staff") {
         finalLoginMode = "store";
+=======
+      // ===============================================
+      // EDGE CASE FIX: OVERRIDE TOGGLE IF USER IS STAFF
+      // ===============================================
+      let finalLoginMode = loginType;
+      if (userRole === "staff") {
+        finalLoginMode = "store"; // Force staff members to store mode!
+>>>>>>> d621456b56f4a993d0a960079386bf9b89d00e76
       }
 
       await login(authData.user, finalProfileData, finalLoginMode);
 
+<<<<<<< HEAD
+=======
+      // Routing strictly depends on the final forced mode
+>>>>>>> d621456b56f4a993d0a960079386bf9b89d00e76
       if (finalLoginMode === "store") {
         navigate("/store");
       } else {
@@ -134,6 +154,7 @@ function Login() {
     <div style={styles.page}>
       <div style={{ ...styles.card, width: isMobile ? "90%" : "420px", padding: isMobile ? "30px 20px" : "40px" }}>
         <div style={styles.logoContainer}>
+<<<<<<< HEAD
           {dynamicLogo ? (
             <img
               src={dynamicLogo}
@@ -146,6 +167,9 @@ function Login() {
               <Loader2 className="animate-spin text-slate-200" size={24} />
             </div>
           )}
+=======
+          <img src={logo} alt="JKSH Logo" style={{ ...styles.logo, width: isMobile ? "110px" : "140px" }} />
+>>>>>>> d621456b56f4a993d0a960079386bf9b89d00e76
         </div>
 
         <h1 style={{ ...styles.title, fontSize: isMobile ? "18px" : "22px", marginBottom: isMobile ? "20px" : "28px" }}>JKSH United Pvt.Ltd</h1>
@@ -177,7 +201,11 @@ function Login() {
 const styles = {
   page: { height: "100vh", width: "100vw", display: "flex", justifyContent: "center", alignItems: "center", background: "#f3f4f6", fontFamily: '"Inter", sans-serif' },
   card: { background: "#fff", borderRadius: "32px", border: `1.5px solid ${BORDER}`, textAlign: "center", boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', display: "flex", flexDirection: "column", alignItems: "center", boxSizing: "border-box" },
+<<<<<<< HEAD
   logoContainer: { marginBottom: "24px", display: "flex", justifyContent: "center", width: "100%", minHeight: '80px' },
+=======
+  logoContainer: { marginBottom: "24px", display: "flex", justifyContent: "center", width: "100%" },
+>>>>>>> d621456b56f4a993d0a960079386bf9b89d00e76
   logo: { height: "auto", borderRadius: "16px", objectFit: "contain", display: "block", padding: "8px", background: "#fff", border: `1px solid ${BORDER}`, filter: "drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.05))" },
   title: { fontWeight: "900", color: BLACK, letterSpacing: '-0.5px', width: "100%" },
   toggleBar: { display: "flex", background: "#f3f4f6", borderRadius: "16px", padding: "6px", width: "100%", boxSizing: "border-box" },
