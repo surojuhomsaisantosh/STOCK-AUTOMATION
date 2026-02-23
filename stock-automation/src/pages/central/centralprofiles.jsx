@@ -284,7 +284,7 @@ function CentralProfiles() {
                 </div>
 
                 <div style={styles.addressBox}>
-                  <MapPin size={14} flexShrink={0} />
+                  <MapPin style={{ flexShrink: 0 }} size={18} />
                   <span style={styles.addressText}>{p.address || "No Address Provided"}</span>
                 </div>
 
