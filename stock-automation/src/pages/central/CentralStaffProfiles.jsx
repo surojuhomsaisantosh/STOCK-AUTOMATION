@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Search, Plus, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight, User, Phone, ChevronDown, MapPin, Mail, ShieldCheck
 } from "lucide-react";
-import { createClient } from "@supabase/supabase-js";
-import { supabase } from "../../supabase/supabaseClient";
 
-// OPTIMIZATION 1: Import the AuthContext so we don't have to query the DB for the current user!
+// FIXED: Removed 'createClient' import from here
+import { supabase, supabaseAdmin } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 
 const GREEN = "rgb(0,100,55)";
@@ -14,26 +13,88 @@ const PRIMARY = "#065f46";
 const BORDER = "#e5e7eb";
 const BLACK = "#000000";
 
+const ITEMS_PER_INVOICE_PAGE = 15;
+
+// FIXED: DELETED the local 'supabaseAdmin' initialization that was causing the warning.
+
+// --- INVOICE PRINT COMPONENT ---
+const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsChunk }) => {
+  if (!order) return null;
+  const companyName = companyDetails?.company_name || "";
+  const currentLogo = companyDetails?.logo_url || null;
+
+  const invDate = new Date(order.created_at).toLocaleDateString('en-GB');
+  const orderId = order.id ? order.id.substring(0, 8).toUpperCase() : 'PENDING';
+  const emptyRowsCount = Math.max(0, ITEMS_PER_INVOICE_PAGE - itemsChunk.length);
+
+  return (
+    <div className="a4-page flex flex-col bg-white text-black font-sans text-xs leading-normal relative">
+      <div className="w-full border-2 border-black flex flex-col relative flex-1">
+        <div className="p-3 border-b-2 border-black relative">
+          <div className="absolute top-2 left-0 w-full text-center pointer-events-none">
+            <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4 text-black">TAX INVOICE</h1>
+          </div>
+          <div className="flex justify-between items-center mt-5 pt-3">
+            <div className="text-left z-10 w-[55%]">
+              <span className="uppercase underline mb-1 block text-black font-black text-[10px]">Registered Office:</span>
+              <p className="whitespace-pre-wrap text-black text-[10px] leading-tight">{companyDetails?.company_address || ""}</p>
+              <div className="mt-1 space-y-0.5 text-[10px]">
+                {companyDetails?.company_gst && <p className="text-black">GSTIN: <span className="font-black">{companyDetails.company_gst}</span></p>}
+                {companyDetails?.company_email && <p className="text-black">Email: {companyDetails.company_email}</p>}
+              </div>
+            </div>
+            <div className="z-10 flex flex-col items-center text-center max-w-[40%]">
+              {currentLogo ? (
+                <img
+                  src={currentLogo}
+                  alt="Logo"
+                  crossOrigin="anonymous"
+                  className="h-12 w-auto object-contain mb-1"
+                />
+              ) : (
+                <div className="h-10 w-24 border border-dashed border-gray-400 flex items-center justify-center text-[9px] text-black mb-1">NO LOGO</div>
+              )}
+              <h2 className="text-base font-black uppercase text-black leading-tight">{companyName}</h2>
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 border-b-2 border-black">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-slate-100 text-[10px] border-b-2 border-black font-black">
+              <tr><th className="p-2 border-r border-black/10">S.No</th><th className="p-2 border-r border-black/10">Description</th><th className="p-2 border-r border-black/10">Qty</th><th className="p-2 text-right">Total</th></tr>
+            </thead>
+            <tbody className="text-[10px] font-bold">
+              {itemsChunk.map((item, i) => (
+                <tr key={i} className="h-[26px] border-b border-black/10">
+                  <td className="p-2 border-r border-black/10">{(pageIndex * ITEMS_PER_INVOICE_PAGE) + i + 1}</td>
+                  <td className="p-2 border-r border-black/10 uppercase truncate">{item.item_name}</td>
+                  <td className="p-2 border-r border-black/10">{item.quantity}</td>
+                  <td className="p-2 text-right">₹{item.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const CentralStaffProfiles = () => {
   const navigate = useNavigate();
-
-  // Use global auth state instead of making new DB calls
   const { profile: authProfile } = useAuth();
 
   const [profiles, setProfiles] = useState([]);
-
-  // STATE: Header & Search
   const [loggedInFranchiseId, setLoggedInFranchiseId] = useState("");
   const [searchFranchiseId, setSearchFranchiseId] = useState("");
-
   const [searchTerm, setSearchTerm] = useState("");
-  const [companyName, setCompanyName] = useState("");
+  const [companyDetails, setCompanyDetails] = useState(null);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [expandedId, setExpandedId] = useState(null);
-
   const [editingId, setEditingId] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -44,14 +105,11 @@ const CentralStaffProfiles = () => {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
-
-    // Check if authProfile is loaded from Context, then trigger fetch
-    if (authProfile && authProfile.franchise_id) {
+    if (authProfile?.franchise_id) {
       setLoggedInFranchiseId(authProfile.franchise_id);
       setSearchFranchiseId(authProfile.franchise_id);
       fetchStaffProfiles(authProfile.franchise_id);
     }
-
     return () => window.removeEventListener('resize', handleResize);
   }, [authProfile]);
 
@@ -62,55 +120,108 @@ const CentralStaffProfiles = () => {
   };
 
   const fetchStaffProfiles = async (fid, isBackgroundRefresh = false) => {
-    // OPTIMIZATION 2: Check Session Storage for Instant Load
     const cacheKey = `staff_profiles_${fid}`;
     if (!isBackgroundRefresh) {
       const cachedData = sessionStorage.getItem(cacheKey);
-      if (cachedData) {
-        setProfiles(JSON.parse(cachedData));
-      } else {
-        setLoading(true); // Only show spinner if no cache exists
-      }
+      if (cachedData) setProfiles(JSON.parse(cachedData));
+      else setLoading(true);
     }
 
     try {
-      // OPTIMIZATION 3: Parallel DB Fetching (Promise.all)
-      // Instead of waiting for one to finish before starting the other, do both at once!
       const [ownerRes, staffRes] = await Promise.all([
-        supabase.from('profiles').select('id, name:company, email, phone').eq('franchise_id', fid).maybeSingle(),
-        supabase.from('staff_profiles').select('id, name, staff_id, email, phone, address, created_at').eq('franchise_id', fid).order('created_at', { ascending: false })
+        supabase.from('profiles').select('*').eq('franchise_id', fid).maybeSingle(),
+        supabase.from('staff_profiles').select('*').eq('franchise_id', fid).order('created_at', { ascending: false })
       ]);
 
       const ownerData = ownerRes.data;
       const staffData = staffRes.data;
 
-      setCompanyName(ownerData ? ownerData.name : "Unknown Franchise");
+      if (ownerData?.company) {
+        const { data: compData } = await supabase
+          .from('companies')
+          .select('*')
+          .eq('company_name', ownerData.company)
+          .maybeSingle();
+        setCompanyDetails(compData);
+      }
 
       let combined = [];
-
-      // Add owner at the top with a flag
       if (ownerData) {
-        combined.push({
-          ...ownerData,
-          staff_id: "OWNER/ADMIN",
-          isOwner: true,
-          address: "Branch Admin Office"
-        });
+        combined.push({ ...ownerData, staff_id: "OWNER/ADMIN", isOwner: true, address: ownerData.address || "Branch Admin Office" });
       }
-
-      if (!staffRes.error && staffData) {
-        combined = [...combined, ...staffData];
-      }
+      if (staffData) combined = [...combined, ...staffData];
 
       setProfiles(combined);
-
-      // Update the cache with the freshest data
       sessionStorage.setItem(cacheKey, JSON.stringify(combined));
-
     } catch (err) {
-      console.error("Fetch error:", err.message);
+      console.error(err);
     } finally {
-      if (!isBackgroundRefresh) setLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      if (editingId) {
+        const { error: profileError } = await supabase
+          .from('staff_profiles')
+          .update({
+            name: formData.name,
+            staff_id: formData.staff_id,
+            email: formData.email.trim().toLowerCase(),
+            phone: formData.phone,
+            address: formData.address
+          })
+          .eq('id', editingId);
+
+        if (profileError) throw profileError;
+
+        if (formData.password?.trim()) {
+          const { error: pwdErr } = await supabase.rpc('update_staff_password', {
+            target_user_id: editingId,
+            new_password: formData.password
+          });
+          if (pwdErr) throw pwdErr;
+        }
+        alert("✅ Updated Successfully");
+      } else {
+        // SIGNUP LOGIC (Using the shared supabaseAdmin instance from central file)
+        const { data: authData, error: authError } = await supabaseAdmin.auth.signUp({
+          email: formData.email.trim().toLowerCase(),
+          password: formData.password,
+          options: {
+            data: {
+              name: formData.name, // FIXED: Sending name prevents 500 constraint error
+              role: 'staff'
+            }
+          }
+        });
+
+        if (authError) throw authError;
+
+        const { error: dbError } = await supabase.from('staff_profiles').insert([{
+          id: authData.user.id,
+          name: formData.name,
+          staff_id: formData.staff_id,
+          email: formData.email.trim().toLowerCase(),
+          phone: formData.phone,
+          address: formData.address,
+          franchise_id: searchFranchiseId
+        }]);
+
+        if (dbError) throw dbError;
+        alert("✅ Staff Account Created Successfully");
+      }
+
+      fetchStaffProfiles(searchFranchiseId, true);
+      closeModal();
+    } catch (err) {
+      alert("Error: " + err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -131,96 +242,6 @@ const CentralStaffProfiles = () => {
     setIsModalOpen(false);
     setEditingId(null);
     setFormData({ name: "", staff_id: "", email: "", password: "", phone: "", address: "" });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!searchFranchiseId) return alert("No Franchise ID selected.");
-    if (!formData.email) return alert("Email is required.");
-
-    const isEditingOwner = profiles.find(p => p.id === editingId)?.isOwner;
-    if (isEditingOwner) return alert("Owner profiles must be updated via Account Settings.");
-
-    setSubmitting(true);
-
-    if (editingId) {
-      if (formData.password && formData.password.length > 0 && formData.password.length < 8) {
-        alert("⚠️ Password too short! It must be at least 8 characters.");
-        setSubmitting(false);
-        return;
-      }
-    } else {
-      if (!formData.password || formData.password.length < 8) {
-        alert("⚠️ Password is required and must be at least 8 characters.");
-        setSubmitting(false);
-        return;
-      }
-    }
-
-    try {
-      if (editingId) {
-        const { error: profileError } = await supabase
-          .from('staff_profiles')
-          .update({
-            name: formData.name,
-            staff_id: formData.staff_id,
-            email: formData.email.trim().toLowerCase(),
-            phone: formData.phone,
-            address: formData.address
-          })
-          .eq('id', editingId);
-
-        if (profileError) throw profileError;
-
-        if (formData.password && formData.password.trim() !== "") {
-          const { error: passwordError } = await supabase.rpc('update_staff_password', {
-            target_user_id: editingId,
-            new_password: formData.password
-          });
-          if (passwordError) alert("⚠️ Profile updated, but Password failed to reset.");
-          else alert("✅ Profile updated!");
-        } else {
-          alert("✅ Profile updated successfully!");
-        }
-      } else {
-        const tempSupabase = createClient(supabase.supabaseUrl, supabase.supabaseKey, { auth: { persistSession: false } });
-
-        const { data: authData, error: authError } = await tempSupabase.auth.signUp({
-          email: formData.email.trim().toLowerCase(),
-          password: formData.password
-        });
-
-        if (authError) throw authError;
-
-        const { password, ...dbPayload } = formData;
-
-        await supabase.from('staff_profiles').insert([
-          { ...dbPayload, id: authData.user.id, franchise_id: searchFranchiseId, email: formData.email.trim().toLowerCase() }
-        ]);
-
-        alert(`✅ Account created successfully! Verification email sent.`);
-      }
-      // Re-fetch in background to keep UI smooth
-      fetchStaffProfiles(searchFranchiseId, true);
-      closeModal();
-    } catch (err) { alert("Error: " + err.message); } finally { setSubmitting(false); }
-  };
-
-  const handleDelete = async (id) => {
-    if (window.confirm("⚠️ Delete this user permanently?")) {
-      try {
-        const { error } = await supabase.rpc('delete_staff_user', { target_id: id });
-        if (error) throw error;
-
-        alert("✅ Deleted successfully.");
-
-        // Optimistic UI + Cache Update
-        const updatedProfiles = profiles.filter(p => p.id !== id);
-        setProfiles(updatedProfiles);
-        sessionStorage.setItem(`staff_profiles_${searchFranchiseId}`, JSON.stringify(updatedProfiles));
-
-      } catch (err) { alert("Error: " + err.message); }
-    }
   };
 
   const filteredProfiles = profiles.filter(p =>
@@ -264,7 +285,7 @@ const CentralStaffProfiles = () => {
           </form>
         </div>
 
-        <div style={{ ...styles.actionRow, flexDirection: isMobile ? "row" : "row", gap: isMobile ? '8px' : '15px' }}>
+        <div style={{ ...styles.actionRow, gap: isMobile ? '8px' : '15px' }}>
           <div style={{ ...styles.searchContainer, flex: 1 }}>
             <Search size={18} style={styles.searchIcon} color="#94a3b8" />
             <input
@@ -275,10 +296,7 @@ const CentralStaffProfiles = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button style={styles.addBtn} onClick={() => {
-            if (!searchFranchiseId) alert("Load a Franchise ID first.");
-            else setIsModalOpen(true);
-          }}>
+          <button style={styles.addBtn} onClick={() => setIsModalOpen(true)}>
             <Plus size={20} /> {!isMobile && "Add New User"}
           </button>
         </div>
@@ -287,41 +305,36 @@ const CentralStaffProfiles = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {loading ? (
               <div style={styles.loaderCenter}><Loader2 className="animate-spin" color={GREEN} size={32} /></div>
-            ) : filteredProfiles.length > 0 ? (
-              filteredProfiles.map((p) => (
-                <div key={p.id} style={{ ...styles.mobileCard, borderColor: expandedId === p.id ? GREEN : (p.isOwner ? '#cbd5e1' : BORDER) }}>
-                  <div onClick={() => setExpandedId(expandedId === p.id ? null : p.id)} style={styles.cardHeader}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ ...styles.cardAvatar, background: p.isOwner ? `${GREEN}15` : (expandedId === p.id ? `${GREEN}15` : '#f3f4f6') }}>
-                        {p.isOwner ? <ShieldCheck size={20} color={GREEN} /> : <User size={20} color={expandedId === p.id ? GREEN : '#64748b'} />}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: '800', fontSize: '15px', color: BLACK }}>{p.name} {p.isOwner && "(Owner)"}</div>
-                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>ID: {p.staff_id}</div>
-                      </div>
+            ) : filteredProfiles.map((p) => (
+              <div key={p.id} style={{ ...styles.mobileCard, borderColor: expandedId === p.id ? GREEN : (p.isOwner ? '#cbd5e1' : BORDER) }}>
+                <div onClick={() => setExpandedId(expandedId === p.id ? null : p.id)} style={styles.cardHeader}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ ...styles.cardAvatar, background: p.isOwner ? `${GREEN}15` : (expandedId === p.id ? `${GREEN}15` : '#f3f4f6') }}>
+                      {p.isOwner ? <ShieldCheck size={20} color={GREEN} /> : <User size={20} color={expandedId === p.id ? GREEN : '#64748b'} />}
                     </div>
-                    {expandedId === p.id ? <ChevronDown size={20} color={GREEN} /> : <ChevronRight size={20} color="#cbd5e1" />}
+                    <div>
+                      <div style={{ fontWeight: '800', fontSize: '15px', color: BLACK }}>{p.name} {p.isOwner && "(Owner)"}</div>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>ID: {p.staff_id}</div>
+                    </div>
                   </div>
-
-                  {expandedId === p.id && (
-                    <div style={styles.cardBody}>
-                      <div style={styles.cardDetailGrid}>
-                        <div style={styles.cardInfoRow}><Phone size={14} color={GREEN} /> {p.phone}</div>
-                        <div style={styles.cardInfoRow}><Mail size={14} color={GREEN} /> {p.email || 'No Email'}</div>
-                        <div style={styles.cardInfoRow}><MapPin size={14} color={GREEN} /> {p.address || 'No Address'}</div>
-                      </div>
-                      <div style={styles.cardActions}>
-                        <button onClick={() => navigate('/central/staff-logins', { state: { targetUserId: p.id, targetName: p.name, franchiseId: searchFranchiseId } })} style={{ ...styles.cardActionBtn, color: '#2563eb', background: '#eff6ff' }}><Clock size={16} /> LOGS</button>
-                        {!p.isOwner && <button onClick={() => handleOpenEdit(p)} style={{ ...styles.cardActionBtn, color: GREEN, background: `${GREEN}10` }}><Edit2 size={16} /> EDIT</button>}
-                        {!p.isOwner && <button onClick={() => handleDelete(p.id)} style={{ ...styles.cardActionBtn, color: '#ef4444', background: '#fef2f2' }}><Trash2 size={16} /></button>}
-                      </div>
-                    </div>
-                  )}
+                  {expandedId === p.id ? <ChevronDown size={20} color={GREEN} /> : <ChevronRight size={20} color="#cbd5e1" />}
                 </div>
-              ))
-            ) : (
-              <div style={styles.emptyState}>No profiles found.</div>
-            )}
+
+                {expandedId === p.id && (
+                  <div style={styles.cardBody}>
+                    <div style={styles.cardDetailGrid}>
+                      <div style={styles.cardInfoRow}><Phone size={14} color={GREEN} /> {p.phone}</div>
+                      <div style={styles.cardInfoRow}><Mail size={14} color={GREEN} /> {p.email || 'No Email'}</div>
+                      <div style={styles.cardInfoRow}><MapPin size={14} color={GREEN} /> {p.address || 'No Address'}</div>
+                    </div>
+                    <div style={styles.cardActions}>
+                      <button onClick={() => navigate('/central/staff-logins', { state: { targetUserId: p.id, targetName: p.name, franchiseId: searchFranchiseId } })} style={{ ...styles.cardActionBtn, color: '#2563eb', background: '#eff6ff' }}><Clock size={16} /> LOGS</button>
+                      {!p.isOwner && <button onClick={() => handleOpenEdit(p)} style={{ ...styles.cardActionBtn, color: GREEN, background: `${GREEN}10` }}><Edit2 size={16} /> EDIT</button>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         ) : (
           <div style={styles.tableContainer}>
@@ -337,9 +350,7 @@ const CentralStaffProfiles = () => {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  <tr><td colSpan="6" style={{ ...styles.td, textAlign: 'center' }}><Loader2 className="animate-spin" style={{ margin: '20px auto' }} /></td></tr>
-                ) : filteredProfiles.map((profile, index) => (
+                {filteredProfiles.map((profile, index) => (
                   <tr key={profile.id} style={{ ...styles.tr, background: profile.isOwner ? '#f8fafc' : 'transparent' }}>
                     <td style={styles.td}>{index + 1}</td>
                     <td style={styles.td}>{profile.isOwner ? <span style={{ color: GREEN, fontWeight: '800' }}>OWNER</span> : "STAFF"}</td>
@@ -349,7 +360,6 @@ const CentralStaffProfiles = () => {
                     <td style={styles.actionTd}>
                       <button onClick={() => navigate('/central/staff-logins', { state: { targetUserId: profile.id, targetName: profile.name, franchiseId: searchFranchiseId } })} style={styles.timeBtn} title="View Logs"><Clock size={16} /></button>
                       {!profile.isOwner && <button onClick={() => handleOpenEdit(profile)} style={styles.editBtn} title="Edit"><Edit2 size={16} /></button>}
-                      {!profile.isOwner && <button onClick={() => handleDelete(profile.id)} style={styles.deleteBtn} title="Delete"><Trash2 size={16} /></button>}
                     </td>
                   </tr>
                 ))}
@@ -359,6 +369,7 @@ const CentralStaffProfiles = () => {
         )}
       </main>
 
+      {/* Modal */}
       {isModalOpen && (
         <div style={styles.modalOverlay} onClick={closeModal}>
           <div style={{ ...styles.modalContent, width: isMobile ? "95%" : "550px", borderRadius: "18px" }} onClick={e => e.stopPropagation()}>
@@ -401,7 +412,7 @@ const CentralStaffProfiles = () => {
               </div>
               <div style={{ ...styles.modalFooter, gridColumn: isMobile ? "span 1" : "span 2" }}>
                 <button type="button" onClick={closeModal} style={styles.cancelBtn}>Cancel</button>
-                <button type="submit" disabled={submitting} style={styles.submitBtn}>{submitting ? "Saving..." : "Save Profile"}</button>
+                <button type="submit" disabled={submitting} style={styles.submitBtn}>{submitting ? "Saving..." : "Save Profile"} </button>
               </div>
             </form>
           </div>
@@ -447,7 +458,7 @@ const styles = {
   editBtn: { padding: '8px', borderRadius: '8px', background: '#f0fdf4', color: GREEN, border: 'none', cursor: 'pointer' },
   deleteBtn: { padding: '8px', borderRadius: '8px', background: '#fef2f2', color: '#ef4444', border: 'none', cursor: 'pointer' },
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
-  modalContent: { background: 'white', padding: '20px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', maxHeight: '95vh' },
+  modalContent: { background: 'white', padding: '20px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', maxHeight: '95vh', overflowY: 'auto' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' },
   modalIconBox: { width: '40px', height: '40px', background: `${GREEN}10`, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   closeBtn: { background: '#f1f5f9', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' },

@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { createClient } from "@supabase/supabase-js";
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase, supabaseAdmin } from "../../supabase/supabaseClient";
 import {
   Eye, EyeOff, ArrowLeft, MapPin, Building2, User,
-  Phone, Mail, KeyRound, Sparkles, Map
+  Phone, Mail, KeyRound, Sparkles, Map, Loader2
 } from "lucide-react";
 
 // --- CONSTANTS ---
@@ -13,9 +12,6 @@ const PRIMARY_LIGHT = "rgba(6, 95, 70, 0.08)";
 const BORDER = "#e2e8f0";
 const TEXT_MAIN = "#1e293b";
 const TEXT_MUTED = "#64748b";
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 const INDIAN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana",
@@ -53,6 +49,7 @@ function RegisterUser() {
   const [suggestedId, setSuggestedId] = useState("");
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [companiesList, setCompaniesList] = useState([]);
+  const [jkshLogo, setJkshLogo] = useState(null);
 
   const [formData, setFormData] = useState({
     company: "", franchise_id: "", name: "", phone: "", email: "",
@@ -63,10 +60,25 @@ function RegisterUser() {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
-    getAdminProfile();
-    fetchCompanies();
+
+    const initPage = async () => {
+      getAdminProfile();
+      fetchCompanies();
+      fetchJkshLogo();
+    };
+
+    initPage();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const fetchJkshLogo = async () => {
+    const { data } = await supabase
+      .from('companies')
+      .select('logo_url')
+      .ilike('company_name', '%JKSH%')
+      .maybeSingle();
+    if (data?.logo_url) setJkshLogo(data.logo_url);
+  };
 
   const getAdminProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -119,42 +131,47 @@ function RegisterUser() {
     setFormData(prev => ({ ...prev, franchise_id: suggestedId }));
   };
 
-  const handleSubmit = async () => {
-    if (!formData.email || !formData.password || !formData.company || !formData.franchise_id) {
-      alert("Please fill in Brand, Email, Password, and Franchise ID.");
-      return;
-    }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // Strict Validation
+    if (!formData.company) return alert("Please select a Brand.");
+    if (!formData.franchise_id) return alert("Please confirm the Franchise ID.");
+    if (!formData.email) return alert("Email is required.");
+    if (!formData.password) return alert("Password is required.");
 
     setLoading(true);
     try {
-      // Create a dedicated client to avoid logging out the current admin
-      const tempSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { persistSession: false }
-      });
+      // 1. Build the payload exactly matching the SQL Trigger
+      const metadataPayload = {
+        name: formData.name.trim() || "",
+        phone: formData.phone.trim() || "",
+        company: formData.company.trim() || "",
+        franchise_id: formData.franchise_id.trim().toUpperCase() || "",
+        branch_location: formData.branch_location.trim() || "",
+        address: formData.addressLine.trim() || "",
+        city: formData.city.trim().toUpperCase() || "",
+        state: formData.state || "",
+        pincode: formData.pincode.trim() || "",
+        nearest_bus_stop: formData.nearestBusStop.trim() || "",
+        role: 'franchise'
+      };
 
-      // SIGN UP - The trigger handles the "profiles" insert automatically using the data below
-      const { data: authData, error: authError } = await tempSupabase.auth.signUp({
-        email: formData.email.trim(),
+      // DEBUG: Verify the data is leaving React correctly
+      console.log("🚀 SENDING PAYLOAD TO SUPABASE:", metadataPayload);
+
+      // 2. Fire the signup
+      const { data: authData, error: authError } = await supabaseAdmin.auth.signUp({
+        email: formData.email.trim().toLowerCase(),
         password: formData.password,
         options: {
-          data: {
-            name: formData.name.trim(),
-            phone: formData.phone.trim(),
-            company: formData.company,
-            franchise_id: formData.franchise_id.trim(),
-            branch_location: formData.branch_location.trim(),
-            address: formData.addressLine.trim(),
-            city: formData.city.trim().toUpperCase(),
-            state: formData.state,
-            pincode: formData.pincode.trim(),
-            nearest_bus_stop: formData.nearestBusStop.trim()
-          }
+          data: metadataPayload
         }
       });
 
       if (authError) throw authError;
 
-      alert(`Franchise Created! A verification email has been sent to ${formData.email}.`);
+      alert(`✅ Franchise Created! A verification email has been sent to ${formData.email}.`);
       navigate(-1);
 
     } catch (err) {
@@ -167,11 +184,14 @@ function RegisterUser() {
   return (
     <div style={styles.pageContainer}>
       <div style={{ ...styles.headerBar, padding: isMobile ? "0 12px" : "0 24px" }}>
-        <button onClick={() => navigate(-1)} style={styles.backButton}>
+        <button type="button" onClick={() => navigate(-1)} style={styles.backButton}>
           <ArrowLeft size={isMobile ? 22 : 18} />
           <span style={{ marginLeft: "8px" }}>Back</span>
         </button>
-        <h1 style={{ ...styles.title, fontSize: isMobile ? "17px" : "20px" }}>New Franchise</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {jkshLogo && <img src={jkshLogo} alt="Logo" style={{ height: '30px', borderRadius: '4px' }} />}
+          <h1 style={{ ...styles.title, fontSize: isMobile ? "17px" : "20px" }}>New Franchise</h1>
+        </div>
         <div style={styles.idBoxWrapper}>
           <div style={{ ...styles.idBox, fontSize: isMobile ? "11px" : "13px" }}>
             ID : {adminId}
@@ -182,114 +202,116 @@ function RegisterUser() {
       <div style={{ ...styles.mainContent, padding: isMobile ? "12px" : "32px" }}>
         <div style={{ ...styles.formCard, padding: isMobile ? "24px 16px" : "40px", borderRadius: isMobile ? "20px" : "16px" }}>
 
-          <div style={styles.sectionHeader}>
-            <Building2 size={18} color={PRIMARY} />
-            <h2 style={styles.sectionTitle}>Brand Identity</h2>
-          </div>
-
-          <div style={isMobile ? styles.flexColumn : styles.gridRowThree}>
-            <InputGroup isFocused={focusedField === "company"} label="Select Brand" isMobile={isMobile}>
-              <select name="company" value={formData.company} onChange={handleChange} style={styles.selectInput}
-                onFocus={() => setFocusedField("company")} onBlur={() => setFocusedField(null)}>
-                <option value="">Choose...</option>
-                {companiesList.map((compName, idx) => (
-                  <option key={idx} value={compName}>{compName}</option>
-                ))}
-              </select>
-            </InputGroup>
-
-            <div style={styles.suggestionWrapper}>
-              <label style={styles.inputLabel}>Suggested ID</label>
-              <div style={{ ...styles.suggestionBox, height: isMobile ? "52px" : "48px" }} onClick={applySuggestion}>
-                <Sparkles size={16} style={{ marginRight: '8px' }} />
-                {suggestedId || "Select Brand First"}
-              </div>
+          <form onSubmit={handleSubmit}>
+            <div style={styles.sectionHeader}>
+              <Building2 size={18} color={PRIMARY} />
+              <h2 style={styles.sectionTitle}>Brand Identity</h2>
             </div>
 
-            <InputGroup isFocused={focusedField === "franchise_id"} label="Confirm ID" isMobile={isMobile}>
-              <input name="franchise_id" value={formData.franchise_id} placeholder="e.g. TV-10" onChange={handleChange} style={styles.cleanInput}
-                onFocus={() => setFocusedField("franchise_id")} onBlur={() => setFocusedField(null)} />
-            </InputGroup>
-          </div>
+            <div style={isMobile ? styles.flexColumn : styles.gridRowThree}>
+              <InputGroup isFocused={focusedField === "company"} label="Select Brand *" isMobile={isMobile}>
+                <select name="company" required value={formData.company} onChange={handleChange} style={styles.selectInput}
+                  onFocus={() => setFocusedField("company")} onBlur={() => setFocusedField(null)}>
+                  <option value="">Choose...</option>
+                  {companiesList.map((compName, idx) => (
+                    <option key={idx} value={compName}>{compName}</option>
+                  ))}
+                </select>
+              </InputGroup>
 
-          <div style={styles.divider}></div>
+              <div style={styles.suggestionWrapper}>
+                <label style={styles.inputLabel}>Suggested ID</label>
+                <div style={{ ...styles.suggestionBox, height: isMobile ? "52px" : "48px" }} onClick={applySuggestion}>
+                  <Sparkles size={16} style={{ marginRight: '8px' }} />
+                  {suggestedId || "Select Brand First"}
+                </div>
+              </div>
 
-          <div style={styles.sectionHeader}>
-            <User size={18} color={PRIMARY} />
-            <h2 style={styles.sectionTitle}>Owner Details</h2>
-          </div>
+              <InputGroup isFocused={focusedField === "franchise_id"} label="Confirm ID *" isMobile={isMobile}>
+                <input name="franchise_id" required value={formData.franchise_id} placeholder="e.g. TV-10" onChange={handleChange} style={styles.cleanInput}
+                  onFocus={() => setFocusedField("franchise_id")} onBlur={() => setFocusedField(null)} />
+              </InputGroup>
+            </div>
 
-          <div style={isMobile ? styles.flexColumn : styles.gridRowTwo}>
-            <InputGroup icon={User} isFocused={focusedField === "name"} label="Full Name" isMobile={isMobile}>
-              <input name="name" value={formData.name} placeholder="Enter name" onChange={handleChange} style={styles.cleanInput}
-                onFocus={() => setFocusedField("name")} onBlur={() => setFocusedField(null)} />
-            </InputGroup>
-            <InputGroup icon={Phone} isFocused={focusedField === "phone"} label="Phone" isMobile={isMobile}>
-              <input name="phone" value={formData.phone} placeholder="+91" type="tel" onChange={handleChange} style={styles.cleanInput}
-                onFocus={() => setFocusedField("phone")} onBlur={() => setFocusedField(null)} />
-            </InputGroup>
-          </div>
+            <div style={styles.divider}></div>
 
-          <div style={isMobile ? styles.flexColumn : styles.gridRowTwo}>
-            <InputGroup icon={Mail} isFocused={focusedField === "email"} label="Email" isMobile={isMobile}>
-              <input name="email" value={formData.email} type="email" placeholder="email@domain.com" onChange={handleChange} style={styles.cleanInput}
-                onFocus={() => setFocusedField("email")} onBlur={() => setFocusedField(null)} />
-            </InputGroup>
-            <InputGroup icon={KeyRound} isFocused={focusedField === "password"} label="Password" isMobile={isMobile}>
-              <input name="password" value={formData.password} type={showPassword ? "text" : "password"} placeholder="••••••••" onChange={handleChange} style={styles.cleanInput}
-                onFocus={() => setFocusedField("password")} onBlur={() => setFocusedField(null)} />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-            </InputGroup>
-          </div>
+            <div style={styles.sectionHeader}>
+              <User size={18} color={PRIMARY} />
+              <h2 style={styles.sectionTitle}>Owner Details</h2>
+            </div>
 
-          <div style={styles.divider}></div>
+            <div style={isMobile ? styles.flexColumn : styles.gridRowTwo}>
+              <InputGroup icon={User} isFocused={focusedField === "name"} label="Full Name *" isMobile={isMobile}>
+                <input name="name" required value={formData.name} placeholder="Enter name" onChange={handleChange} style={styles.cleanInput}
+                  onFocus={() => setFocusedField("name")} onBlur={() => setFocusedField(null)} />
+              </InputGroup>
+              <InputGroup icon={Phone} isFocused={focusedField === "phone"} label="Phone *" isMobile={isMobile}>
+                <input name="phone" required value={formData.phone} placeholder="+91" type="tel" onChange={handleChange} style={styles.cleanInput}
+                  onFocus={() => setFocusedField("phone")} onBlur={() => setFocusedField(null)} />
+              </InputGroup>
+            </div>
 
-          <div style={styles.sectionHeader}>
-            <MapPin size={18} color={PRIMARY} />
-            <h2 style={styles.sectionTitle}>Location</h2>
-          </div>
+            <div style={isMobile ? styles.flexColumn : styles.gridRowTwo}>
+              <InputGroup icon={Mail} isFocused={focusedField === "email"} label="Email *" isMobile={isMobile}>
+                <input name="email" required value={formData.email} type="email" placeholder="email@domain.com" onChange={handleChange} style={styles.cleanInput}
+                  onFocus={() => setFocusedField("email")} onBlur={() => setFocusedField(null)} />
+              </InputGroup>
+              <InputGroup icon={KeyRound} isFocused={focusedField === "password"} label="Password *" isMobile={isMobile}>
+                <input name="password" required value={formData.password} type={showPassword ? "text" : "password"} placeholder="••••••••" onChange={handleChange} style={styles.cleanInput}
+                  onFocus={() => setFocusedField("password")} onBlur={() => setFocusedField(null)} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </InputGroup>
+            </div>
 
-          <div style={isMobile ? styles.flexColumn : styles.gridRowTwo}>
-            <InputGroup isFocused={focusedField === "branch_location"} label="Branch Name" isMobile={isMobile}>
-              <input name="branch_location" value={formData.branch_location} placeholder="e.g. Madhapur" onChange={handleChange} style={styles.cleanInput}
-                onFocus={() => setFocusedField("branch_location")} onBlur={() => setFocusedField(null)} />
-            </InputGroup>
-            <InputGroup icon={Map} isFocused={focusedField === "addressLine"} label="Street Address" isMobile={isMobile}>
-              <input name="addressLine" value={formData.addressLine} placeholder="Door No, Street..." onChange={handleChange} style={styles.cleanInput}
-                onFocus={() => setFocusedField("addressLine")} onBlur={() => setFocusedField(null)} />
-            </InputGroup>
-          </div>
+            <div style={styles.divider}></div>
 
-          <div style={isMobile ? styles.flexColumn : styles.gridRowThree}>
-            <InputGroup isFocused={focusedField === "city"} label="City" isMobile={isMobile}>
-              <input name="city" value={formData.city} placeholder="City" onChange={handleChange} style={styles.cleanInput}
-                onFocus={() => setFocusedField("city")} onBlur={() => setFocusedField(null)} />
-            </InputGroup>
-            <InputGroup isFocused={focusedField === "state"} label="State" isMobile={isMobile}>
-              <select name="state" value={formData.state} onChange={handleChange} style={styles.selectInput}
-                onFocus={() => setFocusedField("state")} onBlur={() => setFocusedField(null)}>
-                <option value="">Select...</option>
-                {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </InputGroup>
-            <InputGroup isFocused={focusedField === "pincode"} label="Pincode" isMobile={isMobile}>
-              <input name="pincode" value={formData.pincode} placeholder="6 Digits" maxLength={6} type="number" onChange={handleChange} style={styles.cleanInput}
-                onFocus={() => setFocusedField("pincode")} onBlur={() => setFocusedField(null)} />
-            </InputGroup>
-          </div>
+            <div style={styles.sectionHeader}>
+              <MapPin size={18} color={PRIMARY} />
+              <h2 style={styles.sectionTitle}>Location</h2>
+            </div>
 
-          <div style={{ marginBottom: "24px" }}>
-            <InputGroup icon={MapPin} isFocused={focusedField === "nearestBusStop"} label="Nearest Bus Stop" isMobile={isMobile}>
-              <input name="nearestBusStop" value={formData.nearestBusStop} placeholder="e.g. Jubilee Hills Checkpost" onChange={handleChange} style={styles.cleanInput}
-                onFocus={() => setFocusedField("nearestBusStop")} onBlur={() => setFocusedField(null)} />
-            </InputGroup>
-          </div>
+            <div style={isMobile ? styles.flexColumn : styles.gridRowTwo}>
+              <InputGroup isFocused={focusedField === "branch_location"} label="Branch Name *" isMobile={isMobile}>
+                <input name="branch_location" required value={formData.branch_location} placeholder="e.g. Madhapur" onChange={handleChange} style={styles.cleanInput}
+                  onFocus={() => setFocusedField("branch_location")} onBlur={() => setFocusedField(null)} />
+              </InputGroup>
+              <InputGroup icon={Map} isFocused={focusedField === "addressLine"} label="Street Address *" isMobile={isMobile}>
+                <input name="addressLine" required value={formData.addressLine} placeholder="Door No, Street..." onChange={handleChange} style={styles.cleanInput}
+                  onFocus={() => setFocusedField("addressLine")} onBlur={() => setFocusedField(null)} />
+              </InputGroup>
+            </div>
 
-          <button onClick={handleSubmit} disabled={loading} style={{ ...styles.button, padding: isMobile ? "18px" : "16px" }}>
-            {loading ? "Creating Account..." : "Create Franchise Account"}
-          </button>
+            <div style={isMobile ? styles.flexColumn : styles.gridRowThree}>
+              <InputGroup isFocused={focusedField === "city"} label="City *" isMobile={isMobile}>
+                <input name="city" required value={formData.city} placeholder="City" onChange={handleChange} style={styles.cleanInput}
+                  onFocus={() => setFocusedField("city")} onBlur={() => setFocusedField(null)} />
+              </InputGroup>
+              <InputGroup isFocused={focusedField === "state"} label="State *" isMobile={isMobile}>
+                <select name="state" required value={formData.state} onChange={handleChange} style={styles.selectInput}
+                  onFocus={() => setFocusedField("state")} onBlur={() => setFocusedField(null)}>
+                  <option value="">Select...</option>
+                  {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </InputGroup>
+              <InputGroup isFocused={focusedField === "pincode"} label="Pincode *" isMobile={isMobile}>
+                <input name="pincode" required value={formData.pincode} placeholder="6 Digits" maxLength={6} type="number" onChange={handleChange} style={styles.cleanInput}
+                  onFocus={() => setFocusedField("pincode")} onBlur={() => setFocusedField(null)} />
+              </InputGroup>
+            </div>
+
+            <div style={{ marginBottom: "24px" }}>
+              <InputGroup icon={MapPin} isFocused={focusedField === "nearestBusStop"} label="Nearest Bus Stop *" isMobile={isMobile}>
+                <input name="nearestBusStop" required value={formData.nearestBusStop} placeholder="e.g. Jubilee Hills Checkpost" onChange={handleChange} style={styles.cleanInput}
+                  onFocus={() => setFocusedField("nearestBusStop")} onBlur={() => setFocusedField(null)} />
+              </InputGroup>
+            </div>
+
+            <button type="submit" disabled={loading} style={{ ...styles.button, padding: isMobile ? "18px" : "16px" }}>
+              {loading ? <Loader2 className="animate-spin" size={20} /> : "Create Franchise Account"}
+            </button>
+          </form>
         </div>
       </div>
     </div>
@@ -317,7 +339,7 @@ const styles = {
   selectInput: { width: "100%", border: "none", outline: "none", fontSize: "16px", background: "transparent", cursor: "pointer", color: TEXT_MAIN },
   eyeButton: { background: "transparent", border: "none", cursor: "pointer", color: TEXT_MUTED, padding: "4px" },
   divider: { height: "1px", backgroundColor: BORDER, margin: "8px 0 32px 0" },
-  button: { width: "100%", borderRadius: "14px", border: "none", backgroundColor: PRIMARY, color: "#fff", fontSize: "16px", fontWeight: "700", cursor: "pointer", marginTop: "8px", transition: "opacity 0.2s" }
+  button: { width: "100%", borderRadius: "14px", border: "none", backgroundColor: PRIMARY, color: "#fff", fontSize: "16px", fontWeight: "700", cursor: "pointer", marginTop: "8px", transition: "opacity 0.2s", display: 'flex', justifyContent: 'center', alignItems: 'center' }
 };
 
 export default RegisterUser;

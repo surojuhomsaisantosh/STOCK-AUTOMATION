@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../supabase/supabaseClient";
-import { Eye, EyeOff, Loader2, KeyRound } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 const PRIMARY = "#065f46";
 const BORDER = "#e5e7eb";
@@ -17,27 +17,23 @@ function Login() {
   const [loginType, setLoginType] = useState("store");
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const [successMsg, setSuccessMsg] = useState(""); // For forgot password status
+  const [successMsg, setSuccessMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [dynamicLogo, setDynamicLogo] = useState(null);
-
-  // Recovery Mode state (for when user clicks the email link)
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
-
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
 
-    // 1. Check if we are in recovery mode (user clicked the email link)
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    // FIX: Standardize Auth State Changes to prevent duplicate listener overhead
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
       if (event === "PASSWORD_RECOVERY") {
         setIsRecoveryMode(true);
       }
     });
 
-    // 2. Fetch Logo
     const fetchJkshLogo = async () => {
       try {
         const { data } = await supabase
@@ -46,11 +42,14 @@ function Login() {
           .ilike('company_name', '%JKSH%')
           .maybeSingle();
         if (data?.logo_url) setDynamicLogo(data.logo_url);
-      } catch (err) { console.error(err); }
+      } catch (err) { console.error("Logo fetch failed:", err); }
     };
 
     fetchJkshLogo();
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const handleLogin = async () => {
@@ -62,8 +61,7 @@ function Login() {
       const cleanPassword = password.trim();
       const cleanEmail = email.trim().toLowerCase();
 
-      if (!cleanEmail) throw new Error("Email address is required");
-      if (!cleanPassword) throw new Error("Password is required");
+      if (!cleanEmail || !cleanPassword) throw new Error("Email and Password are required");
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
@@ -72,21 +70,25 @@ function Login() {
 
       if (authError) throw new Error("Invalid credentials.");
 
-      // ... Existing role fetching logic ...
       let userRole = "";
       let finalProfileData = null;
+
+      // Try fetching from profiles
       let { data: ownerProfile } = await supabase.from("profiles").select("*").eq("id", authData.user.id).maybeSingle();
 
       if (ownerProfile) {
         userRole = ownerProfile.role;
         finalProfileData = ownerProfile;
       } else {
+        // Try fetching from staff_profiles
         const { data: staffProfile } = await supabase.from("staff_profiles").select("*").eq("id", authData.user.id).maybeSingle();
         if (staffProfile) {
           userRole = "staff";
           const { data: franchiseInfo } = await supabase.from("profiles").select("*").eq("franchise_id", staffProfile.franchise_id).maybeSingle();
           finalProfileData = { ...staffProfile, role: "staff", ...franchiseInfo };
-        } else { throw new Error("Profile not found."); }
+        } else {
+          throw new Error("Profile not found.");
+        }
       }
 
       let finalLoginMode = (userRole === "staff") ? "store" : loginType;
@@ -102,32 +104,25 @@ function Login() {
     } finally { setIsLoading(false); }
   };
 
-  // --- NEW: SEND RESET EMAIL ---
   const handleForgotPassword = async () => {
-    if (!email) return setErrorMsg("Please enter your email first to reset password.");
+    if (!email) return setErrorMsg("Please enter your email first.");
     setErrorMsg("");
     setIsLoading(true);
-
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin, // Redirects user back to this login page
+      redirectTo: window.location.origin,
     });
-
     if (error) setErrorMsg(error.message);
-    else setSuccessMsg("Password reset link sent to your email!");
-
+    else setSuccessMsg("Password reset link sent!");
     setIsLoading(false);
   };
 
-  // --- NEW: UPDATE TO NEW PASSWORD ---
   const handleUpdatePassword = async () => {
-    if (!password) return setErrorMsg("Please enter a new password.");
+    if (!password) return setErrorMsg("Enter a new password.");
     setIsLoading(true);
-
     const { error } = await supabase.auth.updateUser({ password: password });
-
     if (error) setErrorMsg(error.message);
     else {
-      setSuccessMsg("Password updated! You can now login.");
+      setSuccessMsg("Updated! You can now login.");
       setIsRecoveryMode(false);
       setPassword("");
     }
@@ -137,7 +132,6 @@ function Login() {
   return (
     <div style={styles.page}>
       <div style={{ ...styles.card, width: isMobile ? "90%" : "420px", padding: isMobile ? "30px 20px" : "40px" }}>
-
         <div style={styles.logoContainer}>
           {dynamicLogo ? (
             <img src={dynamicLogo} alt="JKSH Logo" style={{ ...styles.logo, width: isMobile ? "110px" : "140px" }} />
@@ -149,8 +143,6 @@ function Login() {
         </div>
 
         <h1 style={{ ...styles.title, fontSize: isMobile ? "18px" : "22px", marginBottom: "8px" }}>JKSH United Pvt.Ltd</h1>
-
-        {/* Dynamic Mode Heading */}
         <p style={{ fontSize: '11px', fontWeight: '800', color: PRIMARY, marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '1px' }}>
           {isRecoveryMode ? "Set New Password" : `${loginType} access portal`}
         </p>
@@ -166,7 +158,6 @@ function Login() {
         {successMsg && <div style={styles.successBox}>{successMsg}</div>}
 
         <div style={styles.form}>
-          {/* Email field hidden during recovery */}
           {!isRecoveryMode && (
             <input style={styles.input} type="email" placeholder="Email Address" value={email} onChange={(e) => setEmail(e.target.value)} />
           )}
@@ -193,13 +184,7 @@ function Login() {
               <button style={styles.button} onClick={handleLogin} disabled={isLoading}>
                 {isLoading ? "Verifying..." : "Login"}
               </button>
-
-              <button
-                type="button"
-                onClick={handleForgotPassword}
-                style={styles.forgotBtn}
-                disabled={isLoading}
-              >
+              <button type="button" onClick={handleForgotPassword} style={styles.forgotBtn}>
                 Forgot Password?
               </button>
             </>
