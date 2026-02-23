@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../supabase/supabaseClient";
-import { Eye, EyeOff, Loader2 } from "lucide-react"; // Added Loader2 for logo placeholder
+import { Eye, EyeOff, Loader2, KeyRound } from "lucide-react";
 
 const PRIMARY = "#065f46";
 const BORDER = "#e5e7eb";
@@ -17,8 +17,12 @@ function Login() {
   const [loginType, setLoginType] = useState("store");
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState(""); // For forgot password status
   const [isLoading, setIsLoading] = useState(false);
-  const [dynamicLogo, setDynamicLogo] = useState(null); // State for the storage logo
+  const [dynamicLogo, setDynamicLogo] = useState(null);
+
+  // Recovery Mode state (for when user clicks the email link)
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -26,22 +30,23 @@ function Login() {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
 
-    // --- FETCH JKSH LOGO FROM STORAGE ---
+    // 1. Check if we are in recovery mode (user clicked the email link)
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setIsRecoveryMode(true);
+      }
+    });
+
+    // 2. Fetch Logo
     const fetchJkshLogo = async () => {
       try {
-        // Query the companies table to find the JKSH entry specifically
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('companies')
           .select('logo_url')
-          .ilike('company_name', '%JKSH%') // Find the company name containing JKSH
+          .ilike('company_name', '%JKSH%')
           .maybeSingle();
-
-        if (data?.logo_url) {
-          setDynamicLogo(data.logo_url);
-        }
-      } catch (err) {
-        console.error("Logo fetch failed:", err);
-      }
+        if (data?.logo_url) setDynamicLogo(data.logo_url);
+      } catch (err) { console.error(err); }
     };
 
     fetchJkshLogo();
@@ -50,6 +55,7 @@ function Login() {
 
   const handleLogin = async () => {
     setErrorMsg("");
+    setSuccessMsg("");
     setIsLoading(true);
 
     try {
@@ -64,110 +70,140 @@ function Login() {
         password: cleanPassword,
       });
 
-      if (authError) throw new Error("Invalid credentials. Please check your email and password.");
+      if (authError) throw new Error("Invalid credentials.");
 
+      // ... Existing role fetching logic ...
       let userRole = "";
-      let userFranchiseId = "";
       let finalProfileData = null;
-
-      let { data: ownerProfile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", authData.user.id)
-        .maybeSingle();
+      let { data: ownerProfile } = await supabase.from("profiles").select("*").eq("id", authData.user.id).maybeSingle();
 
       if (ownerProfile) {
         userRole = ownerProfile.role;
-        userFranchiseId = ownerProfile.franchise_id;
         finalProfileData = ownerProfile;
       } else {
-        const { data: staffProfile } = await supabase
-          .from("staff_profiles")
-          .select("*")
-          .eq("id", authData.user.id)
-          .maybeSingle();
-
+        const { data: staffProfile } = await supabase.from("staff_profiles").select("*").eq("id", authData.user.id).maybeSingle();
         if (staffProfile) {
           userRole = "staff";
-          userFranchiseId = staffProfile.franchise_id;
-
-          const { data: franchiseInfo } = await supabase
-            .from("profiles")
-            .select("company, address, city, state, pincode, phone")
-            .eq("franchise_id", userFranchiseId)
-            .limit(1)
-            .maybeSingle();
-
-          finalProfileData = {
-            ...staffProfile,
-            role: "staff",
-            staff_profile_id: staffProfile.id,
-            ...franchiseInfo
-          };
-        } else {
-          throw new Error("User profile not found in database.");
-        }
+          const { data: franchiseInfo } = await supabase.from("profiles").select("*").eq("franchise_id", staffProfile.franchise_id).maybeSingle();
+          finalProfileData = { ...staffProfile, role: "staff", ...franchiseInfo };
+        } else { throw new Error("Profile not found."); }
       }
 
-      let finalLoginMode = loginType;
-      if (userRole === "staff") {
-        finalLoginMode = "store";
-      }
-
+      let finalLoginMode = (userRole === "staff") ? "store" : loginType;
       await login(authData.user, finalProfileData, finalLoginMode);
 
-      if (finalLoginMode === "store") {
-        navigate("/store");
-      } else {
+      if (finalLoginMode === "store") navigate("/store");
+      else {
         const routes = { central: "central", franchise: "franchiseowner", stock: "stockmanager" };
         navigate(`/dashboard/${routes[userRole] || "franchiseowner"}`);
       }
     } catch (err) {
-      console.error(err);
-      setErrorMsg(err.message || "Login failed");
-    } finally {
-      setIsLoading(false);
+      setErrorMsg(err.message);
+    } finally { setIsLoading(false); }
+  };
+
+  // --- NEW: SEND RESET EMAIL ---
+  const handleForgotPassword = async () => {
+    if (!email) return setErrorMsg("Please enter your email first to reset password.");
+    setErrorMsg("");
+    setIsLoading(true);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin, // Redirects user back to this login page
+    });
+
+    if (error) setErrorMsg(error.message);
+    else setSuccessMsg("Password reset link sent to your email!");
+
+    setIsLoading(false);
+  };
+
+  // --- NEW: UPDATE TO NEW PASSWORD ---
+  const handleUpdatePassword = async () => {
+    if (!password) return setErrorMsg("Please enter a new password.");
+    setIsLoading(true);
+
+    const { error } = await supabase.auth.updateUser({ password: password });
+
+    if (error) setErrorMsg(error.message);
+    else {
+      setSuccessMsg("Password updated! You can now login.");
+      setIsRecoveryMode(false);
+      setPassword("");
     }
+    setIsLoading(false);
   };
 
   return (
     <div style={styles.page}>
       <div style={{ ...styles.card, width: isMobile ? "90%" : "420px", padding: isMobile ? "30px 20px" : "40px" }}>
+
         <div style={styles.logoContainer}>
           {dynamicLogo ? (
-            <img
-              src={dynamicLogo}
-              alt="JKSH Logo"
-              style={{ ...styles.logo, width: isMobile ? "110px" : "140px" }}
-            />
+            <img src={dynamicLogo} alt="JKSH Logo" style={{ ...styles.logo, width: isMobile ? "110px" : "140px" }} />
           ) : (
-            // Placeholder while loading or if fetch fails
-            <div style={{ ...styles.logo, width: isMobile ? "110px" : "140px", height: isMobile ? "60px" : "80px", display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ ...styles.logo, width: isMobile ? "110px" : "140px", height: "60px", display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Loader2 className="animate-spin text-slate-200" size={24} />
             </div>
           )}
         </div>
 
-        <h1 style={{ ...styles.title, fontSize: isMobile ? "18px" : "22px", marginBottom: isMobile ? "20px" : "28px" }}>JKSH United Pvt.Ltd</h1>
+        <h1 style={{ ...styles.title, fontSize: isMobile ? "18px" : "22px", marginBottom: "8px" }}>JKSH United Pvt.Ltd</h1>
 
-        <div style={{ ...styles.toggleBar, marginBottom: isMobile ? "20px" : "28px" }}>
-          <button onClick={() => { setLoginType("store"); setErrorMsg(""); }} style={{ ...styles.toggleButton, ...(loginType === "store" && styles.toggleActive) }}>STORE</button>
-          <button onClick={() => { setLoginType("admin"); setErrorMsg(""); }} style={{ ...styles.toggleButton, ...(loginType === "admin" && styles.toggleActive) }}>ADMIN</button>
-        </div>
+        {/* Dynamic Mode Heading */}
+        <p style={{ fontSize: '11px', fontWeight: '800', color: PRIMARY, marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+          {isRecoveryMode ? "Set New Password" : `${loginType} access portal`}
+        </p>
+
+        {!isRecoveryMode && (
+          <div style={{ ...styles.toggleBar, marginBottom: "24px" }}>
+            <button onClick={() => setLoginType("store")} style={{ ...styles.toggleButton, ...(loginType === "store" && styles.toggleActive) }}>STORE</button>
+            <button onClick={() => setLoginType("admin")} style={{ ...styles.toggleButton, ...(loginType === "admin" && styles.toggleActive) }}>ADMIN</button>
+          </div>
+        )}
 
         {errorMsg && <div style={styles.errorBox}>{errorMsg}</div>}
+        {successMsg && <div style={styles.successBox}>{successMsg}</div>}
 
         <div style={styles.form}>
-          <input style={styles.input} type="email" placeholder={loginType === "store" ? "Staff Email" : "Admin Email"} value={email} onChange={(e) => setEmail(e.target.value)} />
+          {/* Email field hidden during recovery */}
+          {!isRecoveryMode && (
+            <input style={styles.input} type="email" placeholder="Email Address" value={email} onChange={(e) => setEmail(e.target.value)} />
+          )}
+
           <div style={styles.passwordWrapper}>
-            <input style={styles.inputPassword} type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <input
+              style={styles.inputPassword}
+              type={showPassword ? "text" : "password"}
+              placeholder={isRecoveryMode ? "Enter New Password" : "Password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
             <button type="button" style={styles.eyeBtn} onClick={() => setShowPassword(!showPassword)}>
               {showPassword ? <EyeOff size={18} color={BLACK} /> : <Eye size={18} color={BLACK} />}
             </button>
           </div>
-          <button style={styles.button} onClick={handleLogin} disabled={isLoading}>
-            {isLoading ? "Verifying..." : "Login"}
-          </button>
+
+          {isRecoveryMode ? (
+            <button style={styles.button} onClick={handleUpdatePassword} disabled={isLoading}>
+              {isLoading ? "Updating..." : "Update Password"}
+            </button>
+          ) : (
+            <>
+              <button style={styles.button} onClick={handleLogin} disabled={isLoading}>
+                {isLoading ? "Verifying..." : "Login"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                style={styles.forgotBtn}
+                disabled={isLoading}
+              >
+                Forgot Password?
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -176,20 +212,22 @@ function Login() {
 
 const styles = {
   page: { height: "100vh", width: "100vw", display: "flex", justifyContent: "center", alignItems: "center", background: "#f3f4f6", fontFamily: '"Inter", sans-serif' },
-  card: { background: "#fff", borderRadius: "32px", border: `1.5px solid ${BORDER}`, textAlign: "center", boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', display: "flex", flexDirection: "column", alignItems: "center", boxSizing: "border-box" },
-  logoContainer: { marginBottom: "24px", display: "flex", justifyContent: "center", width: "100%", minHeight: '80px' },
-  logo: { height: "auto", borderRadius: "16px", objectFit: "contain", display: "block", padding: "8px", background: "#fff", border: `1px solid ${BORDER}`, filter: "drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.05))" },
-  title: { fontWeight: "900", color: BLACK, letterSpacing: '-0.5px', width: "100%" },
-  toggleBar: { display: "flex", background: "#f3f4f6", borderRadius: "16px", padding: "6px", width: "100%", boxSizing: "border-box" },
-  toggleButton: { flex: 1, padding: "12px", border: "none", background: "transparent", borderRadius: "12px", fontSize: "12px", fontWeight: "800", color: "#6b7280", cursor: "pointer", transition: '0.2s' },
+  card: { background: "#fff", borderRadius: "32px", border: `1.5px solid ${BORDER}`, textAlign: "center", boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', display: "flex", flexDirection: "column", alignItems: "center", boxSizing: "border-box" },
+  logoContainer: { marginBottom: "16px", display: "flex", justifyContent: "center", width: "100%" },
+  logo: { height: "auto", borderRadius: "16px", objectFit: "contain", padding: "8px", background: "#fff", border: `1px solid ${BORDER}` },
+  title: { fontWeight: "900", color: BLACK, letterSpacing: '-0.5px' },
+  toggleBar: { display: "flex", background: "#f3f4f6", borderRadius: "16px", padding: "6px", width: "100%" },
+  toggleButton: { flex: 1, padding: "12px", border: "none", background: "transparent", borderRadius: "12px", fontSize: "12px", fontWeight: "800", color: "#6b7280", cursor: "pointer" },
   toggleActive: { background: PRIMARY, color: "#fff" },
   form: { display: "flex", flexDirection: "column", gap: "14px", width: "100%" },
   input: { width: "100%", padding: "16px 20px", borderRadius: "16px", border: `1.5px solid ${BORDER}`, fontSize: "14px", outline: "none", color: BLACK, fontWeight: '600', boxSizing: "border-box" },
   passwordWrapper: { position: "relative", width: "100%" },
   inputPassword: { width: "100%", padding: "16px 50px 16px 20px", borderRadius: "16px", border: `1.5px solid ${BORDER}`, fontSize: "14px", outline: "none", color: BLACK, fontWeight: '600', boxSizing: "border-box" },
   eyeBtn: { position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer" },
-  button: { width: "100%", padding: "18px", borderRadius: "16px", background: PRIMARY, color: "#fff", border: "none", fontSize: "13px", fontWeight: "800", marginTop: "16px", cursor: "pointer" },
-  errorBox: { width: "100%", background: "#fee2e2", color: "#ef4444", padding: "12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", marginBottom: "18px", boxSizing: "border-box" },
+  button: { width: "100%", padding: "18px", borderRadius: "16px", background: PRIMARY, color: "#fff", border: "none", fontSize: "13px", fontWeight: "800", marginTop: "10px", cursor: "pointer" },
+  forgotBtn: { background: 'none', border: 'none', color: '#6b7280', fontSize: '11px', fontWeight: '700', cursor: 'pointer', textDecoration: 'underline', marginTop: '4px' },
+  errorBox: { width: "100%", background: "#fee2e2", color: "#ef4444", padding: "12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", boxSizing: "border-box" },
+  successBox: { width: "100%", background: "#dcfce7", color: "#166534", padding: "12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", boxSizing: "border-box" },
 };
 
 export default Login;
