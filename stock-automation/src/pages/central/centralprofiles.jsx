@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react"; // Added useCallback
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import {
@@ -26,6 +26,7 @@ function CentralProfiles() {
   const navigate = useNavigate();
 
   const [profiles, setProfiles] = useState([]);
+  const [allCompanies, setAllCompanies] = useState([]); // NEW: State for master company list
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
@@ -50,15 +51,24 @@ function CentralProfiles() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return navigate("/");
 
-      const [profileRes, listRes] = await Promise.all([
+      // UPDATED: Added companiesRes to fetch the master list of company names
+      const [profileRes, listRes, companiesRes] = await Promise.all([
         supabase.from("profiles").select("role, franchise_id").eq("id", session.user.id).single(),
-        supabase.from("profiles").select("*")
+        supabase.from("profiles").select("*"),
+        supabase.from("companies").select("company_name") // Fetching from companies table
       ]);
 
       if (profileRes.data?.role !== "central") return navigate("/");
 
       setUserFranchiseId(profileRes.data?.franchise_id || "CENTRAL-HQ");
       setProfiles(listRes.data || []);
+
+      // Extract unique company names from the master table
+      if (companiesRes.data) {
+        const names = companiesRes.data.map(c => c.company_name).filter(Boolean);
+        setAllCompanies([...new Set(names)].sort());
+      }
+
       setLoading(false);
     };
     init();
@@ -78,10 +88,10 @@ function CentralProfiles() {
     year: 'numeric'
   }).format(new Date());
 
-  const companies = useMemo(() => {
-    const list = profiles.map(p => p.company).filter(Boolean);
-    return ["all", ...new Set(list)];
-  }, [profiles]);
+  // UPDATED: Now uses allCompanies state (the master list) instead of deriving from profiles
+  const dropdownCompanies = useMemo(() => {
+    return ["all", ...allCompanies];
+  }, [allCompanies]);
 
   const sortedAndFilteredProfiles = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -222,7 +232,8 @@ function CentralProfiles() {
                 onChange={(e) => setCompanyFilter(e.target.value)}
               >
                 <option value="all">All Companies</option>
-                {companies.filter(c => c !== "all").map(c => (
+                {/* UPDATED: Mapping from dropdownCompanies (master list) */}
+                {dropdownCompanies.filter(c => c !== "all").map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
@@ -284,7 +295,7 @@ function CentralProfiles() {
                 </div>
 
                 <div style={styles.addressBox}>
-                  <MapPin size={14} flexShrink={0} />
+                  <MapPin style={{ flexShrink: 0 }} size={18} />
                   <span style={styles.addressText}>{p.address || "No Address Provided"}</span>
                 </div>
 
@@ -368,7 +379,6 @@ function CentralProfiles() {
                   <input style={styles.modalInput} name="name" value={editForm.name || ""} onChange={handleInputChange} />
                 </div>
 
-                {/* UPDATED SYSTEM ROLE DROPDOWN WRAPPER */}
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>System Role</label>
                   <div style={styles.selectWrapper}>
@@ -385,7 +395,21 @@ function CentralProfiles() {
               <div style={{ ...styles.formRow, flexDirection: isMobile ? 'column' : 'row' }}>
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>Company Name</label>
-                  <input style={styles.modalInput} name="company" value={editForm.company || ""} onChange={handleInputChange} />
+                  {/* UPDATED: Added a select for Company Name to ensure consistency with master list */}
+                  <div style={styles.selectWrapper}>
+                    <select
+                      style={styles.modalSelect}
+                      name="company"
+                      value={editForm.company || ""}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select Company</option>
+                      {allCompanies.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={18} color="#9ca3af" style={styles.selectIcon} />
+                  </div>
                 </div>
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>Franchise ID</label>
@@ -453,6 +477,8 @@ function CentralProfiles() {
   );
 }
 
+// ... Styles remains the same ...
+
 const styles = {
   page: { background: "#fff", minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: "#111827" },
   container: { maxWidth: "1400px", margin: "0 auto" },
@@ -506,7 +532,6 @@ const styles = {
   label: { fontSize: "11px", fontWeight: "800", color: "#9ca3af", textTransform: 'uppercase' },
   modalInput: { padding: "14px", borderRadius: "14px", border: `1.5px solid ${BORDER}`, outline: "none", fontSize: "14px", background: '#f9fafb' },
 
-  // IMPROVED MODAL SELECT STYLES
   selectWrapper: { position: 'relative', display: 'flex', alignItems: 'center', width: '100%' },
   modalSelect: {
     padding: "14px",

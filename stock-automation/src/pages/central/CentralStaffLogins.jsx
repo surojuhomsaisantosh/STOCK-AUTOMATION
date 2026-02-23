@@ -14,10 +14,22 @@ const BORDER_COLOR = "#e2e8f0";
 const CentralStaffLogins = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { targetUserId, franchiseId } = location.state || {};
 
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Route state
+  const { targetUserId, franchiseId, isOwner } = location.state || {};
+
+  // OPTIMIZATION 1: Load initial state from sessionStorage if it exists (Instant Load)
+  const getCacheKey = () => `logs_${franchiseId}_${targetUserId || 'all'}`;
+
+  const [logs, setLogs] = useState(() => {
+    if (!franchiseId) return [];
+    const cached = sessionStorage.getItem(getCacheKey());
+    return cached ? JSON.parse(cached) : [];
+  });
+
+  // If we found cache, we don't need the blocking loading spinner
+  const [loading, setLoading] = useState(() => !sessionStorage.getItem(getCacheKey()));
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -43,6 +55,8 @@ const CentralStaffLogins = () => {
     window.addEventListener('resize', handleResize);
 
     if (!franchiseId) return;
+
+    // Fetch logs (will update cache silently in the background)
     fetchLogs(franchiseId, targetUserId);
     setupRealtime(franchiseId);
 
@@ -53,13 +67,26 @@ const CentralStaffLogins = () => {
         channelRef.current = null;
       }
     };
-  }, [targetUserId, franchiseId]);
+  }, [targetUserId, franchiseId, isOwner]);
 
   // --- UTILS ---
   const getStaffDetails = (log) => {
     let profile = log.staff_profiles;
     if (Array.isArray(profile)) profile = profile[0];
-    return { name: profile?.name || "Unknown", id: profile?.staff_id || "N/A" };
+
+    if (profile) {
+      return {
+        name: profile.name || "Unknown",
+        id: profile.staff_id || "N/A",
+        isOwner: false
+      };
+    }
+
+    return {
+      name: "Owner / Admin",
+      id: log.franchise_id || franchiseId || "ADMIN",
+      isOwner: true
+    };
   };
 
   const calculateDurationDisplay = (startStr, endStr) => {
@@ -89,6 +116,7 @@ const CentralStaffLogins = () => {
         .eq('id', logId);
       if (error) throw error;
       alert("✅ Session ended.");
+      // Realtime listener will automatically pick this up and refresh the data
     } catch (err) {
       alert("❌ Error: " + err.message);
     }
@@ -101,44 +129,82 @@ const CentralStaffLogins = () => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'login_logs', filter: `franchise_id=eq.${fid}` },
-        () => fetchLogs(fid, targetUserId, false)
+        () => fetchLogs(fid, targetUserId, false) // Silent refresh
       )
       .subscribe();
     channelRef.current = channel;
   };
 
+  // --- FETCH LOGS ---
   const fetchLogs = async (fid, specificTargetId, showLoading = true) => {
+    if (showLoading && !logs.length) setLoading(true); // Only show spinner if we don't have cached logs
     if (showLoading) setIsRefreshing(true);
+
+    // DELETED: The massive raw data debug fetch that was doubling your DB reads.
+
+    let resolvedIsOwner = isOwner;
+
+    // OPTIMIZATION 2: Cache the Role Lookup
+    if (specificTargetId && resolvedIsOwner === undefined && specificTargetId !== "ADMIN") {
+      const roleCacheKey = `role_${specificTargetId}`;
+      const cachedRole = sessionStorage.getItem(roleCacheKey);
+
+      if (cachedRole) {
+        resolvedIsOwner = cachedRole === 'owner';
+      } else {
+        const { data: staffData } = await supabase
+          .from('staff_profiles')
+          .select('id')
+          .eq('id', specificTargetId)
+          .maybeSingle();
+
+        resolvedIsOwner = !staffData;
+        sessionStorage.setItem(roleCacheKey, resolvedIsOwner ? 'owner' : 'staff');
+      }
+    }
 
     let query = supabase
       .from('login_logs')
-      .select(`*, staff_profiles!inner( name, staff_id )`)
+      .select(`*, staff_profiles( name, staff_id )`)
       .eq('franchise_id', fid)
       .order('login_at', { ascending: false });
 
     if (specificTargetId) {
-      query = query.eq('staff_id', specificTargetId);
+      if (resolvedIsOwner || specificTargetId === "ADMIN") {
+        query = query.or(`staff_id.is.null,staff_id.eq.${specificTargetId}`);
+      } else {
+        query = query.eq('staff_id', specificTargetId);
+      }
     }
 
     const { data, error } = await query;
-    if (error) console.error("❌ DB Error:", error.message);
-    else setLogs(data || []);
+
+    if (error) {
+      console.error("❌ QUERY ERROR:", error.message);
+    } else {
+      setLogs(data || []);
+      // OPTIMIZATION 3: Save the fresh data to sessionStorage for the next time they visit this page
+      sessionStorage.setItem(getCacheKey(), JSON.stringify(data || []));
+    }
 
     if (showLoading) setIsRefreshing(false);
     setLoading(false);
   };
 
   const getFilteredLogs = () => {
-    return logs.filter(log => {
+    const filtered = logs.filter(log => {
       const { name, id } = getStaffDetails(log);
       const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         id.toLowerCase().includes(searchTerm.toLowerCase());
       if (!matchesSearch) return false;
 
       const logDate = new Date(log.login_at).toLocaleDateString('en-CA');
+
       if (filterType === 'date') return logDate === selectedDate;
       else return logDate >= startDate && logDate <= endDate;
     });
+
+    return filtered;
   };
 
   const finalLogs = getFilteredLogs();
@@ -179,7 +245,6 @@ const CentralStaffLogins = () => {
   return (
     <div style={styles.page}>
 
-      {/* NEW HEADER DESIGN */}
       <header style={styles.header}>
         <div style={styles.headerInner}>
           <button onClick={() => navigate(-1)} style={styles.backBtn}>
@@ -187,7 +252,7 @@ const CentralStaffLogins = () => {
           </button>
 
           <h1 style={styles.heading}>
-            Staff <span style={{ color: THEME_GREEN }}>Timings</span>
+            User <span style={{ color: THEME_GREEN }}>Timings</span>
           </h1>
 
           <div style={styles.topRightActions}>
@@ -200,24 +265,21 @@ const CentralStaffLogins = () => {
 
       <div style={{ ...styles.container, padding: isMobile ? '20px 15px' : '20px' }}>
 
-        {/* 2. CONTROLS (Search + Date) */}
         <div style={{
           ...styles.controlsRow,
           flexDirection: isMobile ? 'column' : 'row',
           gap: isMobile ? '12px' : '20px'
         }}>
-          {/* Search Input */}
           <div style={{ ...styles.searchContainer, width: isMobile ? '100%' : '300px' }}>
             <Search size={18} color="#94a3b8" />
             <input
-              placeholder="Search Staff Name or ID..."
+              placeholder="Search Name or ID..."
               style={styles.searchInput}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
 
-          {/* Filters Group */}
           <div style={{
             ...styles.filterGroup,
             width: isMobile ? '100%' : 'auto',
@@ -225,7 +287,6 @@ const CentralStaffLogins = () => {
             flexDirection: isMobile ? 'column' : 'row',
             alignItems: isMobile ? 'stretch' : 'center'
           }}>
-            {/* Toggle Type - Full Width Segmented Control on Mobile */}
             <div style={{
               ...styles.toggleContainer,
               width: isMobile ? '100%' : 'auto',
@@ -253,7 +314,6 @@ const CentralStaffLogins = () => {
               </button>
             </div>
 
-            {/* Inputs */}
             <div style={{
               display: 'flex',
               gap: '8px',
@@ -262,7 +322,6 @@ const CentralStaffLogins = () => {
               justifyContent: isMobile ? 'space-between' : 'flex-end'
             }}>
               {filterType === 'date' ? (
-                // Single Date Input
                 <input
                   type="date"
                   style={{ ...styles.dateInput, width: '100%' }}
@@ -270,7 +329,6 @@ const CentralStaffLogins = () => {
                   onChange={(e) => setSelectedDate(e.target.value)}
                 />
               ) : (
-                // Range Inputs - Flex 1 to share space + minWidth 0
                 <>
                   <input
                     type="date"
@@ -287,7 +345,6 @@ const CentralStaffLogins = () => {
                   />
                 </>
               )}
-              {/* Refresh Button */}
               <button onClick={() => fetchLogs(franchiseId, targetUserId)} style={styles.refreshBtn} disabled={isRefreshing}>
                 <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
               </button>
@@ -295,7 +352,6 @@ const CentralStaffLogins = () => {
           </div>
         </div>
 
-        {/* 3. STATS CARDS */}
         <div style={{
           ...styles.statsRow,
           flexDirection: 'row',
@@ -311,21 +367,20 @@ const CentralStaffLogins = () => {
           </div>
         </div>
 
-        {/* 4. DATA DISPLAY */}
         {loading ? (
           <div style={{ padding: '60px', textAlign: 'center' }}>
             <Loader2 className="animate-spin" size={32} style={{ margin: '0 auto', color: THEME_GREEN }} />
           </div>
         ) : finalLogs.length > 0 ? (
           isMobile ? (
-            // === MOBILE CARDS ===
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {finalLogs.map((log) => {
                 const isLoggedOut = !!log.logout_at;
-                const { name, id } = getStaffDetails(log);
+                const { name, id, isOwner } = getStaffDetails(log);
+                const actualMode = log.login_mode ? log.login_mode.toUpperCase() : (isOwner ? "ADMIN" : "STORE");
+
                 return (
-                  <div key={log.id} style={styles.mobileCard}>
-                    {/* Card Header */}
+                  <div key={log.id} style={{ ...styles.mobileCard, borderLeft: isOwner ? `4px solid ${THEME_GREEN}` : `1px solid ${BORDER_COLOR}` }}>
                     <div style={styles.mobileCardHeader}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>
                         <Calendar size={14} /> {new Date(log.login_at).toLocaleDateString('en-GB')}
@@ -336,11 +391,15 @@ const CentralStaffLogins = () => {
                         <span style={styles.badgeActive}>Active Now</span>
                       )}
                     </div>
-                    {/* Card Body */}
                     <div style={styles.mobileCardBody}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                         <div>
-                          <div style={{ fontSize: '16px', fontWeight: '800', color: TEXT_DARK }}>{name}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <div style={{ fontSize: '16px', fontWeight: '800', color: TEXT_DARK }}>{name}</div>
+                            <span style={actualMode === "ADMIN" ? styles.modeAdmin : styles.modeStore}>
+                              {actualMode}
+                            </span>
+                          </div>
                           <div style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace' }}>ID: {id}</div>
                         </div>
                         {!isLoggedOut && (
@@ -369,34 +428,47 @@ const CentralStaffLogins = () => {
               })}
             </div>
           ) : (
-            // === DESKTOP TABLE ===
             <div style={styles.tableCard}>
               <table style={styles.table}>
                 <thead>
                   <tr>
                     <th style={styles.th}>DATE</th>
+                    <th style={styles.th}>TYPE</th>
                     <th style={styles.th}>NAME</th>
                     <th style={styles.th}>ID</th>
                     <th style={styles.th}>LOGIN</th>
                     <th style={styles.th}>LOGOUT</th>
                     <th style={styles.th}>DURATION</th>
+                    <th style={styles.th}>MODE</th>
                     <th style={{ ...styles.th, textAlign: 'center' }}>STATUS</th>
                   </tr>
                 </thead>
                 <tbody>
                   {finalLogs.map((log) => {
                     const isLoggedOut = !!log.logout_at;
-                    const { name, id } = getStaffDetails(log);
+                    const { name, id, isOwner } = getStaffDetails(log);
+                    const actualMode = log.login_mode ? log.login_mode.toUpperCase() : (isOwner ? "ADMIN" : "STORE");
+
                     return (
                       <tr key={log.id} style={styles.tr}>
                         <td style={styles.td}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Calendar size={14} color="#64748b" />{new Date(log.login_at).toLocaleDateString('en-GB')}</div>
+                        </td>
+                        <td style={styles.td}>
+                          <span style={{ color: isOwner ? THEME_GREEN : '#64748b', fontWeight: '800', fontSize: '11px' }}>
+                            {isOwner ? "OWNER" : "STAFF"}
+                          </span>
                         </td>
                         <td style={{ ...styles.td, fontWeight: '700', color: TEXT_DARK }}>{name}</td>
                         <td style={styles.td}><span style={styles.monoBadge}>{id}</span></td>
                         <td style={{ ...styles.td, color: THEME_GREEN, fontWeight: '700' }}>{formatTime(log.login_at)}</td>
                         <td style={{ ...styles.td, color: '#ef4444' }}>{isLoggedOut ? formatTime(log.logout_at) : '-- : --'}</td>
                         <td style={{ ...styles.td, fontWeight: '700' }}>{calculateDurationDisplay(log.login_at, log.logout_at)}</td>
+                        <td style={styles.td}>
+                          <span style={actualMode === "ADMIN" ? styles.modeAdmin : styles.modeStore}>
+                            {actualMode}
+                          </span>
+                        </td>
                         <td style={{ ...styles.td, textAlign: 'center' }}>
                           {isLoggedOut ? <span style={styles.badgeInactive}>Completed</span> : (
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
@@ -414,7 +486,7 @@ const CentralStaffLogins = () => {
           )
         ) : (
           <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', background: 'white', borderRadius: '12px', border: `1px dashed ${BORDER_COLOR}` }}>
-            No login records found for this period.
+            No records found for this period.
           </div>
         )}
       </div>
@@ -423,46 +495,35 @@ const CentralStaffLogins = () => {
 };
 
 const styles = {
-  // Page Layout
   page: { background: BG_GRAY, minHeight: "100vh", fontFamily: '"Inter", sans-serif', color: TEXT_DARK, boxSizing: 'border-box', overflowX: 'hidden' },
   container: { maxWidth: "1400px", margin: "0 auto" },
-
-  // HEADER STYLES (Copied from CentralProfiles)
   header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
   headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px' },
   backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
   heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
   topRightActions: { display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 },
   idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
-
-  // Controls Row
   controlsRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
-
   searchContainer: { display: 'flex', alignItems: 'center', gap: '10px', background: 'white', border: `1px solid ${BORDER_COLOR}`, borderRadius: '10px', padding: '10px 15px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', boxSizing: 'border-box' },
   searchInput: { border: 'none', outline: 'none', fontSize: '14px', width: '100%', color: TEXT_DARK, background: 'transparent' },
-
   filterGroup: { display: 'flex', alignItems: 'center', gap: '12px' },
   toggleContainer: { background: '#e2e8f0', padding: '4px', borderRadius: '8px' },
   toggleBtn: { padding: '8px 12px', border: 'none', background: 'transparent', fontSize: '13px', fontWeight: '600', color: '#64748b', cursor: 'pointer', borderRadius: '6px', boxSizing: 'border-box' },
   toggleBtnActive: { padding: '8px 12px', border: 'none', background: 'white', fontSize: '13px', fontWeight: '700', color: THEME_GREEN, cursor: 'pointer', borderRadius: '6px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', boxSizing: 'border-box' },
-
   dateInput: { padding: '8px', borderRadius: '8px', border: `1px solid ${BORDER_COLOR}`, outline: 'none', fontSize: '13px', color: TEXT_DARK, fontWeight: '600', background: 'white', boxSizing: 'border-box' },
   refreshBtn: { width: '36px', height: '36px', borderRadius: '8px', background: THEME_GREEN, color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-
   statsRow: { display: 'flex', gap: '16px', marginBottom: '24px' },
   statCard: { minWidth: '0', background: 'white', padding: '16px', borderRadius: '16px', border: `1px solid ${BORDER_COLOR}`, display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 4px -1px rgba(0,0,0,0.03)' },
   statIconBox: { width: '40px', height: '40px', borderRadius: '10px', background: THEME_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   statLabel: { fontSize: '11px', fontWeight: '700', color: '#64748b', marginBottom: '2px', textTransform: 'uppercase' },
   statValue: { fontSize: '18px', fontWeight: '800', color: TEXT_DARK, lineHeight: 1 },
   statSub: { fontSize: '10px', color: '#94a3b8', marginTop: '2px' },
-
   tableCard: { background: 'white', borderRadius: '16px', border: `1px solid ${BORDER_COLOR}`, overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
   th: { padding: '16px 20px', background: THEME_GREEN, color: 'white', fontSize: '11px', fontWeight: '700', letterSpacing: '0.5px' },
   tr: { borderBottom: `1px solid ${BORDER_COLOR}`, transition: 'background 0.2s' },
   td: { padding: '16px 20px', fontSize: '14px', color: '#475569', fontWeight: '500' },
   monoBadge: { fontFamily: 'monospace', background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', color: TEXT_DARK, border: '1px solid #e2e8f0' },
-
   mobileCard: { background: 'white', borderRadius: '12px', border: `1px solid ${BORDER_COLOR}`, overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' },
   mobileCardHeader: { padding: '12px', background: '#f8fafc', borderBottom: `1px solid ${BORDER_COLOR}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   mobileCardBody: { padding: '16px' },
@@ -470,10 +531,12 @@ const styles = {
   mobileTimeGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', background: '#f1f5f9', padding: '10px', borderRadius: '8px', marginTop: '4px' },
   mobileTimeItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', fontSize: '13px' },
   mobileTimeLabel: { fontSize: '9px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', display: 'flex', gap: '4px', alignItems: 'center' },
-
   badgeActive: { background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' },
   badgeInactive: { background: '#f1f5f9', color: '#64748b', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' },
-  forceBtn: { background: '#fee2e2', border: '1px solid #fca5a5', width: '24px', height: '24px', borderRadius: '6px', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+  forceBtn: { background: '#fee2e2', border: '1px solid #fca5a5', width: '24px', height: '24px', borderRadius: '6px', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+
+  modeAdmin: { background: '#e0e7ff', color: '#3730a3', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '900', letterSpacing: '0.5px' },
+  modeStore: { background: '#fef3c7', color: '#92400e', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '900', letterSpacing: '0.5px' }
 };
 
 export default CentralStaffLogins;

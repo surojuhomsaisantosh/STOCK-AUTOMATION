@@ -52,7 +52,6 @@ function RegisterUser() {
   const [adminId, setAdminId] = useState("...");
   const [suggestedId, setSuggestedId] = useState("");
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
   const [companiesList, setCompaniesList] = useState([]);
 
   const [formData, setFormData] = useState({
@@ -64,44 +63,34 @@ function RegisterUser() {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
-
-    const getAdminProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase.from('profiles').select('franchise_id').eq('id', user.id).maybeSingle();
-        if (data) setAdminId(data.franchise_id);
-      }
-    };
-
-    const fetchCompanies = async () => {
-      try {
-        const { data, error } = await supabase.from('companies').select('company_name');
-        if (error) throw error;
-        if (data) {
-          setCompaniesList(data.map(c => c.company_name));
-        }
-      } catch (err) {
-        console.error("Error fetching companies:", err);
-      }
-    };
-
     getAdminProfile();
     fetchCompanies();
-
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const getAdminProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase.from('profiles').select('franchise_id').eq('id', user.id).maybeSingle();
+      if (data) setAdminId(data.franchise_id);
+    }
+  };
+
+  const fetchCompanies = async () => {
+    try {
+      const { data, error } = await supabase.from('companies').select('company_name');
+      if (error) throw error;
+      if (data) setCompaniesList(data.map(c => c.company_name));
+    } catch (err) {
+      console.error("Error fetching companies:", err);
+    }
+  };
 
   useEffect(() => {
     const fetchNextId = async () => {
       if (!formData.company) { setSuggestedId(""); return; }
-
       const words = formData.company.trim().split(/\s+/);
-      let prefix = "";
-      if (words.length >= 2) {
-        prefix = (words[0][0] + words[1][0]).toUpperCase() + "-";
-      } else {
-        prefix = formData.company.substring(0, 2).toUpperCase() + "-";
-      }
+      let prefix = words.length >= 2 ? (words[0][0] + words[1][0]).toUpperCase() + "-" : formData.company.substring(0, 2).toUpperCase() + "-";
 
       try {
         const { data } = await supabase.from('profiles').select('franchise_id').eq('company', formData.company);
@@ -131,47 +120,45 @@ function RegisterUser() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.email || !formData.password || !formData.company) {
-      alert("Please fill in the required fields (Brand, Email, and Password).");
+    if (!formData.email || !formData.password || !formData.company || !formData.franchise_id) {
+      alert("Please fill in Brand, Email, Password, and Franchise ID.");
       return;
     }
 
-    if (loading) return;
     setLoading(true);
-
     try {
+      // Create a dedicated client to avoid logging out the current admin
       const tempSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+        auth: { persistSession: false }
       });
 
+      // SIGN UP - The trigger handles the "profiles" insert automatically using the data below
       const { data: authData, error: authError } = await tempSupabase.auth.signUp({
         email: formData.email.trim(),
         password: formData.password,
+        options: {
+          data: {
+            name: formData.name.trim(),
+            phone: formData.phone.trim(),
+            company: formData.company,
+            franchise_id: formData.franchise_id.trim(),
+            branch_location: formData.branch_location.trim(),
+            address: formData.addressLine.trim(),
+            city: formData.city.trim().toUpperCase(),
+            state: formData.state,
+            pincode: formData.pincode.trim(),
+            nearest_bus_stop: formData.nearestBusStop.trim()
+          }
+        }
       });
+
       if (authError) throw authError;
 
-      await supabase.from("profiles").insert([{
-        id: authData.user.id,
-        company: formData.company,
-        franchise_id: formData.franchise_id.trim(),
-        name: formData.name.trim(),
-        phone: formData.phone.trim(),
-        email: formData.email.trim().toLowerCase(),
-        branch_location: formData.branch_location.trim(),
-        address: formData.addressLine.trim(),
-        nearest_bus_stop: formData.nearestBusStop.trim(),
-        city: formData.city.trim().toUpperCase(),
-        state: formData.state,
-        pincode: formData.pincode.trim(),
-        role: "franchise",
-        country: "India"
-      }]);
-
-      alert(`Account created! A verification email has been sent to ${formData.email}. They must click the link to verify before logging in.`);
+      alert(`Franchise Created! A verification email has been sent to ${formData.email}.`);
       navigate(-1);
 
     } catch (err) {
-      alert(err.message);
+      alert("Error: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -182,7 +169,6 @@ function RegisterUser() {
       <div style={{ ...styles.headerBar, padding: isMobile ? "0 12px" : "0 24px" }}>
         <button onClick={() => navigate(-1)} style={styles.backButton}>
           <ArrowLeft size={isMobile ? 22 : 18} />
-          {/* Removed the isMobile check so "Back" always displays */}
           <span style={{ marginLeft: "8px" }}>Back</span>
         </button>
         <h1 style={{ ...styles.title, fontSize: isMobile ? "17px" : "20px" }}>New Franchise</h1>
@@ -196,7 +182,6 @@ function RegisterUser() {
       <div style={{ ...styles.mainContent, padding: isMobile ? "12px" : "32px" }}>
         <div style={{ ...styles.formCard, padding: isMobile ? "24px 16px" : "40px", borderRadius: isMobile ? "20px" : "16px" }}>
 
-          {/* SECTION 1: BRAND */}
           <div style={styles.sectionHeader}>
             <Building2 size={18} color={PRIMARY} />
             <h2 style={styles.sectionTitle}>Brand Identity</h2>
@@ -229,7 +214,6 @@ function RegisterUser() {
 
           <div style={styles.divider}></div>
 
-          {/* SECTION 2: OWNER */}
           <div style={styles.sectionHeader}>
             <User size={18} color={PRIMARY} />
             <h2 style={styles.sectionTitle}>Owner Details</h2>
@@ -262,7 +246,6 @@ function RegisterUser() {
 
           <div style={styles.divider}></div>
 
-          {/* SECTION 3: LOCATION */}
           <div style={styles.sectionHeader}>
             <MapPin size={18} color={PRIMARY} />
             <h2 style={styles.sectionTitle}>Location</h2>
@@ -313,8 +296,6 @@ function RegisterUser() {
   );
 }
 
-export default RegisterUser;
-
 const styles = {
   pageContainer: { height: "100vh", backgroundColor: "#f8fafc", display: "flex", flexDirection: "column", fontFamily: '"Inter", sans-serif' },
   headerBar: { height: "70px", display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#fff", borderBottom: `1px solid ${BORDER}`, position: "sticky", top: 0, zIndex: 100 },
@@ -329,14 +310,14 @@ const styles = {
   inputLabel: { fontSize: "12px", fontWeight: "600", color: TEXT_MUTED, marginBottom: "8px", display: "block" },
   suggestionWrapper: { width: "100%" },
   suggestionBox: { display: "flex", alignItems: "center", padding: "0 14px", backgroundColor: "#f0fdf4", border: `1.5px dashed ${PRIMARY}`, borderRadius: "12px", color: PRIMARY, fontWeight: "700", cursor: "pointer", fontSize: "14px" },
-
   gridRowTwo: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", marginBottom: "24px" },
   gridRowThree: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "24px", marginBottom: "24px" },
   flexColumn: { display: "flex", flexDirection: "column", gap: "24px", marginBottom: "24px" },
-
   cleanInput: { width: "100%", border: "none", outline: "none", fontSize: "16px", background: "transparent", color: TEXT_MAIN },
   selectInput: { width: "100%", border: "none", outline: "none", fontSize: "16px", background: "transparent", cursor: "pointer", color: TEXT_MAIN },
   eyeButton: { background: "transparent", border: "none", cursor: "pointer", color: TEXT_MUTED, padding: "4px" },
   divider: { height: "1px", backgroundColor: BORDER, margin: "8px 0 32px 0" },
   button: { width: "100%", borderRadius: "14px", border: "none", backgroundColor: PRIMARY, color: "#fff", fontSize: "16px", fontWeight: "700", cursor: "pointer", marginTop: "8px", transition: "opacity 0.2s" }
 };
+
+export default RegisterUser;

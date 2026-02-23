@@ -5,11 +5,6 @@ import {
     ArrowLeft, Search, Printer, X, TrendingUp, ReceiptText, ChevronRight, Clock, Calendar
 } from "lucide-react";
 
-// --- ASSETS IMPORT ---
-import jkshLogo from "../../assets/jksh_logo.jpeg";
-import tLeafLogo from "../../assets/tleaf_logo.jpeg";
-import tvanammLogo from "../../assets/tvanamm_logo.jpeg";
-
 const ITEMS_PER_INVOICE_PAGE = 15;
 
 // --- HELPERS: Date & Time Fixing ---
@@ -73,13 +68,16 @@ const amountToWords = (price) => {
 
 
 // --- INVOICE PRINT COMPONENT ---
-const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalPages, itemsChunk, allItemsForTaxCalc }) => {
+const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsChunk, allItemsForTaxCalc }) => {
     if (!order) return null;
     const companyName = companyDetails?.company_name || "";
+
+    // FETCH LOGO FROM DATABASE (Storage Bucket URL)
+    const currentLogo = companyDetails?.logo_url || null;
+
     const invDate = formatDate(order.created_at);
     const orderId = order.id ? order.id.substring(0, 8).toUpperCase() : 'PENDING';
 
-    // Calculate accurate totals from the snapshot
     let totalTaxableValue = 0, totalTax = 0;
     (allItemsForTaxCalc || []).forEach(item => {
         const qty = Number(item.quantity) || 0;
@@ -97,13 +95,11 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
     const calculatedTotal = totalTaxableValue + totalTax;
     const roundOff = roundedBill - calculatedTotal;
 
-    // Calculate empty rows needed to lock the table height exactly for 15 items
     const emptyRowsCount = Math.max(0, ITEMS_PER_INVOICE_PAGE - itemsChunk.length);
 
     return (
         <div className="a4-page flex flex-col bg-white text-black font-sans text-xs leading-normal relative">
             <div className="w-full border-2 border-black flex flex-col relative flex-1">
-                {/* Header Section */}
                 <div className="p-3 border-b-2 border-black relative">
                     <div className="absolute top-2 left-0 w-full text-center pointer-events-none">
                         <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4 text-black">TAX INVOICE</h1>
@@ -121,7 +117,12 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                         </div>
                         <div className="z-10 flex flex-col items-center text-center max-w-[40%]">
                             {currentLogo ? (
-                                <img src={currentLogo} alt="Logo" className="h-12 w-auto object-contain mb-1" />
+                                <img
+                                    src={currentLogo}
+                                    alt="Logo"
+                                    crossOrigin="anonymous"
+                                    className="h-12 w-auto object-contain mb-1"
+                                />
                             ) : (
                                 <div className="h-10 w-24 border border-dashed border-gray-400 flex items-center justify-center text-[9px] text-black mb-1">NO LOGO</div>
                             )}
@@ -130,7 +131,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </div>
                 </div>
 
-                {/* Invoice Info */}
                 <div className="flex border-b-2 border-black bg-slate-50 print:bg-transparent text-black">
                     <div className="w-1/2 border-r-2 border-black py-1 px-3">
                         <span className="font-bold text-black uppercase text-[9px]">Invoice No:</span>
@@ -142,7 +142,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </div>
                 </div>
 
-                {/* Bill To */}
                 <div className="flex border-b-2 border-black text-black">
                     <div className="w-[70%] p-2 border-r-2 border-black">
                         <span className="font-black uppercase underline text-[10px] tracking-widest text-black mb-1 block">Bill To:</span>
@@ -157,7 +156,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </div>
                 </div>
 
-                {/* Table - Optimized Row Heights (26px) & Padding */}
                 <div className="flex-1 border-b-2 border-black relative">
                     <table className="w-full text-left border-collapse text-black">
                         <thead className="bg-slate-100 text-[10px] border-b-2 border-black text-black">
@@ -179,8 +177,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                                 const gstRate = Number(item.gst_rate) || 0;
                                 const gstAmt = subtotal * (gstRate / 100);
                                 const finalAmount = subtotal + gstAmt;
-
-                                // Embed HSN directly in the title column so we maintain exact CSS limits
                                 const hsnText = item.stocks?.hsn_code || item.hsn_code ? ` (HSN: ${item.stocks?.hsn_code || item.hsn_code})` : '';
 
                                 return (
@@ -197,8 +193,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                                     </tr>
                                 );
                             })}
-
-                            {/* Generate empty rows to pad out to exactly 15 rows */}
                             {Array.from({ length: emptyRowsCount }).map((_, idx) => (
                                 <tr key={`empty-${idx}`} className="h-[26px]">
                                     <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-transparent">-</td>
@@ -214,7 +208,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </table>
                 </div>
 
-                {/* Footer */}
                 <div className="flex mt-auto text-black">
                     <div className="w-[60%] border-r-2 border-black flex flex-col">
                         <div className="py-1.5 px-2 border-b-2 border-black min-h-[30px] flex flex-col justify-center bg-slate-50">
@@ -252,8 +245,6 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                     </div>
                 </div>
             </div>
-
-            {/* PAGE NUMBER ADDED AT THE BOTTOM RIGHT */}
             <div className="absolute bottom-1 right-2 print:bottom-1.5 print:right-2 text-[9px] font-black text-black">
                 Page {pageIndex + 1} of {totalPages}
             </div>
@@ -305,13 +296,11 @@ function FranchiseInvoices() {
         return invoices.filter(inv => {
             const matchesSearch = inv.customer_name?.toLowerCase().includes(search.toLowerCase()) || inv.id.toLowerCase().includes(search.toLowerCase());
 
-            // Convert Invoice UTC Timestamp to IST Date String (YYYY-MM-DD)
             const invDateIST = parseDate(inv.created_at).toLocaleDateString('en-CA', {
                 timeZone: 'Asia/Kolkata'
             });
 
             let matchesDate = true;
-
             if (filterMode === "single" && singleDate) {
                 matchesDate = invDateIST === singleDate;
             }
@@ -320,7 +309,6 @@ function FranchiseInvoices() {
                     matchesDate = invDateIST >= customStart && invDateIST <= customEnd;
                 }
             }
-
             return matchesSearch && matchesDate;
         });
     }, [invoices, search, singleDate, filterMode, customStart, customEnd]);
@@ -341,7 +329,6 @@ function FranchiseInvoices() {
             const { data: itemsData } = await supabase.from("invoice_items").select(`*, stocks(hsn_code)`).eq("invoice_id", invoice.id);
             setInvoiceItems(itemsData || []);
 
-            // Calculate Modal Stats
             let aggTaxable = 0;
             let aggTax = 0;
             (itemsData || []).forEach(item => {
@@ -355,9 +342,10 @@ function FranchiseInvoices() {
             });
             setModalStats({ taxable: aggTaxable, tax: aggTax });
 
+            // GET COMPANY DETAILS (INCLUDING LOGO URL) BASED ON FRANCHISE PROFILE
             const { data: profileData } = await supabase.from('profiles').select('company, phone').eq('franchise_id', invoice.franchise_id).single();
             if (profileData) {
-                const { data: companyData } = await supabase.from('companies').select('*').ilike('company_name', profileData.company).single();
+                const { data: companyData } = await supabase.from('companies').select('*').eq('company_name', profileData.company).single();
                 setCompanyDetails({ ...companyData, franchise_phone: profileData.phone });
             }
         } catch (err) { console.error(err); }
@@ -373,34 +361,16 @@ function FranchiseInvoices() {
             .print-only { display: block !important; width: 100%; } 
             body { background: white; margin: 0; padding: 0; } 
             @page { margin: 0; size: A4; } 
-            .a4-page {
-                width: 210mm;
-                height: 296.5mm;
-                padding: 5mm;
-                margin: 0 auto;
-                page-break-after: always;
-                box-sizing: border-box;
-                overflow: hidden;
-            }
-            .a4-page:last-child {
-                page-break-after: auto;
-            }
-            * {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
+            .a4-page { width: 210mm; height: 296.5mm; padding: 5mm; margin: 0 auto; page-break-after: always; box-sizing: border-box; overflow: hidden; }
+            .a4-page:last-child { page-break-after: auto; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
         .print-only { display: none; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
       `}</style>
 
-            {/* --- ACTUAL PRINT CONTAINER (ROOT LEVEL) --- */}
             <div className="print-only hidden print:block bg-white">
                 {selectedInvoice && (() => {
-                    const selectedLogo = (companyDetails?.company_name || "").toLowerCase().includes("jksh") ? jkshLogo : (companyDetails?.company_name || "").toLowerCase().includes("leaf") ? tLeafLogo : tvanammLogo;
                     const fullItems = invoiceItems || [];
-
                     const pages = [];
                     if (fullItems.length === 0) pages.push([]);
                     else {
@@ -414,7 +384,6 @@ function FranchiseInvoices() {
                             key={index}
                             order={selectedInvoice}
                             companyDetails={companyDetails}
-                            currentLogo={selectedLogo}
                             pageIndex={index}
                             totalPages={pages.length}
                             itemsChunk={chunk}
@@ -424,94 +393,45 @@ function FranchiseInvoices() {
                 })()}
             </div>
 
-            {/* --- NEW HEADER INTEGRATED FROM SETTINGS PAGE --- */}
             <header className="no-print shrink-0" style={styles.header}>
                 <div style={styles.headerInner}>
-                    <button onClick={() => navigate(-1)} style={styles.backBtn}>
-                        <ArrowLeft size={18} /> <span>Back</span>
-                    </button>
-
-                    <h1 style={styles.heading}>
-                        Franchise <span style={{ color: brandGreen }}>Invoices</span>
-                    </h1>
-
-                    <div style={styles.idBox}>
-                        ID : {currentFranchiseId || "---"}
-                    </div>
+                    <button onClick={() => navigate(-1)} style={styles.backBtn}><ArrowLeft size={18} /> <span>Back</span></button>
+                    <h1 style={styles.heading}>Franchise <span style={{ color: brandGreen }}>Invoices</span></h1>
+                    <div style={styles.idBox}>ID : {currentFranchiseId || "---"}</div>
                 </div>
             </header>
 
             <main className="flex-1 flex flex-col min-h-0 px-4 md:px-8 pb-4 gap-4 no-print overflow-hidden">
                 <div className="shrink-0 flex flex-col gap-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-
-                        {/* REVENUE BOX */}
                         <div className="bg-white p-4 rounded-3xl border border-slate-200 flex items-center justify-between">
                             <div><p className="text-[10px] font-black text-slate-400 uppercase">Revenue</p><h2 className="text-xl font-black">₹{stats.total.toLocaleString()}</h2></div>
                             <div className="p-3 bg-emerald-50 rounded-2xl text-emerald-600"><TrendingUp size={20} /></div>
                         </div>
 
-                        {/* DATE FILTER BLOCK */}
                         <div className="bg-white p-3 rounded-3xl border border-slate-200 flex flex-col justify-center gap-2 px-4">
                             <div className="flex bg-slate-100 p-1 rounded-xl shrink-0">
-                                <button
-                                    onClick={() => { setFilterMode("single"); setSingleDate(new Date().toISOString().split('T')[0]); }}
-                                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${filterMode === "single" ? "bg-white text-black shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
-                                >
-                                    Single Day
-                                </button>
-                                <button
-                                    onClick={() => { setFilterMode("range"); }}
-                                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${filterMode === "range" ? "bg-white text-black shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
-                                >
-                                    Date Range
-                                </button>
+                                <button onClick={() => setFilterMode("single")} className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${filterMode === "single" ? "bg-white text-black shadow-sm" : "text-slate-400 hover:text-slate-600"}`}>Single Day</button>
+                                <button onClick={() => setFilterMode("range")} className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${filterMode === "range" ? "bg-white text-black shadow-sm" : "text-slate-400 hover:text-slate-600"}`}>Date Range</button>
                             </div>
-
                             <div className="flex items-center gap-2 h-8">
                                 {filterMode === "single" ? (
-                                    <div className="w-full flex items-center bg-slate-50 rounded-lg px-2 border border-slate-100">
-                                        <Calendar size={14} className="text-slate-400 mr-2" />
-                                        <input
-                                            type="date"
-                                            className="w-full bg-transparent text-xs font-black uppercase outline-none text-slate-700 h-8"
-                                            value={singleDate}
-                                            onChange={(e) => setSingleDate(e.target.value)}
-                                        />
-                                    </div>
+                                    <div className="w-full flex items-center bg-slate-50 rounded-lg px-2 border border-slate-100"><Calendar size={14} className="text-slate-400 mr-2" /><input type="date" className="w-full bg-transparent text-xs font-black uppercase outline-none text-slate-700 h-8" value={singleDate} onChange={(e) => setSingleDate(e.target.value)} /></div>
                                 ) : (
                                     <div className="w-full flex items-center gap-1">
-                                        <div className="flex-1 flex items-center bg-slate-50 rounded-lg px-2 border border-slate-100">
-                                            <input
-                                                type="date"
-                                                placeholder="Start"
-                                                className="w-full bg-transparent text-[10px] font-black uppercase outline-none text-slate-700 h-8"
-                                                value={customStart}
-                                                onChange={(e) => setCustomStart(e.target.value)}
-                                            />
-                                        </div>
+                                        <div className="flex-1 flex items-center bg-slate-50 rounded-lg px-2 border border-slate-100"><input type="date" className="w-full bg-transparent text-[10px] font-black uppercase outline-none text-slate-700 h-8" value={customStart} onChange={(e) => setCustomStart(e.target.value)} /></div>
                                         <span className="text-slate-300 font-bold">-</span>
-                                        <div className="flex-1 flex items-center bg-slate-50 rounded-lg px-2 border border-slate-100">
-                                            <input
-                                                type="date"
-                                                placeholder="End"
-                                                className="w-full bg-transparent text-[10px] font-black uppercase outline-none text-slate-700 h-8"
-                                                value={customEnd}
-                                                onChange={(e) => setCustomEnd(e.target.value)}
-                                            />
-                                        </div>
+                                        <div className="flex-1 flex items-center bg-slate-50 rounded-lg px-2 border border-slate-100"><input type="date" className="w-full bg-transparent text-[10px] font-black uppercase outline-none text-slate-700 h-8" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} /></div>
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* COUNT BOX */}
                         <div className="bg-white p-4 rounded-3xl border border-slate-200 flex items-center justify-between">
                             <div><p className="text-[10px] font-black text-slate-400 uppercase">Count</p><h2 className="text-xl font-black">{stats.count}</h2></div>
                             <div className="p-3 bg-blue-50 rounded-2xl text-blue-600"><ReceiptText size={20} /></div>
                         </div>
                     </div>
-
                     <div className="relative"><Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder="SEARCH CUSTOMER..." className="w-full pl-12 h-12 bg-white border border-slate-200 rounded-2xl outline-none text-xs font-bold uppercase" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
                 </div>
 
@@ -519,15 +439,13 @@ function FranchiseInvoices() {
                     <div className="hidden md:grid grid-cols-7 gap-4 p-5 border-b bg-slate-50 text-[10px] font-black uppercase text-slate-500">
                         <span>S.No</span><span>Ref ID</span><span className="col-span-2">Customer</span><span>Date</span><span>Time</span><span className="text-right">Amount</span>
                     </div>
-
-                    <div className="flex-1 overflow-y-auto divide-y custom-scrollbar">
+                    <div className="flex-1 overflow-y-auto divide-y">
                         {filteredInvoices.map((inv, index) => (
                             <div key={inv.id} onClick={() => openInvoiceDetails(inv)} className="p-4 md:p-5 flex flex-col md:grid md:grid-cols-7 hover:bg-slate-50 cursor-pointer gap-3 md:items-center">
                                 <div className="flex md:hidden justify-between items-start">
                                     <div><span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">#{inv.id.slice(0, 8).toUpperCase()}</span><p className="font-black uppercase text-sm mt-1">{inv.customer_name}</p></div>
                                     <div className="text-right"><p className="font-black text-sm">₹{Number(inv.total_amount).toLocaleString()}</p><div className="flex items-center gap-1 text-slate-400 mt-1"><Clock size={10} /><span className="text-[10px] font-bold">{formatTime(inv.created_at)}</span></div></div>
                                 </div>
-
                                 <span className="hidden md:block text-xs font-bold text-slate-400">{index + 1}</span>
                                 <span className="hidden md:block text-[10px] font-bold text-slate-400 truncate">#{inv.id.slice(0, 8)}</span>
                                 <span className="hidden md:block md:col-span-2 font-black uppercase text-xs truncate">{inv.customer_name}</span>
@@ -540,88 +458,39 @@ function FranchiseInvoices() {
                 </div>
             </main>
 
-            {/* DETAIL MODAL (SCROLL FIX APPLIED) */}
             {showModal && selectedInvoice && (
                 <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center no-print">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)} />
                     <div className="relative bg-white w-full max-w-lg rounded-t-[2.5rem] lg:rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]">
-
-                        {/* Header - Fixed */}
                         <div className="p-6 border-b flex justify-between items-center shrink-0">
                             <div><h2 className="text-lg font-black uppercase">Details</h2><p className="text-[10px] text-slate-400 font-bold uppercase">Ref: {selectedInvoice.id.slice(0, 8)}</p></div>
                             <button onClick={() => setShowModal(false)} className="p-2 bg-slate-50 rounded-full"><X size={20} /></button>
                         </div>
-
-                        {/* Body - Flex Column: Top static, Bottom scrolls */}
-                        <div className="flex-1 flex flex-col min-h-0">
-
-                            {/* Fixed Date Info */}
-                            <div className="p-6 pb-4 shrink-0">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-slate-50 p-3 rounded-2xl">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Date</span>
-                                        <p className="text-xs font-black">{formatDate(selectedInvoice.created_at)}</p>
-                                    </div>
-                                    <div className="bg-slate-50 p-3 rounded-2xl">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Time</span>
-                                        <p className="text-xs font-black">{formatTime(selectedInvoice.created_at)}</p>
-                                    </div>
-                                </div>
+                        <div className="flex-1 overflow-y-auto px-6 py-6">
+                            <div className="grid grid-cols-2 gap-4 mb-6">
+                                <div className="bg-slate-50 p-3 rounded-2xl"><span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Date</span><p className="text-xs font-black">{formatDate(selectedInvoice.created_at)}</p></div>
+                                <div className="bg-slate-50 p-3 rounded-2xl"><span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Time</span><p className="text-xs font-black">{formatTime(selectedInvoice.created_at)}</p></div>
                             </div>
-
-                            {/* Scrollable Items */}
-                            <div className="flex-1 overflow-y-auto custom-scrollbar px-6 pb-6">
-                                <div className="space-y-3">
-                                    {invoiceItems.map((item, i) => {
-                                        const gstRate = Number(item.gst_rate) || 0;
-                                        const basePrice = Number(item.price) || 0;
-                                        const quantity = Number(item.quantity) || 0;
-                                        const totalTaxable = basePrice * quantity;
-                                        const totalTax = totalTaxable * (gstRate / 100);
-                                        const lineTotal = totalTaxable + totalTax;
-                                        const cgst = totalTax / 2;
-                                        const sgst = totalTax / 2;
-
-                                        return (
-                                            <div key={i} className="p-4 rounded-2xl border border-slate-100 bg-white shadow-sm">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <p className="text-xs font-black uppercase w-[70%]">{item.item_name}</p>
-                                                    <p className="font-black text-sm">₹{lineTotal.toFixed(2)}</p>
-                                                </div>
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <span className="px-2 py-1 bg-slate-100 rounded-md text-[10px] font-bold text-slate-500 uppercase">{quantity} {item.unit}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400">x</span>
-                                                    <span className="text-[10px] font-bold text-slate-500">₹{basePrice.toFixed(2)} (Base)</span>
-                                                </div>
-                                                <div className="bg-slate-50 rounded-xl p-2.5 grid grid-cols-3 gap-2 text-center border border-slate-100">
-                                                    <div>
-                                                        <span className="block text-[8px] font-black text-slate-400 uppercase">Taxable</span>
-                                                        <span className="block text-[10px] font-bold text-slate-700">₹{totalTaxable.toFixed(2)}</span>
-                                                    </div>
-                                                    <div className="border-l border-slate-200">
-                                                        <span className="block text-[8px] font-black text-slate-400 uppercase">CGST ({(gstRate / 2)}%)</span>
-                                                        <span className="block text-[10px] font-bold text-slate-700">₹{cgst.toFixed(2)}</span>
-                                                    </div>
-                                                    <div className="border-l border-slate-200">
-                                                        <span className="block text-[8px] font-black text-slate-400 uppercase">SGST ({(gstRate / 2)}%)</span>
-                                                        <span className="block text-[10px] font-bold text-slate-700">₹{sgst.toFixed(2)}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                            <div className="space-y-3">
+                                {invoiceItems.map((item, i) => {
+                                    const gstRate = Number(item.gst_rate) || 0;
+                                    const basePrice = Number(item.price) || 0;
+                                    const quantity = Number(item.quantity) || 0;
+                                    const totalTaxable = basePrice * quantity;
+                                    const totalTax = totalTaxable * (gstRate / 100);
+                                    const lineTotal = totalTaxable + totalTax;
+                                    return (
+                                        <div key={i} className="p-4 rounded-2xl border border-slate-100 bg-white shadow-sm">
+                                            <div className="flex justify-between items-start mb-2"><p className="text-xs font-black uppercase w-[70%]">{item.item_name}</p><p className="font-black text-sm">₹{lineTotal.toFixed(2)}</p></div>
+                                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400"><span className="px-2 py-1 bg-slate-100 rounded-md text-slate-500">{quantity} {item.unit}</span> x <span>₹{basePrice.toFixed(2)}</span></div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
-
-                        {/* Footer - Fixed */}
                         <div className="p-6 border-t bg-slate-50 shrink-0">
-                            <div className="mb-4 text-[10px] font-bold text-slate-500 flex justify-between px-2">
-                                <span>Total Taxable: ₹{modalStats.taxable.toFixed(2)}</span>
-                                <span>Total Tax: ₹{modalStats.tax.toFixed(2)}</span>
-                            </div>
                             <div className="flex justify-between items-center mb-6 px-2"><span className="text-xs font-black uppercase">Grand Total</span><span className="text-2xl font-black">₹{selectedInvoice.total_amount}</span></div>
-                            <button onClick={handlePrint} className="w-full py-4 bg-black text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-2 transition-all active:scale-95"><Printer size={16} /> Print Invoice</button>
+                            <button onClick={handlePrint} className="w-full py-4 bg-black text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-2"><Printer size={16} /> Print Invoice</button>
                         </div>
                     </div>
                 </div>
@@ -630,9 +499,7 @@ function FranchiseInvoices() {
     );
 }
 
-// --- STYLES ---
 const styles = {
-    // --- INTEGRATED HEADER STYLES ---
     header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
     headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', boxSizing: 'border-box' },
     backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },

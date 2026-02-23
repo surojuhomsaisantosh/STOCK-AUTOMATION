@@ -6,10 +6,6 @@ import {
     ArrowLeft, Search, X, Plus, Minus, CheckCircle, Package, Building2, User, Printer
 } from "lucide-react";
 
-// --- ASSETS ---
-import tvanammLogo from "../../assets/tvanamm_logo.jpeg";
-import tleafLogo from "../../assets/tleaf_logo.jpeg";
-
 const PRIMARY = "rgb(0, 100, 55)";
 const ITEMS_PER_INVOICE_PAGE = 15;
 
@@ -41,10 +37,13 @@ const amountToWords = (price) => {
 };
 
 // --- PRINT COMPONENT ---
-const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalPages, itemsChunk }) => {
+const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsChunk }) => {
     if (!order) return null;
     const companyName = companyDetails?.company_name || "";
     const invDate = new Date(order.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata' });
+
+    // DYNAMIC LOGO FROM STORAGE BUCKET
+    const currentLogo = companyDetails?.logo_url || null;
 
     const taxableAmount = Number(order.subtotal) || 0;
     const totalGst = Number(order.tax_amount) || 0;
@@ -77,7 +76,12 @@ const FullPageInvoice = ({ order, companyDetails, currentLogo, pageIndex, totalP
                         </div>
                         <div className="z-10 flex flex-col items-center text-center max-w-[40%]">
                             {currentLogo ? (
-                                <img src={currentLogo} alt="Logo" className="h-12 w-auto object-contain mb-1" />
+                                <img
+                                    src={currentLogo}
+                                    alt="Logo"
+                                    crossOrigin="anonymous"
+                                    className="h-12 w-auto object-contain mb-1"
+                                />
                             ) : (
                                 <div className="h-10 w-24 border border-dashed border-gray-400 flex items-center justify-center text-[9px] text-black mb-1">NO LOGO</div>
                             )}
@@ -228,16 +232,10 @@ function PackageBills() {
         if (prof) setProfile(prof);
 
         const { data: comps } = await supabase.from('companies').select('*').order('company_name');
-        if (comps) {
-            setCompanies(comps);
-            console.log("Debug - All Companies Loaded:", comps);
-        }
+        if (comps) setCompanies(comps);
 
         const { data: franchs } = await supabase.from('profiles').select('*').eq('role', 'franchise').order('name');
-        if (franchs) {
-            setFranchises(franchs);
-            console.log("Debug - All Franchises Loaded:", franchs);
-        }
+        if (franchs) setFranchises(franchs);
 
         const { data: stks } = await supabase.from('stocks').select('*').order('item_name');
         if (stks) setStocks(stks);
@@ -245,49 +243,24 @@ function PackageBills() {
 
     useEffect(() => { fetchData(); }, [user]);
 
-    // Derived State: Franchises linked to the selected company WITH DEBUGGING
     const availableFranchises = useMemo(() => {
-        console.log("--- DEBUG: Filtering Franchises ---");
-        console.log("1. Selected Company ID:", selectedCompanyId);
-
-        if (!selectedCompanyId || companies.length === 0) {
-            console.log("=> Exiting early. No company selected or companies array is empty.");
-            return [];
-        }
+        if (!selectedCompanyId || companies.length === 0) return [];
 
         const selectedCompany = companies.find(c => c.id === selectedCompanyId);
-        if (!selectedCompany) {
-            console.log("=> Exiting early. Could not find selectedCompany object.");
-            return [];
-        }
+        if (!selectedCompany) return [];
 
-        console.log("2. Found Selected Company Object:", selectedCompany);
-
-        // Normalize company strings for comparison to avoid case/space issues
-        const targetCompanyId = String(selectedCompany.id).trim().toLowerCase();
         const targetCompanyName = selectedCompany.company_name ? String(selectedCompany.company_name).trim().toLowerCase() : "";
 
-        const filtered = franchises.filter(f => {
+        return franchises.filter(f => {
             const fCompany = f.company ? String(f.company).trim().toLowerCase() : "";
-
-            const matchById = fCompany === targetCompanyId;
-            const matchByName = fCompany === targetCompanyName;
-            const isMatch = matchById || matchByName;
-
-            console.log(`Checking Franchise: "${f.name}" | f.company: "${f.company}" | Match? ${isMatch}`);
-            return isMatch;
+            return fCompany === targetCompanyName;
         });
-
-        console.log("3. Final Filtered Franchises:", filtered);
-        return filtered;
     }, [selectedCompanyId, companies, franchises]);
 
-    // --- MODAL & QTY LOGIC ---
     const openBillModal = () => {
         if (!selectedCompanyId || !selectedFranchiseId) {
-            return alert("Please select both a Billing Company and a Target Franchise from the dropdowns first.");
+            return alert("Please select both a Billing Company and a Target Franchise first.");
         }
-
         setPkgItems([]);
         setStockSearch("");
         setSelectedModalCategory("All");
@@ -296,7 +269,6 @@ function PackageBills() {
 
     const handleItemQtyChange = (stock, newQty) => {
         const qty = Math.max(0, parseInt(newQty) || 0);
-
         if (qty === 0) {
             setPkgItems(pkgItems.filter(i => i.stock_id !== stock.id));
         } else {
@@ -309,14 +281,13 @@ function PackageBills() {
         }
     };
 
-    // --- GENERATE INVOICE & PRINT ---
     const handleGenerateBill = async () => {
-        if (pkgItems.length === 0) return alert("Please add at least one item to generate a bill.");
+        if (pkgItems.length === 0) return alert("Please add items.");
 
         const company = companies.find(c => c.id === selectedCompanyId);
         const franchise = franchises.find(f => f.franchise_id === selectedFranchiseId);
 
-        if (!window.confirm(`Generate Invoice for ${franchise.name}? This will deduct stock permanently.`)) return;
+        if (!window.confirm(`Generate Invoice for ${franchise.name}?`)) return;
 
         setIsGenerating(true);
 
@@ -340,28 +311,14 @@ function PackageBills() {
             tax_amount += lineGst;
 
             invoiceItemsToInsert.push({
-                stock_id: stock.id,
-                item_name: stock.item_name,
-                quantity: qty,
-                unit: stock.unit,
-                price: price,
-                total: lineTotal,
-                gst_rate: gstRate
+                stock_id: stock.id, item_name: stock.item_name, quantity: qty,
+                unit: stock.unit, price: price, total: lineTotal, gst_rate: gstRate
             });
 
-            stockUpdates.push({
-                id: stock.id,
-                newQuantity: Number(stock.quantity) - qty
-            });
+            stockUpdates.push({ id: stock.id, newQuantity: Number(stock.quantity) - qty });
         }
 
         const total_amount = subtotal + tax_amount;
-
-        const bankDetails = {
-            bank_name: company.bank_name || null,
-            bank_acc_no: company.bank_acc_no || null,
-            bank_ifsc: company.bank_ifsc || null
-        };
 
         const { data: invData, error: invError } = await supabase.from('invoices').insert({
             created_by: user.id,
@@ -377,13 +334,13 @@ function PackageBills() {
             snapshot_company_name: company.company_name,
             snapshot_company_address: company.company_address,
             snapshot_company_gst: company.company_gst,
-            snapshot_bank_details: bankDetails,
+            snapshot_bank_details: { bank_name: company.bank_name, bank_acc_no: company.bank_acc_no, bank_ifsc: company.bank_ifsc },
             snapshot_terms: company.terms
         }).select().single();
 
         if (invError) {
             setIsGenerating(false);
-            return alert("Error creating invoice: " + invError.message);
+            return alert("Error: " + invError.message);
         }
 
         const mappedItems = invoiceItemsToInsert.map(item => ({ ...item, invoice_id: invData.id }));
@@ -397,21 +354,13 @@ function PackageBills() {
         setShowModal(false);
         fetchData();
 
-        const printItemsWithStocks = mappedItems.map(mItem => {
-            const fullStock = stocks.find(s => s.id === mItem.stock_id);
-            return { ...mItem, stocks: fullStock };
-        });
-
         setPrintOrder(invData);
         setPrintCompanyDetails(company);
-        setPrintItems(printItemsWithStocks);
+        setPrintItems(mappedItems.map(mItem => ({ ...mItem, stocks: stocks.find(s => s.id === mItem.stock_id) })));
 
-        setTimeout(() => {
-            window.print();
-        }, 500);
+        setTimeout(() => { window.print(); }, 500);
     };
 
-    // Generate unique sorted categories, ensuring "All" is always perfectly first.
     const modalCategories = useMemo(() => {
         const cats = Array.from(new Set(stocks.map(s => s.category || "Uncategorized"))).sort();
         return ["All", ...cats];
@@ -420,9 +369,7 @@ function PackageBills() {
     const modalFilteredStocks = useMemo(() => {
         return stocks.filter(stock => {
             const cat = stock.category || "Uncategorized";
-            const matchesSearch = !stockSearch ||
-                stock.item_name.toLowerCase().includes(stockSearch.toLowerCase()) ||
-                stock.item_code?.toLowerCase().includes(stockSearch.toLowerCase());
+            const matchesSearch = !stockSearch || stock.item_name.toLowerCase().includes(stockSearch.toLowerCase()) || stock.item_code?.toLowerCase().includes(stockSearch.toLowerCase());
             const matchesCategory = selectedModalCategory === "All" || cat === selectedModalCategory;
             return matchesSearch && matchesCategory;
         });
@@ -441,18 +388,13 @@ function PackageBills() {
                   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                 }
                 .print-content { display: none; }
-                
-                /* Visible scrollbar for the modal lists */
                 .category-scroll::-webkit-scrollbar { height: 6px; }
                 .category-scroll::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
                 .category-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-                .category-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
             `}</style>
 
-            {/* --- PRINT CONTAINER --- */}
             <div className="print-content bg-white">
                 {printOrder && (() => {
-                    const currentLogo = printCompanyDetails?.parent_company?.toLowerCase().includes("leaf") ? tleafLogo : tvanammLogo;
                     const pages = [];
                     if (printItems.length === 0) pages.push([]);
                     else {
@@ -463,13 +405,12 @@ function PackageBills() {
                     return pages.map((chunk, index) => (
                         <FullPageInvoice
                             key={index} order={printOrder} companyDetails={printCompanyDetails}
-                            currentLogo={currentLogo} pageIndex={index} totalPages={pages.length} itemsChunk={chunk}
+                            pageIndex={index} totalPages={pages.length} itemsChunk={chunk}
                         />
                     ));
                 })()}
             </div>
 
-            {/* --- SCREEN UI --- */}
             <div className="screen-content flex flex-col h-screen">
                 <div className="flex-none bg-white shadow-sm z-30">
                     <div className="border-b border-slate-200 px-4 md:px-6 py-3 md:py-4">
@@ -486,7 +427,6 @@ function PackageBills() {
                         </div>
                     </div>
 
-                    {/* Controls Bar */}
                     <div className="px-4 md:px-6 py-4 pb-4 border-b border-slate-100 bg-slate-50">
                         <div className="flex flex-col lg:flex-row gap-3">
                             <div className="relative flex-1">
@@ -501,7 +441,7 @@ function PackageBills() {
                                 <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                 <select value={selectedFranchiseId} onChange={(e) => setSelectedFranchiseId(e.target.value)} disabled={!selectedCompanyId || availableFranchises.length === 0} className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-[rgb(0,100,55)] font-bold text-sm shadow-sm cursor-pointer appearance-none disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed">
                                     <option value="" disabled>
-                                        {!selectedCompanyId ? "2. Select Target Franchise" : availableFranchises.length === 0 ? "No franchises found for this company" : "2. Select Target Franchise"}
+                                        {!selectedCompanyId ? "2. Select Target Franchise" : availableFranchises.length === 0 ? "No franchises found" : "2. Select Target Franchise"}
                                     </option>
                                     {availableFranchises.map(f => <option key={f.id} value={f.franchise_id}>{f.name} ({f.franchise_id})</option>)}
                                 </select>
@@ -514,67 +454,43 @@ function PackageBills() {
                     </div>
                 </div>
 
-                {/* Main Empty State */}
                 <div className="flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6 flex items-center justify-center">
                     <div className="text-center text-slate-400 p-8 border-2 border-dashed border-slate-200 rounded-[2rem] max-w-md bg-white">
                         <Printer size={48} className="mx-auto mb-4 opacity-30 text-slate-500" />
                         <h2 className="text-lg font-black uppercase tracking-widest text-slate-600 mb-2">Ready to Bill</h2>
-                        <p className="font-bold text-xs text-slate-400 leading-relaxed">
-                            Select a Billing Company and Target Franchise from the dropdowns above, then click <strong className="text-slate-600">"Create New Bill"</strong> to select your items, deduct stock, and print an invoice instantly.
-                        </p>
+                        <p className="font-bold text-xs text-slate-400 leading-relaxed">Select a Billing Company and Target Franchise, then click <strong className="text-slate-600">"Create New Bill"</strong> to deduct stock and print.</p>
                     </div>
                 </div>
 
-                {/* MODAL: Bill Builder */}
                 {showModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                         <div className="bg-white w-full max-w-4xl max-h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-
-                            {/* Modal Header */}
                             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-                                <h2 className="text-lg font-black uppercase tracking-widest text-black flex items-center gap-2">
-                                    <Package size={20} className="text-[rgb(0,100,55)]" /> Select Items For Bill
-                                </h2>
+                                <h2 className="text-lg font-black uppercase tracking-widest text-black flex items-center gap-2"><Package size={20} className="text-[rgb(0,100,55)]" /> Select Items For Bill</h2>
                                 <div className="flex items-center gap-4">
-                                    <div className="text-[10px] font-black uppercase tracking-widest bg-[rgb(0,100,55)] text-white px-3 py-1 rounded-md">
-                                        {pkgItems.length} Items Selected
-                                    </div>
+                                    <div className="text-[10px] font-black uppercase tracking-widest bg-[rgb(0,100,55)] text-white px-3 py-1 rounded-md">{pkgItems.length} Items Selected</div>
                                     <button onClick={() => setShowModal(false)} className="p-2 bg-white rounded-full text-black hover:bg-red-50 hover:text-red-500 transition border border-slate-200"><X size={20} /></button>
                                 </div>
                             </div>
-
-                            {/* Modal Search & Filters */}
                             <div className="p-5 bg-white shrink-0 border-b border-slate-100 shadow-sm z-10 flex flex-col gap-4">
                                 <div className="relative">
                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <input value={stockSearch} onChange={(e) => setStockSearch(e.target.value)} placeholder="Search items by name or SKU..." className="w-full pl-10 pr-4 py-3 bg-white border-2 border-slate-200 rounded-xl outline-none text-sm font-semibold focus:border-[rgb(0,100,55)] transition-all" />
+                                    <input value={stockSearch} onChange={(e) => setStockSearch(e.target.value)} placeholder="Search items..." className="w-full pl-10 pr-4 py-3 bg-white border-2 border-slate-200 rounded-xl outline-none text-sm font-semibold focus:border-[rgb(0,100,55)] transition-all" />
                                 </div>
-
-                                {/* HORIZONTAL CATEGORY BAR WITH VISIBLE SCROLLBAR */}
                                 <div className="flex gap-2 overflow-x-auto pb-3 pt-1 items-center category-scroll">
                                     {modalCategories.map(cat => (
-                                        <button
-                                            key={cat}
-                                            onClick={() => setSelectedModalCategory(cat)}
-                                            className={`whitespace-nowrap px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${selectedModalCategory === cat ? 'bg-[rgb(0,100,55)] text-white border-[rgb(0,100,55)] shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-black'}`}
-                                        >
-                                            {cat}
-                                        </button>
+                                        <button key={cat} onClick={() => setSelectedModalCategory(cat)} className={`whitespace-nowrap px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${selectedModalCategory === cat ? 'bg-[rgb(0,100,55)] text-white border-[rgb(0,100,55)] shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-black'}`}>{cat}</button>
                                     ))}
                                 </div>
                             </div>
-
-                            {/* Scrollable Item List (Filtered by Category) */}
                             <div className="flex-1 overflow-y-auto bg-slate-50 p-5 scrollbar-thin scrollbar-thumb-slate-300 relative">
                                 {modalFilteredStocks.length === 0 ? (
-                                    <div className="py-20 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">No items match your search.</div>
+                                    <div className="py-20 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">No items match.</div>
                                 ) : (
                                     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100 shadow-sm">
                                         {modalFilteredStocks.map(stock => {
                                             const inPkg = pkgItems.find(i => i.stock_id === stock.id);
                                             const qty = inPkg ? inPkg.quantity : 0;
-                                            const isLowStock = stock.quantity <= (stock.threshold || 0);
-
                                             return (
                                                 <div key={stock.id} className={`p-4 md:px-6 flex flex-col md:flex-row md:items-center justify-between gap-3 transition-colors ${qty > 0 ? 'bg-emerald-50/40' : 'hover:bg-slate-50'}`}>
                                                     <div className="flex-1 min-w-0">
@@ -583,30 +499,16 @@ function PackageBills() {
                                                             {stock.item_code && <span className="text-[9px] font-mono bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">{stock.item_code}</span>}
                                                         </div>
                                                         <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wide">
-                                                            <span className={isLowStock ? "text-red-500" : "text-slate-400"}>Stock: {stock.quantity} {stock.unit}</span>
+                                                            <span className={stock.quantity <= (stock.threshold || 0) ? "text-red-500" : "text-slate-400"}>Stock: {stock.quantity} {stock.unit}</span>
                                                             <span className="text-slate-300">|</span>
                                                             <span className="text-[rgb(0,100,55)]">₹{stock.price} / {stock.unit}</span>
-                                                            <span className="text-slate-300">|</span>
-                                                            <span className="text-slate-400">GST: {stock.gst_rate}%</span>
                                                         </div>
                                                     </div>
-
-                                                    <div className="flex items-center gap-3 self-end md:self-auto shrink-0">
-                                                        {qty > 0 && <span className="text-[9px] font-black uppercase tracking-widest text-[rgb(0,100,55)] bg-white px-2 py-1 rounded shadow-sm border border-emerald-100">Added</span>}
+                                                    <div className="flex items-center gap-3 shrink-0">
                                                         <div className="flex items-center bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm h-10">
-                                                            <button onClick={() => handleItemQtyChange(stock, qty - 1)} className="w-10 h-full flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors active:bg-slate-200">
-                                                                <Minus size={16} strokeWidth={2.5} />
-                                                            </button>
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                value={qty}
-                                                                onChange={(e) => handleItemQtyChange(stock, e.target.value)}
-                                                                className="w-12 h-full text-center bg-slate-50 border-x border-slate-200 outline-none font-black text-sm text-[rgb(0,100,55)]"
-                                                            />
-                                                            <button onClick={() => handleItemQtyChange(stock, qty + 1)} className="w-10 h-full flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors active:bg-slate-200">
-                                                                <Plus size={16} strokeWidth={2.5} />
-                                                            </button>
+                                                            <button onClick={() => handleItemQtyChange(stock, qty - 1)} className="w-10 h-full flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors"><Minus size={16} /></button>
+                                                            <input type="number" min="0" value={qty} onChange={(e) => handleItemQtyChange(stock, e.target.value)} className="w-12 h-full text-center bg-slate-50 border-x border-slate-200 outline-none font-black text-sm text-[rgb(0,100,55)]" />
+                                                            <button onClick={() => handleItemQtyChange(stock, qty + 1)} className="w-10 h-full flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors"><Plus size={16} /></button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -615,11 +517,9 @@ function PackageBills() {
                                     </div>
                                 )}
                             </div>
-
-                            {/* Modal Footer with Generate Button */}
                             <div className="p-5 border-t border-slate-100 bg-white flex gap-3 shrink-0 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
-                                <button onClick={() => setShowModal(false)} className="flex-1 py-3.5 rounded-xl border-2 border-slate-200 font-black text-[11px] uppercase tracking-widest text-slate-600 hover:bg-slate-50 hover:text-black transition-all">Cancel</button>
-                                <button onClick={handleGenerateBill} disabled={isGenerating} className="flex-[2] py-3.5 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg shadow-[rgb(0,100,55)]/20 transition-all active:scale-95 flex justify-center items-center gap-2 disabled:bg-slate-400 disabled:shadow-none" style={{ backgroundColor: isGenerating ? undefined : PRIMARY }}>
+                                <button onClick={() => setShowModal(false)} className="flex-1 py-3.5 rounded-xl border-2 border-slate-200 font-black text-[11px] uppercase tracking-widest text-slate-600">Cancel</button>
+                                <button onClick={handleGenerateBill} disabled={isGenerating} className="flex-[2] py-3.5 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg shadow-[rgb(0,100,55)]/20 active:scale-95 flex justify-center items-center gap-2" style={{ backgroundColor: PRIMARY }}>
                                     {isGenerating ? "Processing..." : <><Printer size={16} /> Generate & Print Bill</>}
                                 </button>
                             </div>

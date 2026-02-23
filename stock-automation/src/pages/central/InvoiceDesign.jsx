@@ -27,6 +27,11 @@ function InvoiceDesign() {
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
 
+  // Logo Upload State
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
+  const [fileInputKey, setFileInputKey] = useState(Date.now());
+
   // Form State
   const initialFormState = {
     company_name: "",
@@ -37,7 +42,8 @@ function InvoiceDesign() {
     bank_ifsc: "UTIB0001380",
     bank_acc_no: "920020057250778",
     bank_name: "AXIS BANK BASHEERBAGH",
-    terms: "1) Goods once sold will not be taken back or exchanged\n2) Payments terms: 100% advance payments\n3) Once placed order cannot be cancelled\n4) All legal matters are subject to Hyderabad jurisdiction only\n5) Delivery lead time 3-5 working days"
+    terms: "1) Goods once sold will not be taken back or exchanged\n2) Payments terms: 100% advance payments\n3) Once placed order cannot be cancelled\n4) All legal matters are subject to Hyderabad jurisdiction only\n5) Delivery lead time 3-5 working days",
+    logo_url: ""
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -57,9 +63,26 @@ function InvoiceDesign() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // --- DATA FETCHING ---
+  // Cleanup object URLs to prevent memory leaks when component unmounts
+  useEffect(() => {
+    return () => {
+      if (logoPreview && logoPreview.startsWith("blob:")) {
+        URL.revokeObjectURL(logoPreview);
+      }
+    };
+  }, [logoPreview]);
+
+  // --- DATA FETCHING WITH SESSION STORAGE ---
   const fetchProfile = async () => {
     try {
+      // 1. Check Session Storage first
+      const cachedProfile = sessionStorage.getItem("invoice_profile");
+      if (cachedProfile) {
+        setProfile(JSON.parse(cachedProfile));
+        return; // Exit early, no network call!
+      }
+
+      // 2. If not cached, fetch from Supabase
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) return;
 
@@ -71,21 +94,38 @@ function InvoiceDesign() {
 
       if (!profileError && data) {
         setProfile(data);
+        // 3. Save to Session Storage for next time
+        sessionStorage.setItem("invoice_profile", JSON.stringify(data));
       }
     } catch (err) {
       console.error("Error fetching profile:", err);
     }
   };
 
-  const fetchCompanies = async () => {
+  const fetchCompanies = async (forceRefresh = false) => {
     try {
+      // 1. Check Session Storage if we aren't forcing a refresh
+      if (!forceRefresh) {
+        const cachedCompanies = sessionStorage.getItem("invoice_companies");
+        if (cachedCompanies) {
+          setCompanies(JSON.parse(cachedCompanies));
+          return; // Exit early, no network call!
+        }
+      }
+
+      // 2. Fetch from Supabase
       const { data, error } = await supabase
         .from("companies")
         .select("*")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setCompanies(data || []);
+
+      const companiesData = data || [];
+      setCompanies(companiesData);
+
+      // 3. Update Session Storage with fresh data
+      sessionStorage.setItem("invoice_companies", JSON.stringify(companiesData));
     } catch (error) {
       console.error("Error fetching companies:", error);
     }
@@ -99,6 +139,9 @@ function InvoiceDesign() {
 
   const handleAddNew = () => {
     setFormData(initialFormState);
+    setLogoFile(null);
+    setLogoPreview(null);
+    setFileInputKey(Date.now());
     setIsEditing(false);
     setEditId(null);
     setShowModal(true);
@@ -114,11 +157,24 @@ function InvoiceDesign() {
       bank_ifsc: company.bank_ifsc || "",
       bank_acc_no: company.bank_acc_no || "",
       bank_name: company.bank_name || "",
-      terms: company.terms || ""
+      terms: company.terms || "",
+      logo_url: company.logo_url || ""
     });
+
+    setLogoFile(null);
+    setLogoPreview(company.logo_url && company.logo_url.trim() !== "" ? company.logo_url : null);
+    setFileInputKey(Date.now());
+
     setIsEditing(true);
     setEditId(company.id);
     setShowModal(true);
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoFile(null);
+    setLogoPreview(null);
+    setFormData(prev => ({ ...prev, logo_url: "" }));
+    setFileInputKey(Date.now());
   };
 
   const handleSave = async () => {
@@ -129,25 +185,51 @@ function InvoiceDesign() {
 
     setLoading(true);
     try {
+      let finalLogoUrl = formData.logo_url;
+
+      if (logoFile) {
+        const fileExt = logoFile.name.split('.').pop();
+        const cleanCompanyName = formData.company_name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+        const fileName = `${cleanCompanyName}-${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('logos')
+          .upload(fileName, logoFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage
+          .from('logos')
+          .getPublicUrl(fileName);
+
+        finalLogoUrl = data.publicUrl;
+      }
+
+      const payload = {
+        ...formData,
+        logo_url: finalLogoUrl,
+        franchise_id: profile?.franchise_id || 'CENTRAL'
+      };
+
       let error;
       if (isEditing) {
         const { error: updateError } = await supabase
           .from("companies")
-          .update(formData)
+          .update(payload)
           .eq("id", editId);
         error = updateError;
       } else {
         const { error: insertError } = await supabase
           .from("companies")
-          .insert([{ ...formData, franchise_id: profile?.franchise_id || 'CENTRAL' }]);
+          .insert([payload]);
         error = insertError;
       }
 
       if (error) throw error;
 
-      alert(isEditing ? "Updated Successfully!" : "Saved Successfully!");
       setShowModal(false);
-      fetchCompanies();
+      // FORCE REFRESH to update Supabase and Session Storage
+      fetchCompanies(true);
     } catch (err) {
       console.error("Save Error:", err);
       alert("Error saving data: " + err.message);
@@ -156,7 +238,6 @@ function InvoiceDesign() {
     }
   };
 
-  // UPDATED: Now properly handles and reports deletion errors
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure? This cannot be undone.")) return;
 
@@ -168,11 +249,11 @@ function InvoiceDesign() {
 
       if (error) throw error;
 
-      alert("Deleted successfully!");
-      fetchCompanies();
+      // FORCE REFRESH to update Supabase and Session Storage
+      fetchCompanies(true);
     } catch (err) {
       console.error("Delete Error:", err);
-      alert("Failed to delete: " + err.message + "\n\n(This might be due to foreign key constraints or database permissions.)");
+      alert("Failed to delete: " + err.message);
     }
   };
 
@@ -247,7 +328,17 @@ function InvoiceDesign() {
           {filteredCompanies.map((item) => (
             <div key={item.id} style={styles.card}>
               <div style={styles.cardHeader}>
-                <h3 style={styles.cardTitle}>{item.company_name}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {item.logo_url && (
+                    <img
+                      src={item.logo_url}
+                      alt="Logo"
+                      onError={(e) => e.target.style.display = 'none'}
+                      style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'contain', border: `1px solid ${BORDER}`, background: '#f9fafb' }}
+                    />
+                  )}
+                  <h3 style={styles.cardTitle}>{item.company_name}</h3>
+                </div>
                 <div style={styles.cardActions}>
                   <button onClick={() => handleEdit(item)} style={styles.iconBtnBlue} title="Edit">
                     <FiEdit3 size={14} />
@@ -307,6 +398,84 @@ function InvoiceDesign() {
                 ...styles.formGrid,
                 gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr"
               }}>
+
+                <div style={styles.inputGroupFull}>
+                  <label style={styles.label}>
+                    Company Logo <span style={{ color: PRIMARY, textTransform: 'none', fontWeight: 600 }}>(Optional)</span>
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+
+                    {/* Preview Box */}
+                    <div style={{
+                      width: '60px', height: '60px', borderRadius: '8px', border: `1px dashed ${BORDER}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#f9fafb', flexShrink: 0
+                    }}>
+                      {logoPreview ? (
+                        <img
+                          src={logoPreview}
+                          alt="Preview"
+                          onError={(e) => { e.target.onerror = null; e.target.src = ''; }}
+                          style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: '10px', color: '#9ca3af', textAlign: 'center' }}>No<br />Logo</span>
+                      )}
+                    </div>
+
+                    {/* Controls */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
+
+                      <input
+                        id={`logo-upload-${fileInputKey}`}
+                        key={fileInputKey}
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            if (logoPreview && logoPreview.startsWith("blob:")) {
+                              URL.revokeObjectURL(logoPreview);
+                            }
+                            setLogoFile(file);
+                            setLogoPreview(URL.createObjectURL(file));
+                          }
+                        }}
+                      />
+
+                      <label
+                        htmlFor={`logo-upload-${fileInputKey}`}
+                        style={{
+                          padding: '8px 16px',
+                          background: '#fff',
+                          border: `1px solid ${BORDER}`,
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          cursor: 'pointer',
+                          display: 'inline-block',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {logoPreview ? "Change Logo" : "Upload Logo"}
+                      </label>
+
+                      {logoPreview && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveLogo}
+                          style={{ fontSize: '11px', color: '#ef4444', background: 'none', border: 'none', fontWeight: 'bold', cursor: 'pointer', padding: 0 }}
+                        >
+                          Remove Logo
+                        </button>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>1) Company Name <span style={{ color: 'red' }}>*</span></label>
                   <input name="company_name" value={formData.company_name} onChange={handleInputChange} style={styles.input} placeholder="e.g. JKSH Food Enterprises" />
@@ -405,7 +574,7 @@ const styles = {
   },
   cardHeader: { display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "12px" },
   cardTitle: { margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827", lineHeight: 1.3 },
-  cardActions: { display: 'flex', gap: '8px' },
+  cardActions: { display: 'flex', gap: '8px', flexShrink: 0 },
 
   iconBtnBlue: { background: "#eff6ff", color: "#2563eb", border: "none", width: '32px', height: '32px', borderRadius: "8px", cursor: "pointer", display: 'flex', alignItems: 'center', justifyContent: 'center' },
   iconBtnRed: { background: "#fef2f2", color: "#ef4444", border: "none", width: '32px', height: '32px', borderRadius: "8px", cursor: "pointer", display: 'flex', alignItems: 'center', justifyContent: 'center' },

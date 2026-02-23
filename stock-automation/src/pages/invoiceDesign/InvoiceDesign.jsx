@@ -30,7 +30,11 @@ function InvoiceDesign() {
   const [accountNumber, setAccountNumber] = useState("");
   const [bankName, setBankName] = useState("");
   const [terms, setTerms] = useState("");
-  const [franchiseId, setFranchiseId] = useState(""); // Added to match DB schema
+  const [franchiseId, setFranchiseId] = useState("");
+
+  // New State for Logo Upload
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
 
   // DEBUG LOG: Component Mount
   console.log(`🟢 [InvoiceDesign] Rendered. Instance Key: ${instanceKey}`);
@@ -48,34 +52,61 @@ function InvoiceDesign() {
     setBankName("");
     setTerms("");
     setFranchiseId("");
+    setLogoFile(null);
+    setLogoPreview(null);
   }, []);
 
   const handleSave = async () => {
     setSaving(true);
     setStatus({ type: "", message: "" });
 
-    const payload = {
-      company_name: companyName.toUpperCase(),
-      company_email: companyEmail,
-      company_address: companyAddress,
-      company_gst: gstin.toUpperCase(),
-      parent_company: "JKSH UNITED PRIVATE LIMITED",
-      bank_ifsc: ifscCode.toUpperCase(),
-      bank_acc_no: accountNumber,
-      bank_name: bankName.toUpperCase(),
-      terms: terms,
-      franchise_id: franchiseId.toUpperCase() || null
-    };
-
-    // DEBUG LOG: Saving payload
-    console.log("💾 [InvoiceDesign] Attempting to save data to Supabase:", payload);
-
     try {
-      const { error } = await supabase
+      let finalLogoUrl = null;
+
+      // STEP 1: Upload Logo to Supabase Storage if a file was selected
+      if (logoFile) {
+        const fileExt = logoFile.name.split('.').pop();
+        // Fallback to 'company' if name is empty to prevent bad filenames
+        const cleanCompanyName = companyName ? companyName.replace(/\s+/g, '-').toLowerCase() : 'company';
+        const fileName = `${cleanCompanyName}-${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('logos')
+          .upload(fileName, logoFile);
+
+        if (uploadError) throw uploadError;
+
+        // Retrieve the permanent public URL
+        const { data } = supabase.storage
+          .from('logos')
+          .getPublicUrl(fileName);
+
+        finalLogoUrl = data.publicUrl;
+      }
+
+      // STEP 2: Save textual data and the logo URL to the Database
+      const payload = {
+        company_name: companyName.toUpperCase(),
+        company_email: companyEmail,
+        company_address: companyAddress,
+        company_gst: gstin.toUpperCase(),
+        parent_company: "JKSH UNITED PRIVATE LIMITED",
+        bank_ifsc: ifscCode.toUpperCase(),
+        bank_acc_no: accountNumber,
+        bank_name: bankName.toUpperCase(),
+        terms: terms,
+        franchise_id: franchiseId.toUpperCase() || null,
+        logo_url: finalLogoUrl // Attaching the new logo URL to the payload
+      };
+
+      // DEBUG LOG: Saving payload
+      console.log("💾 [InvoiceDesign] Attempting to save data to Supabase:", payload);
+
+      const { error: dbError } = await supabase
         .from('companies')
         .insert([payload]);
 
-      if (error) throw error;
+      if (dbError) throw dbError;
 
       console.log("✅ [InvoiceDesign] Save successful!");
       setStatus({ type: "success", message: "Layout Created Successfully" });
@@ -86,7 +117,7 @@ function InvoiceDesign() {
       }, 2000);
 
     } catch (error) {
-      console.error("❌ [InvoiceDesign] Supabase insert error:", error);
+      console.error("❌ [InvoiceDesign] Supabase insert/upload error:", error);
       setStatus({ type: "error", message: error.message || "Failed to save data" });
     } finally {
       setSaving(false);
@@ -149,6 +180,24 @@ function InvoiceDesign() {
                 </div>
 
                 <div className="space-y-5">
+                  {/* NEW LOGO UPLOAD INPUT */}
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest block mb-2 opacity-50 text-black">Upload Logo</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          setLogoFile(file);
+                          setLogoPreview(URL.createObjectURL(file));
+                        }
+                      }}
+                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border outline-none font-bold text-xs text-black file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                      style={{ borderColor: SOFT_BORDER }}
+                    />
+                  </div>
+
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest block mb-2 opacity-50 text-black">1. Company Name *</label>
                     <input type="text" name={`cn_${instanceKey}`} value={companyName} onChange={(e) => {
@@ -212,9 +261,15 @@ function InvoiceDesign() {
 
               <div className="flex justify-between items-start border-b-8 pb-12 mb-12" style={{ borderColor: BRAND_GREEN }}>
                 <div>
-                  <div className="w-20 h-20 rounded-2xl mb-6 shadow-lg flex items-center justify-center bg-slate-50 border" style={{ borderColor: SOFT_BORDER }}>
-                    <ImageIcon size={24} className="opacity-20" />
+                  {/* UPDATED LOGO PREVIEW AREA */}
+                  <div className="w-20 h-20 rounded-2xl mb-6 shadow-lg flex items-center justify-center bg-slate-50 border overflow-hidden" style={{ borderColor: SOFT_BORDER }}>
+                    {logoPreview ? (
+                      <img src={logoPreview} alt="Company Logo" className="w-full h-full object-contain p-2" />
+                    ) : (
+                      <ImageIcon size={24} className="opacity-20" />
+                    )}
                   </div>
+
                   <h2 className="text-4xl font-black uppercase tracking-tighter text-black">TAX INVOICE</h2>
                   {gstin && <p className="text-xs font-bold mt-2 opacity-60">GSTIN: {gstin}</p>}
                 </div>

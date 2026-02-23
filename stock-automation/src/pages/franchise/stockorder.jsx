@@ -11,10 +11,6 @@ import {
   FiRefreshCw
 } from "react-icons/fi";
 
-// --- ASSETS ---
-import tvanammLogo from "../../assets/tvanamm_logo.jpeg";
-import tleafLogo from "../../assets/tleaf_logo.jpeg";
-
 // --- CONSOLE NOISE FILTER ---
 if (import.meta.env.DEV) {
   const originalError = console.error;
@@ -120,20 +116,16 @@ const amountToWords = (price) => {
   return inWords(num) + " Rupees Only";
 };
 
-// CSS translation for the HTML-to-PDF engine
 const getEmailStyles = () => `
   <style>
-    /* Strict Box Sizing for all elements inside the PDF generator */
     *, *::before, *::after { box-sizing: border-box !important; }
-    
     body { background: white; margin: 0; padding: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
-    
     .a4-page { 
       width: 794px !important; 
       height: 1122px !important; 
       background: white !important; 
       margin: 0 !important; 
-      padding: 19px !important; /* ~5mm */
+      padding: 19px !important; 
       box-sizing: border-box !important; 
       position: relative !important; 
       overflow: hidden !important;
@@ -170,9 +162,8 @@ const StockSkeleton = () => (
 const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, totalPages, itemsChunk }) => {
   if (!data) return null;
   const companyName = companyDetails?.company_name || "";
-  const parentComp = companyDetails?.parent_company || "";
-  const isTLeaf = parentComp.toLowerCase().includes("leaf");
-  const currentLogo = isTLeaf ? tleafLogo : tvanammLogo;
+  const currentLogo = companyDetails?.logo_url || null;
+
   const invDate = new Date().toLocaleDateString('en-GB');
   const taxableAmount = data.subtotal || 0;
   const cgst = (data.totalGst || 0) / 2;
@@ -182,13 +173,9 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
   return (
     <div className="a4-page flex flex-col bg-white text-black font-sans text-xs leading-normal relative">
       <div className="w-full border-2 border-black flex flex-col relative flex-1">
-
-        {/* Title Block */}
         <div className="text-center py-2 border-b-2 border-black bg-white">
           <h1 className="text-xl font-black uppercase tracking-widest text-black underline underline-offset-4">TAX INVOICE</h1>
         </div>
-
-        {/* Header Section */}
         <div className="flex justify-between items-start p-3 border-b-2 border-black bg-white">
           <div className="w-[60%] text-left">
             <span className="uppercase font-black text-[10px] underline mb-1 block text-black">Registered Office:</span>
@@ -200,15 +187,13 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
           </div>
           <div className="w-[40%] flex flex-col items-end text-right justify-center">
             {currentLogo ? (
-              <img src={currentLogo} alt="Logo" className="h-12 w-auto object-contain mb-1" />
+              <img src={currentLogo} alt="Logo" crossOrigin="anonymous" className="h-12 w-auto object-contain mb-1" />
             ) : (
               <div className="h-10 w-24 border border-dashed border-gray-400 flex items-center justify-center text-[9px] mb-1">NO LOGO</div>
             )}
             <h2 className="text-[14px] font-black uppercase leading-tight text-black">{companyName}</h2>
           </div>
         </div>
-
-        {/* Invoice Info */}
         <div className="flex border-b-2 border-black bg-slate-50 text-black">
           <div className="w-1/2 border-r-2 border-black py-1.5 px-3">
             <span className="font-bold uppercase text-[9px]">Invoice No:</span>
@@ -219,8 +204,6 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
             <p className="font-black text-sm">{invDate}</p>
           </div>
         </div>
-
-        {/* Bill To */}
         <div className="flex border-b-2 border-black bg-white text-black">
           <div className="w-[70%] p-3 border-r-2 border-black">
             <span className="font-black uppercase underline text-[10px] tracking-widest mb-1 block">Bill To:</span>
@@ -235,8 +218,6 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
             {profile?.phone && (<div><span className="text-[10px] font-bold block mb-0.5">Ph: </span><span className="text-sm font-black block leading-none">{profile.phone}</span></div>)}
           </div>
         </div>
-
-        {/* Table */}
         <div className="flex-1 border-b-2 border-black flex flex-col bg-white">
           <table className="w-full text-left bg-white border-collapse text-black">
             <thead className="bg-slate-100 text-[10px] border-b-2 border-black">
@@ -253,17 +234,15 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
             <tbody className="text-[10px] font-bold">
               {itemsChunk.map((item, idx) => (
                 <tr key={idx} className="h-[26px] overflow-hidden border-b border-black">
-                  <td className="py-0.5 px-2 border-r-2 border-black text-center text-black">{(pageIndex * ITEMS_PER_INVOICE_PAGE) + idx + 1}</td>
-                  <td className="py-0.5 px-2 border-r-2 border-black uppercase truncate whitespace-nowrap overflow-hidden text-black">{item.item_name}</td>
-                  <td className="py-0.5 px-2 border-r-2 border-black text-center text-black">{item.displayQty} {item.cartUnit}</td>
-                  <td className="py-0.5 px-2 border-r-2 border-black text-right text-black">{formatCurrency(item.effectivePrice || item.price)}</td>
-                  <td className="py-0.5 px-2 border-r-2 border-black text-center text-black">{item.gst_rate || 0}%</td>
-                  <td className="py-0.5 px-2 border-r-2 border-black text-right text-black">{formatCurrency(item.preciseGst || 0)}</td>
-                  <td className="py-0.5 px-2 text-right text-black">{formatCurrency(item.preciseSubtotal + (item.preciseGst || 0))}</td>
+                  <td className="py-0.5 px-2 border-r-2 border-black text-center">{(pageIndex * ITEMS_PER_INVOICE_PAGE) + idx + 1}</td>
+                  <td className="py-0.5 px-2 border-r-2 border-black uppercase truncate whitespace-nowrap overflow-hidden">{item.item_name}</td>
+                  <td className="py-0.5 px-2 border-r-2 border-black text-center">{item.displayQty} {item.cartUnit}</td>
+                  <td className="py-0.5 px-2 border-r-2 border-black text-right">{formatCurrency(item.effectivePrice || item.price)}</td>
+                  <td className="py-0.5 px-2 border-r-2 border-black text-center">{item.gst_rate || 0}%</td>
+                  <td className="py-0.5 px-2 border-r-2 border-black text-right">{formatCurrency(item.preciseGst || 0)}</td>
+                  <td className="py-0.5 px-2 text-right">{formatCurrency(item.preciseSubtotal + (item.preciseGst || 0))}</td>
                 </tr>
               ))}
-
-              {/* Generate empty rows to pad out to exactly 15 rows */}
               {Array.from({ length: emptyRowsCount }).map((_, idx) => (
                 <tr key={`empty-${idx}`} className="h-[26px] border-b border-black">
                   <td className="py-0.5 px-2 border-r-2 border-black text-center text-transparent">-</td>
@@ -278,22 +257,19 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
             </tbody>
           </table>
         </div>
-
-        {/* Footer */}
         <div className="flex mt-auto bg-white text-black">
           <div className="w-[60%] border-r-2 border-black flex flex-col">
             <div className="py-1.5 px-3 border-b-2 border-black bg-slate-50 min-h-[30px] flex flex-col justify-center">
               <span className="font-bold text-[9px] uppercase">Total Amount in Words:</span>
               <p className="font-black italic capitalize text-[10px] mt-0.5 leading-tight">{amountToWords(data.roundedBill || 0)}</p>
             </div>
-
             <div className="p-3 flex-1 flex flex-col justify-between">
               <div>
                 <p className="font-black uppercase underline text-[10px] mb-1.5">Bank Details</p>
                 <div className="flex flex-col gap-0.5 text-[10px] font-bold uppercase leading-tight">
-                  <div className="flex"><span className="w-14 inline-block text-black">Bank:</span> <span className="text-black">{companyDetails?.bank_name || ""}</span></div>
-                  <div className="flex"><span className="w-14 inline-block text-black">A/c No:</span> <span className="text-black">{companyDetails?.bank_acc_no || ""}</span></div>
-                  <div className="flex"><span className="w-14 inline-block text-black">IFSC:</span> <span className="text-black">{companyDetails?.bank_ifsc || ""}</span></div>
+                  <div className="flex"><span className="w-14 inline-block">Bank:</span> <span>{companyDetails?.bank_name || ""}</span></div>
+                  <div className="flex"><span className="w-14 inline-block">A/c No:</span> <span>{companyDetails?.bank_acc_no || ""}</span></div>
+                  <div className="flex"><span className="w-14 inline-block">IFSC:</span> <span>{companyDetails?.bank_ifsc || ""}</span></div>
                 </div>
               </div>
               <div className="mt-2 pt-1.5 border-t border-slate-300">
@@ -302,25 +278,20 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
               </div>
             </div>
           </div>
-
           <div className="w-[40%] flex flex-col text-[10px]">
-            <div className="flex justify-between py-1 px-2 border-b border-black text-black"><span>Taxable</span><span>{formatCurrency(taxableAmount)}</span></div>
-            <div className="flex justify-between py-1 px-2 border-b border-slate-300 text-black"><span>Total GST</span><span>{formatCurrency(data.totalGst || 0)}</span></div>
-            <div className="flex justify-between py-0.5 px-2 border-b border-slate-300 text-black text-[9px] bg-slate-50 pl-4"><span>CGST</span><span>{formatCurrency(cgst)}</span></div>
-            <div className="flex justify-between py-0.5 px-2 border-b border-black text-black text-[9px] bg-slate-50 pl-4"><span>SGST</span><span>{formatCurrency(sgst)}</span></div>
-
-            <div className="flex justify-between py-1 px-2 border-b border-black text-black"><span>Round Off</span><span>{formatCurrency(data.roundOff || 0)}</span></div>
-            <div className="flex justify-between py-1.5 px-2 border-b-2 border-black bg-slate-200 text-black"><span className="font-black uppercase">Total</span><span className="font-black">{formatCurrency(data.roundedBill || 0)}</span></div>
-
+            <div className="flex justify-between py-1 px-2 border-b border-black"><span>Taxable</span><span>{formatCurrency(taxableAmount)}</span></div>
+            <div className="flex justify-between py-1 px-2 border-b border-slate-300"><span>Total GST</span><span>{formatCurrency(data.totalGst || 0)}</span></div>
+            <div className="flex justify-between py-0.5 px-2 border-b border-slate-300 text-[9px] bg-slate-50 pl-4"><span>CGST</span><span>{formatCurrency(cgst)}</span></div>
+            <div className="flex justify-between py-0.5 px-2 border-b border-black text-[9px] bg-slate-50 pl-4"><span>SGST</span><span>{formatCurrency(sgst)}</span></div>
+            <div className="flex justify-between py-1 px-2 border-b border-black"><span>Round Off</span><span>{formatCurrency(data.roundOff || 0)}</span></div>
+            <div className="flex justify-between py-1.5 px-2 border-b-2 border-black bg-slate-200"><span className="font-black uppercase">Total</span><span className="font-black">{formatCurrency(data.roundedBill || 0)}</span></div>
             <div className="flex-1 flex flex-col justify-end p-2 text-center min-h-[50px]">
               {pageIndex < totalPages - 1 && <p className="text-[8px] mb-1 font-bold italic text-slate-500">Continued on next page...</p>}
-              <p className="font-black border-t border-black pt-1 uppercase text-[8px] text-black">Authorized Signature</p>
+              <p className="font-black border-t border-black pt-1 uppercase text-[8px]">Authorized Signature</p>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Page Number safely outside the main border wrapper */}
       <div className="absolute bottom-1 right-2 print:bottom-1.5 print:right-2 text-[9px] font-black text-black">
         Page {pageIndex + 1} of {totalPages}
       </div>
@@ -397,19 +368,33 @@ function StockOrder() {
 
   const removeToast = useCallback((id) => setToasts(prev => prev.filter(t => t.id !== id)), []);
 
+  // --- REVISED FETCH DATA WITH SPECIFIC RELATIONAL LOGIC ---
   const fetchData = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoadingStocks(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        // 1. Fetch User Profile
         const { data: profileData } = await supabase.from("profiles").select("*").eq("id", user.id).single();
         if (profileData) {
           setProfile(profileData);
           if (profileData.role === 'central' || profileData.franchise_id === 'CENTRAL') setIsCentral(true);
+
+          // 2. Fetch Company Details based on profile.company lookup (Strict match)
+          if (profileData.company) {
+            const { data: companyData } = await supabase
+              .from('companies')
+              .select('*')
+              .eq('company_name', profileData.company) // This ensures it finds T VANAMM if the profile says so
+              .single();
+
+            if (companyData) {
+              setCompanyDetails(companyData);
+            }
+          }
         }
       }
-      const { data: companyData } = await supabase.from('companies').select('*').limit(1).single();
-      if (companyData) setCompanyDetails(companyData);
+
       const { data: stockData } = await supabase.from("stocks").select("*").eq('online_store', true).order("item_name");
       setStocks(stockData || []);
     } catch (err) {
@@ -610,7 +595,6 @@ function StockOrder() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !profile) throw new Error("Authentication failed.");
-
       const orderItems = calculations.items.map(i => ({
         stock_id: i.id,
         item_name: i.item_name,
@@ -619,10 +603,8 @@ function StockOrder() {
         price: i.effectivePrice,
         gst_rate: i.gst_rate
       }));
-
       const isScriptLoaded = await loadRazorpayScript();
       if (!isScriptLoaded) throw new Error("Gateway error.");
-
       const options = {
         key: RAZORPAY_KEY_ID,
         amount: Math.round(calculations.roundedBill * 100),
@@ -631,7 +613,6 @@ function StockOrder() {
         handler: async (response) => {
           const successTime = new Date();
           const formattedTime = successTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-
           try {
             const { data: result, error: rpcError } = await supabase.rpc('place_stock_order', {
               p_created_by: user.id,
@@ -658,16 +639,11 @@ function StockOrder() {
               },
               p_snapshot_terms: companyDetails?.terms || ""
             });
-
             if (rpcError) throw rpcError;
-
-            // --- GENERATE INVOICE PDF FOR EMAIL ---
             const currentPrintChunks = [];
             for (let i = 0; i < calculations.items.length; i += ITEMS_PER_INVOICE_PAGE) {
               currentPrintChunks.push(calculations.items.slice(i, i + ITEMS_PER_INVOICE_PAGE));
             }
-
-            // 1. Generate Raw HTML
             const invoiceHtmlRaw = currentPrintChunks.map((chunk, index) => {
               return renderToStaticMarkup(
                 <FullPageInvoice
@@ -681,31 +657,21 @@ function StockOrder() {
                 />
               );
             }).join("");
-
-            // 2. Create an invisible container
             const tempDiv = document.createElement("div");
-            // Set fixed exact width for A4 so Flexbox behaves perfectly
             tempDiv.style.cssText = "position: absolute; top: -10000px; left: -10000px; width: 794px; background: white; z-index: -100;";
-
-            // Prepend the getEmailStyles() so html2canvas knows exactly how to size it
             tempDiv.innerHTML = getEmailStyles() + invoiceHtmlRaw;
             document.body.appendChild(tempDiv);
-
-            // Give the browser time to apply Tailwind classes, load images, and calculate Flexbox
             await new Promise(resolve => setTimeout(resolve, 800));
-
-            // 3. Take screenshots of pages and convert to PDF
             const pdf = new jsPDF("p", "mm", "a4");
             const pages = tempDiv.querySelectorAll('.a4-page');
-
             for (let i = 0; i < pages.length; i++) {
               const canvas = await html2canvas(pages[i], {
-                scale: 2, // High resolution for crisp text
+                scale: 2,
                 useCORS: true,
                 backgroundColor: "#ffffff",
-                width: 794,   // Lock to A4 width at 96 DPI
-                height: 1122, // Lock to A4 height at 96 DPI
-                windowWidth: 794, // Prevents media queries from squishing the layout
+                width: 794,
+                height: 1122,
+                windowWidth: 794,
                 onclone: (documentClone) => {
                   const element = documentClone.querySelectorAll('.a4-page')[i];
                   element.style.margin = "0";
@@ -713,26 +679,16 @@ function StockOrder() {
                   element.style.transform = "none";
                 }
               });
-
               const imgData = canvas.toDataURL("image/jpeg", 1.0);
-
               if (i > 0) pdf.addPage();
-
-              // Exact mapping to jsPDF A4 size (210x297mm)
               const pdfWidth = pdf.internal.pageSize.getWidth();
               const pdfHeight = pdf.internal.pageSize.getHeight();
-
               pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
             }
-
-            // 4. Extract Base64 string & cleanup DOM
             const pdfBase64 = pdf.output('datauristring').split(',')[1];
             document.body.removeChild(tempDiv);
-
-            // --- SEND INVOICE VIA EMAIL WITH PDF ATTACHMENT ---
             try {
               const { data: { session } } = await supabase.auth.getSession();
-
               const simpleEmailHtml = `
                 <div style="font-family: sans-serif; padding: 20px; color: #333;">
                   <h2 style="color: #006437;">Order Confirmation #${result.order_id}</h2>
@@ -743,22 +699,19 @@ function StockOrder() {
                   <p>Best regards,<br/>${companyDetails?.company_name || 'Tvanamm'}</p>
                 </div>
               `;
-
               await supabase.functions.invoke('send-invoice-email', {
                 body: {
                   orderId: result.order_id,
                   userEmail: profile.email,
                   customerName: profile.name,
                   htmlBody: simpleEmailHtml,
-                  pdfAttachment: pdfBase64 // Sent as Base64 to Edge Function
+                  pdfAttachment: pdfBase64
                 },
                 headers: { Authorization: `Bearer ${session?.access_token}` }
               });
             } catch (efErr) {
               console.error("Email sending failed:", efErr);
             }
-
-            // Finish and reset UI
             setLastOrderId(result.order_id);
             setPrintData({ ...calculations, roundedBill: result.real_amount, orderTime: formattedTime });
             setOrderSuccess(true);
@@ -823,7 +776,7 @@ function StockOrder() {
         {isCartOpen && (
           <>
             <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm" onClick={() => setIsCartOpen(false)}></div>
-            <div className="fixed inset-y-0 right-0 z-[70] w-full max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="fixed inset-y-0 right-0 z-[70] w-full max-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
               <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="text-sm font-black uppercase tracking-widest flex items-center gap-2"><FiShoppingCart /> Cart ({cart.length})</h2>
                 <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-slate-50 rounded-full transition-colors"><FiX size={24} /></button>
