@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Search, Plus, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight, User, Phone, ChevronDown, MapPin, Mail
+  ArrowLeft, Search, Plus, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight, User, Phone, ChevronDown, MapPin, Mail, ShieldCheck
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "../../supabase/supabaseClient";
 
-// UPDATED COLORS TO MATCH POS MANAGEMENT
+// OPTIMIZATION 1: Import the AuthContext so we don't have to query the DB for the current user!
+import { useAuth } from "../../context/AuthContext";
+
 const GREEN = "rgb(0,100,55)";
 const PRIMARY = "#065f46";
 const BORDER = "#e5e7eb";
@@ -14,6 +16,10 @@ const BLACK = "#000000";
 
 const CentralStaffProfiles = () => {
   const navigate = useNavigate();
+
+  // Use global auth state instead of making new DB calls
+  const { profile: authProfile } = useAuth();
+
   const [profiles, setProfiles] = useState([]);
 
   // STATE: Header & Search
@@ -31,7 +37,6 @@ const CentralStaffProfiles = () => {
   const [editingId, setEditingId] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Added email back to formData
   const [formData, setFormData] = useState({
     name: "", staff_id: "", email: "", password: "", phone: "", address: ""
   });
@@ -39,34 +44,16 @@ const CentralStaffProfiles = () => {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
-    fetchInitialData();
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
-  const fetchInitialData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: ownerProfile, error: ownerError } = await supabase
-        .from('profiles')
-        .select('franchise_id, company')
-        .eq('id', user.id)
-        .single();
-
-      if (ownerError) throw ownerError;
-
-      if (ownerProfile) {
-        setLoggedInFranchiseId(ownerProfile.franchise_id || "CENTRAL");
-        setSearchFranchiseId(ownerProfile.franchise_id || "");
-        if (ownerProfile.franchise_id) {
-          await fetchStaffProfiles(ownerProfile.franchise_id);
-        }
-      }
-    } catch (err) {
-      console.error("Load Error:", err.message);
+    // Check if authProfile is loaded from Context, then trigger fetch
+    if (authProfile && authProfile.franchise_id) {
+      setLoggedInFranchiseId(authProfile.franchise_id);
+      setSearchFranchiseId(authProfile.franchise_id);
+      fetchStaffProfiles(authProfile.franchise_id);
     }
-  };
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, [authProfile]);
 
   const handleFranchiseFetch = async (e) => {
     e.preventDefault();
@@ -74,26 +61,57 @@ const CentralStaffProfiles = () => {
     await fetchStaffProfiles(searchFranchiseId);
   };
 
-  const fetchStaffProfiles = async (fid) => {
-    setLoading(true);
-    const { data: franchiseData } = await supabase
-      .from('profiles')
-      .select('company')
-      .eq('franchise_id', fid)
-      .maybeSingle();
+  const fetchStaffProfiles = async (fid, isBackgroundRefresh = false) => {
+    // OPTIMIZATION 2: Check Session Storage for Instant Load
+    const cacheKey = `staff_profiles_${fid}`;
+    if (!isBackgroundRefresh) {
+      const cachedData = sessionStorage.getItem(cacheKey);
+      if (cachedData) {
+        setProfiles(JSON.parse(cachedData));
+      } else {
+        setLoading(true); // Only show spinner if no cache exists
+      }
+    }
 
-    setCompanyName(franchiseData ? franchiseData.company : "Unknown Franchise");
+    try {
+      // OPTIMIZATION 3: Parallel DB Fetching (Promise.all)
+      // Instead of waiting for one to finish before starting the other, do both at once!
+      const [ownerRes, staffRes] = await Promise.all([
+        supabase.from('profiles').select('id, name:company, email, phone').eq('franchise_id', fid).maybeSingle(),
+        supabase.from('staff_profiles').select('id, name, staff_id, email, phone, address, created_at').eq('franchise_id', fid).order('created_at', { ascending: false })
+      ]);
 
-    // Fetch email as well
-    const { data, error } = await supabase
-      .from('staff_profiles')
-      .select('id, name, staff_id, email, phone, address, created_at')
-      .eq('franchise_id', fid)
-      .order('created_at', { ascending: false });
+      const ownerData = ownerRes.data;
+      const staffData = staffRes.data;
 
-    if (!error) setProfiles(data || []);
-    else setProfiles([]);
-    setLoading(false);
+      setCompanyName(ownerData ? ownerData.name : "Unknown Franchise");
+
+      let combined = [];
+
+      // Add owner at the top with a flag
+      if (ownerData) {
+        combined.push({
+          ...ownerData,
+          staff_id: "OWNER/ADMIN",
+          isOwner: true,
+          address: "Branch Admin Office"
+        });
+      }
+
+      if (!staffRes.error && staffData) {
+        combined = [...combined, ...staffData];
+      }
+
+      setProfiles(combined);
+
+      // Update the cache with the freshest data
+      sessionStorage.setItem(cacheKey, JSON.stringify(combined));
+
+    } catch (err) {
+      console.error("Fetch error:", err.message);
+    } finally {
+      if (!isBackgroundRefresh) setLoading(false);
+    }
   };
 
   const handleOpenEdit = (profile) => {
@@ -119,6 +137,10 @@ const CentralStaffProfiles = () => {
     e.preventDefault();
     if (!searchFranchiseId) return alert("No Franchise ID selected.");
     if (!formData.email) return alert("Email is required.");
+
+    const isEditingOwner = profiles.find(p => p.id === editingId)?.isOwner;
+    if (isEditingOwner) return alert("Owner profiles must be updated via Account Settings.");
+
     setSubmitting(true);
 
     if (editingId) {
@@ -137,7 +159,6 @@ const CentralStaffProfiles = () => {
 
     try {
       if (editingId) {
-        // Update payload includes email
         const { error: profileError } = await supabase
           .from('staff_profiles')
           .update({
@@ -161,11 +182,9 @@ const CentralStaffProfiles = () => {
         } else {
           alert("✅ Profile updated successfully!");
         }
-        fetchStaffProfiles(searchFranchiseId);
       } else {
         const tempSupabase = createClient(supabase.supabaseUrl, supabase.supabaseKey, { auth: { persistSession: false } });
 
-        // Creating the user with their real email
         const { data: authData, error: authError } = await tempSupabase.auth.signUp({
           email: formData.email.trim().toLowerCase(),
           password: formData.password
@@ -175,14 +194,14 @@ const CentralStaffProfiles = () => {
 
         const { password, ...dbPayload } = formData;
 
-        // Save into staff_profiles
         await supabase.from('staff_profiles').insert([
           { ...dbPayload, id: authData.user.id, franchise_id: searchFranchiseId, email: formData.email.trim().toLowerCase() }
         ]);
 
-        alert(`✅ Account created successfully! A verification email has been sent to ${formData.email}. They must click the verification link before logging in.`);
-        fetchStaffProfiles(searchFranchiseId);
+        alert(`✅ Account created successfully! Verification email sent.`);
       }
+      // Re-fetch in background to keep UI smooth
+      fetchStaffProfiles(searchFranchiseId, true);
       closeModal();
     } catch (err) { alert("Error: " + err.message); } finally { setSubmitting(false); }
   };
@@ -192,8 +211,14 @@ const CentralStaffProfiles = () => {
       try {
         const { error } = await supabase.rpc('delete_staff_user', { target_id: id });
         if (error) throw error;
+
         alert("✅ Deleted successfully.");
-        setProfiles(prev => prev.filter(p => p.id !== id));
+
+        // Optimistic UI + Cache Update
+        const updatedProfiles = profiles.filter(p => p.id !== id);
+        setProfiles(updatedProfiles);
+        sessionStorage.setItem(`staff_profiles_${searchFranchiseId}`, JSON.stringify(updatedProfiles));
+
       } catch (err) { alert("Error: " + err.message); }
     }
   };
@@ -205,25 +230,19 @@ const CentralStaffProfiles = () => {
 
   return (
     <div style={styles.page}>
-
       <header style={styles.header}>
         <div style={styles.headerInner}>
           <button onClick={() => navigate(-1)} style={styles.backBtn}>
             <ArrowLeft size={18} /> <span>Back</span>
           </button>
-
           <h1 style={styles.heading}>
-            Staff <span style={{ color: GREEN }}>Profiles</span>
+            User <span style={{ color: GREEN }}>Management</span>
           </h1>
-
-          <div style={styles.idBox}>
-            ID : {loggedInFranchiseId || "---"}
-          </div>
+          <div style={styles.idBox}>ID : {loggedInFranchiseId || "---"}</div>
         </div>
       </header>
 
       <main style={{ ...styles.mainContent, padding: isMobile ? "0 15px 20px 15px" : "0 40px 20px 40px" }}>
-
         <div style={{ ...styles.filterCard, padding: isMobile ? '12px' : '15px' }}>
           <form onSubmit={handleFranchiseFetch} style={{ ...styles.filterForm, flexDirection: isMobile ? "column" : "row" }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: isMobile ? '100%' : 'auto' }}>
@@ -250,13 +269,12 @@ const CentralStaffProfiles = () => {
             <Search size={18} style={styles.searchIcon} color="#94a3b8" />
             <input
               type="text"
-              placeholder={isMobile ? "Search..." : "Search staff by name or ID..."}
+              placeholder={isMobile ? "Search..." : "Search by name or ID..."}
               style={styles.searchInput}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-
           <button style={styles.addBtn} onClick={() => {
             if (!searchFranchiseId) alert("Load a Franchise ID first.");
             else setIsModalOpen(true);
@@ -271,14 +289,14 @@ const CentralStaffProfiles = () => {
               <div style={styles.loaderCenter}><Loader2 className="animate-spin" color={GREEN} size={32} /></div>
             ) : filteredProfiles.length > 0 ? (
               filteredProfiles.map((p) => (
-                <div key={p.id} style={{ ...styles.mobileCard, borderColor: expandedId === p.id ? GREEN : BORDER }}>
+                <div key={p.id} style={{ ...styles.mobileCard, borderColor: expandedId === p.id ? GREEN : (p.isOwner ? '#cbd5e1' : BORDER) }}>
                   <div onClick={() => setExpandedId(expandedId === p.id ? null : p.id)} style={styles.cardHeader}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ ...styles.cardAvatar, background: expandedId === p.id ? `${GREEN}15` : '#f3f4f6' }}>
-                        <User size={20} color={expandedId === p.id ? GREEN : '#64748b'} />
+                      <div style={{ ...styles.cardAvatar, background: p.isOwner ? `${GREEN}15` : (expandedId === p.id ? `${GREEN}15` : '#f3f4f6') }}>
+                        {p.isOwner ? <ShieldCheck size={20} color={GREEN} /> : <User size={20} color={expandedId === p.id ? GREEN : '#64748b'} />}
                       </div>
                       <div>
-                        <div style={{ fontWeight: '800', fontSize: '15px', color: BLACK }}>{p.name}</div>
+                        <div style={{ fontWeight: '800', fontSize: '15px', color: BLACK }}>{p.name} {p.isOwner && "(Owner)"}</div>
                         <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>ID: {p.staff_id}</div>
                       </div>
                     </div>
@@ -292,18 +310,17 @@ const CentralStaffProfiles = () => {
                         <div style={styles.cardInfoRow}><Mail size={14} color={GREEN} /> {p.email || 'No Email'}</div>
                         <div style={styles.cardInfoRow}><MapPin size={14} color={GREEN} /> {p.address || 'No Address'}</div>
                       </div>
-
                       <div style={styles.cardActions}>
                         <button onClick={() => navigate('/central/staff-logins', { state: { targetUserId: p.id, targetName: p.name, franchiseId: searchFranchiseId } })} style={{ ...styles.cardActionBtn, color: '#2563eb', background: '#eff6ff' }}><Clock size={16} /> LOGS</button>
-                        <button onClick={() => handleOpenEdit(p)} style={{ ...styles.cardActionBtn, color: GREEN, background: `${GREEN}10` }}><Edit2 size={16} /> EDIT</button>
-                        <button onClick={() => handleDelete(p.id)} style={{ ...styles.cardActionBtn, color: '#ef4444', background: '#fef2f2' }}><Trash2 size={16} /></button>
+                        {!p.isOwner && <button onClick={() => handleOpenEdit(p)} style={{ ...styles.cardActionBtn, color: GREEN, background: `${GREEN}10` }}><Edit2 size={16} /> EDIT</button>}
+                        {!p.isOwner && <button onClick={() => handleDelete(p.id)} style={{ ...styles.cardActionBtn, color: '#ef4444', background: '#fef2f2' }}><Trash2 size={16} /></button>}
                       </div>
                     </div>
                   )}
                 </div>
               ))
             ) : (
-              <div style={styles.emptyState}>No staff profiles found.</div>
+              <div style={styles.emptyState}>No profiles found.</div>
             )}
           </div>
         ) : (
@@ -312,10 +329,10 @@ const CentralStaffProfiles = () => {
               <thead>
                 <tr>
                   <th style={styles.th}>S.NO</th>
-                  <th style={styles.th}>COMPANY NAME</th>
-                  <th style={styles.th}>STAFF NAME</th>
-                  <th style={styles.th}>STAFF ID</th>
-                  <th style={styles.th}>PHONE NUMBER</th>
+                  <th style={styles.th}>TYPE</th>
+                  <th style={styles.th}>NAME</th>
+                  <th style={styles.th}>ID</th>
+                  <th style={styles.th}>PHONE</th>
                   <th style={{ ...styles.th, textAlign: 'center' }}>ACTION</th>
                 </tr>
               </thead>
@@ -323,16 +340,16 @@ const CentralStaffProfiles = () => {
                 {loading ? (
                   <tr><td colSpan="6" style={{ ...styles.td, textAlign: 'center' }}><Loader2 className="animate-spin" style={{ margin: '20px auto' }} /></td></tr>
                 ) : filteredProfiles.map((profile, index) => (
-                  <tr key={profile.id} style={styles.tr}>
+                  <tr key={profile.id} style={{ ...styles.tr, background: profile.isOwner ? '#f8fafc' : 'transparent' }}>
                     <td style={styles.td}>{index + 1}</td>
-                    <td style={styles.td}>{companyName}</td>
+                    <td style={styles.td}>{profile.isOwner ? <span style={{ color: GREEN, fontWeight: '800' }}>OWNER</span> : "STAFF"}</td>
                     <td style={styles.td}>{profile.name}</td>
                     <td style={styles.td}>{profile.staff_id}</td>
                     <td style={styles.td}>{profile.phone}</td>
                     <td style={styles.actionTd}>
                       <button onClick={() => navigate('/central/staff-logins', { state: { targetUserId: profile.id, targetName: profile.name, franchiseId: searchFranchiseId } })} style={styles.timeBtn} title="View Logs"><Clock size={16} /></button>
-                      <button onClick={() => handleOpenEdit(profile)} style={styles.editBtn} title="Edit Profile"><Edit2 size={16} /></button>
-                      <button onClick={() => handleDelete(profile.id)} style={styles.deleteBtn} title="Delete User"><Trash2 size={16} /></button>
+                      {!profile.isOwner && <button onClick={() => handleOpenEdit(profile)} style={styles.editBtn} title="Edit"><Edit2 size={16} /></button>}
+                      {!profile.isOwner && <button onClick={() => handleDelete(profile.id)} style={styles.deleteBtn} title="Delete"><Trash2 size={16} /></button>}
                     </td>
                   </tr>
                 ))}
@@ -342,7 +359,6 @@ const CentralStaffProfiles = () => {
         )}
       </main>
 
-      {/* MODAL */}
       {isModalOpen && (
         <div style={styles.modalOverlay} onClick={closeModal}>
           <div style={{ ...styles.modalContent, width: isMobile ? "95%" : "550px", borderRadius: "18px" }} onClick={e => e.stopPropagation()}>
@@ -355,7 +371,6 @@ const CentralStaffProfiles = () => {
               </div>
               <button onClick={closeModal} style={styles.closeBtn}><X size={24} /></button>
             </div>
-
             <form onSubmit={handleSubmit} style={{ ...styles.formGrid, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
               <div style={styles.inputGroup}>
                 <label style={styles.label}>Full Name *</label>
@@ -365,12 +380,10 @@ const CentralStaffProfiles = () => {
                 <label style={styles.label}>Staff ID *</label>
                 <input required style={styles.input} type="text" value={formData.staff_id} onChange={e => setFormData({ ...formData, staff_id: e.target.value })} />
               </div>
-
               <div style={styles.inputGroup}>
                 <label style={styles.label}>Phone Number *</label>
                 <input required style={styles.input} type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
               </div>
-
               <div style={styles.inputGroup}>
                 <label style={styles.label}>Password {!editingId && "*"}</label>
                 <div style={{ position: 'relative' }}>
@@ -378,21 +391,14 @@ const CentralStaffProfiles = () => {
                   <button type="button" onClick={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
                 </div>
               </div>
-
-              {/* EMAIL FIELD WITH DISCLAIMER */}
               <div style={{ ...styles.inputGroup, gridColumn: isMobile ? 'span 1' : 'span 2' }}>
                 <label style={styles.label}>Email Address *</label>
                 <input required style={styles.input} type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="staff@domain.com" />
-                <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '6px', lineHeight: '1.4', fontWeight: '600', padding: '8px', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fee2e2' }}>
-                  <strong>Important:</strong> Please provide the staff member's direct email address. If they do not currently have an email account, one must be created prior to registration, as mandatory email verification is required to access the system.
-                </p>
               </div>
-
               <div style={{ ...styles.inputGroup, gridColumn: isMobile ? 'span 1' : 'span 2' }}>
                 <label style={styles.label}>Residential Address</label>
                 <textarea style={{ ...styles.input, height: '50px', resize: 'none' }} value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
               </div>
-
               <div style={{ ...styles.modalFooter, gridColumn: isMobile ? "span 1" : "span 2" }}>
                 <button type="button" onClick={closeModal} style={styles.cancelBtn}>Cancel</button>
                 <button type="submit" disabled={submitting} style={styles.submitBtn}>{submitting ? "Saving..." : "Save Profile"}</button>
