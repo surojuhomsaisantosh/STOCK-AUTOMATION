@@ -4,10 +4,10 @@ import { supabase } from "../supabase/supabaseClient";
 const AuthContext = createContext({
   user: null,
   role: null,
-  profile: null, // Stores full details (Address, Company, etc.)
+  profile: null,
   loading: true,
-  login: async () => {},
-  logout: async () => {},
+  login: async () => { },
+  logout: async () => { },
 });
 
 export function AuthProvider({ children }) {
@@ -16,7 +16,6 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  /* ================= HYDRATION LOGIC ================= */
   const hydrate = async (supabaseUser) => {
     if (!supabaseUser) {
       setUser(null);
@@ -26,9 +25,6 @@ export function AuthProvider({ children }) {
       return null;
     }
 
-    console.log("🟡 Hydrating profile for:", supabaseUser.id);
-
-    // 1. Check PROFILES (Owner / Admin)
     let { data: ownerProfile } = await supabase
       .from("profiles")
       .select("*")
@@ -38,12 +34,8 @@ export function AuthProvider({ children }) {
     let finalProfile = null;
 
     if (ownerProfile) {
-      // CASE A: User is an Owner/Admin
-      finalProfile = ownerProfile;
+      finalProfile = { ...ownerProfile, role: ownerProfile.role || "owner" };
     } else {
-      // 2. Check STAFF_PROFILES (Store Staff)
-      console.log("🔍 Not in profiles. Checking staff_profiles...");
-      
       const { data: staffProfile } = await supabase
         .from("staff_profiles")
         .select("*")
@@ -51,8 +43,6 @@ export function AuthProvider({ children }) {
         .maybeSingle();
 
       if (staffProfile) {
-        // CASE B: User is Staff
-        // CRITICAL STEP: Fetch Store Address from the Owner's Profile using franchise_id
         const { data: storeInfo } = await supabase
           .from("profiles")
           .select("company, address, city, state, pincode, phone")
@@ -60,147 +50,104 @@ export function AuthProvider({ children }) {
           .limit(1)
           .maybeSingle();
 
-        // Merge Staff Personal Info + Store Location Info
-        finalProfile = {
-          ...staffProfile,      // Name, Staff ID
-          role: "staff", 
-          staff_profile_id: staffProfile.id,
-          ...storeInfo          // Company, Address, City, Pincode (For Receipt)
-        };
+        finalProfile = { ...staffProfile, role: "staff", staff_profile_id: staffProfile.id, ...storeInfo };
       }
     }
 
-    // 3. Final State Update
     if (!finalProfile) {
-      console.warn("⚠️ Profile not found in either table.");
       setUser(null);
       setRole(null);
       setProfile(null);
       setLoading(false);
       return null;
     } else {
-      // Set User State with essential IDs
       setUser({
         ...supabaseUser,
         franchise_id: finalProfile.franchise_id,
-        staff_profile_id: finalProfile.staff_profile_id || null,
+        staff_profile_id: finalProfile.role === "staff" ? (finalProfile.staff_profile_id || finalProfile.id) : null,
+        owner_profile_id: finalProfile.role !== "staff" ? finalProfile.id : null,
       });
-      
-      setProfile(finalProfile); // Available throughout the app
+
+      setProfile(finalProfile);
       setRole(finalProfile.role);
       setLoading(false);
-      
-      console.log("✅ Auth fully hydrated as:", finalProfile.role);
-      return finalProfile; 
+      return finalProfile;
     }
   };
 
-  /* ================= INIT + LISTENER ================= */
   useEffect(() => {
-    console.log("🟢 AuthProvider mounted");
-
-    // Check current session on load
     supabase.auth.getSession().then(({ data }) => {
       hydrate(data?.session?.user ?? null);
     });
 
-    // Listen for changes (Login / Logout)
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log("🔁 Auth state event:", event);
-        
-        if (event === "SIGNED_IN" && session?.user) {
-          // Wait briefly for hydration
-          setTimeout(async () => {
-            const hydratedProfile = await hydrate(session.user);
-            
-            // --- [CRITICAL] AUTOMATIC LOGIN LOGGING ---
-            if (hydratedProfile && hydratedProfile.role === "staff") {
-              await recordLogin(session.user.id, hydratedProfile);
-            }
-          }, 500);
-        } else if (event === "SIGNED_OUT") {
+        if (event === "SIGNED_OUT") {
           setUser(null);
           setRole(null);
           setProfile(null);
           setLoading(false);
         } else if (event === "INITIAL_SESSION") {
-           // Do nothing, let the initial getSession handle it, 
-           // or just hydrate if user exists to be safe
-           if(session?.user) hydrate(session.user);
+          if (session?.user) hydrate(session.user);
         }
       }
     );
 
-    return () => {
-      listener?.subscription?.unsubscribe();
-    };
+    return () => { listener?.subscription?.unsubscribe(); };
   }, []);
 
-  /* ================= HELPER: RECORD LOGIN (SMART FIX) ================= */
-  const recordLogin = async (userId, profileData) => {
-    try {
-      console.log("🔵 Attempting to record login...");
+  /* ================= EXPLICIT LOGIN FUNCTION ================= */
+  const login = async (supabaseUser, profileData, chosenMode) => {
+    // 1. Update React State
+    setUser({
+      ...supabaseUser,
+      franchise_id: profileData.franchise_id,
+      staff_profile_id: profileData.role === "staff" ? (profileData.staff_profile_id || profileData.id) : null,
+      owner_profile_id: profileData.role !== "staff" ? profileData.id : null,
+    });
+    setProfile(profileData);
+    setRole(profileData.role);
 
-      // 1. Check for ANY existing active sessions (Zombie sessions)
+    // 2. Record the physical login to the DB
+    try {
+      const isStaff = profileData.role === "staff";
+
+      // HARD OVERRIDE: If staff, it is physically impossible to be ADMIN mode.
+      const finalMode = isStaff ? "STORE" : chosenMode.toUpperCase();
+
+      const staffProfId = isStaff ? (profileData.staff_profile_id || profileData.id) : null;
+      const ownerProfId = !isStaff ? profileData.id : null;
+
+      // Close any stuck sessions first
       const { data: activeSessions } = await supabase
         .from('login_logs')
         .select('id')
-        .eq('staff_id', userId)
+        .eq('staff_id', supabaseUser.id)
         .is('logout_at', null);
 
-      // 2. If found, AUTO-CLOSE them
       if (activeSessions && activeSessions.length > 0) {
-        console.log(`⚠️ Found ${activeSessions.length} stuck sessions. Auto-closing them...`);
-        
         const idsToClose = activeSessions.map(s => s.id);
-        
-        await supabase
-          .from('login_logs')
-          .update({ logout_at: new Date().toISOString() }) 
-          .in('id', idsToClose);
+        await supabase.from('login_logs').update({ logout_at: new Date().toISOString() }).in('id', idsToClose);
       }
 
-      // 3. Insert the NEW Login Record
-      const { data, error } = await supabase
-        .from('login_logs')
-        .insert([{
-          staff_id: userId,
-          staff_profile_id: profileData.staff_profile_id,
-          franchise_id: profileData.franchise_id,
-          login_at: new Date().toISOString()
-        }])
-        .select();
+      // Insert the perfect record
+      await supabase.from('login_logs').insert([{
+        staff_id: supabaseUser.id,
+        staff_profile_id: staffProfId,     // Fixed the null issue!
+        owner_profile_id: ownerProfId,
+        franchise_id: profileData.franchise_id,
+        login_mode: finalMode              // Guaranteed accurate mode!
+      }]);
 
-      if (error) console.error("❌ Failed to record login:", error.message);
-      else console.log("✅ New Login Recorded ID:", data[0]?.id);
-      
     } catch (err) {
       console.error("Login Log Error:", err);
     }
   };
 
-  /* ================= PUBLIC FUNCTIONS ================= */
-  const login = async (supabaseUser, profileData) => {
-    // Manually update state to avoid flickering / network delay
-    setUser({
-      ...supabaseUser,
-      franchise_id: profileData.franchise_id,
-      staff_profile_id: profileData.staff_profile_id || null,
-    });
-    setProfile(profileData);
-    setRole(profileData.role);
-  };
-
   const logout = async () => {
-    console.log("🔴 Logout initiated...");
-
     try {
-      // 1. Check if it's a staff member logging out
-      if (role === "staff" && user?.id) {
-        
-        // Find the active log entry
-        const { data: activeLog, error: fetchError } = await supabase
+      if (user?.id) {
+        const { data: activeLog } = await supabase
           .from('login_logs')
           .select('id')
           .eq('staff_id', user.id)
@@ -209,41 +156,21 @@ export function AuthProvider({ children }) {
           .limit(1)
           .maybeSingle();
 
-        if (fetchError) console.error("Error finding active log:", fetchError);
-
         if (activeLog) {
-          console.log("🕒 Found active session ID:", activeLog.id, "- Stamping logout time...");
-          
-          // 2. STAMP THE LOGOUT TIME
-          const { error: updateError } = await supabase
-            .from('login_logs')
-            .update({ logout_at: new Date().toISOString() })
-            .eq('id', activeLog.id);
-
-          if (updateError) {
-            console.error("❌ Failed to stamp logout:", updateError.message);
-          } else {
-            console.log("✅ Logout timestamp saved successfully.");
-          }
-        } else {
-          console.warn("⚠️ No active login log found to close.");
+          await supabase.from('login_logs').update({ logout_at: new Date().toISOString() }).eq('id', activeLog.id);
         }
       }
     } catch (err) {
       console.error("Logout Logic Error:", err);
     }
 
-    // 3. Wait Buffer
     await new Promise(resolve => setTimeout(resolve, 500));
-
-    // 4. Sign out
-    const { error: signOutError } = await supabase.auth.signOut();
-    if (signOutError) console.error("SignOut Error:", signOutError);
+    await supabase.auth.signOut();
 
     setUser(null);
     setRole(null);
     setProfile(null);
-    window.location.href = '/'; 
+    window.location.href = '/';
   };
 
   return (
