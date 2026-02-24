@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft, Search, Loader2, RefreshCw, PowerOff,
@@ -176,8 +176,8 @@ const CentralStaffLogins = () => {
   const getStaffDetails = (log) => {
     let profile = log.staff_profiles;
     if (Array.isArray(profile)) profile = profile[0];
-    if (profile) return { name: profile.name || "Unknown", id: profile.staff_id || "N/A", isOwner: false };
-    return { name: "Owner / Admin", id: log.franchise_id || franchiseId || "ADMIN", isOwner: true };
+    if (profile) return { name: String(profile.name || "Unknown"), id: String(profile.staff_id || "N/A"), isOwner: false };
+    return { name: "Owner / Admin", id: String(log.franchise_id || franchiseId || "ADMIN"), isOwner: true };
   };
 
   const calculateDurationDisplay = (startStr, endStr) => {
@@ -214,7 +214,7 @@ const CentralStaffLogins = () => {
   };
 
   const fetchLogs = async (fid, specificTargetId, showLoading = true) => {
-    if (showLoading && !logs.length) setLoading(true);
+    if (showLoading && !(Array.isArray(logs) && logs.length)) setLoading(true);
     if (showLoading) setIsRefreshing(true);
 
     try {
@@ -238,24 +238,54 @@ const CentralStaffLogins = () => {
       }
 
       const { data, error } = await query;
+      console.log("Fetched logs data:", data, "Error:", error);
+
       if (!error) {
-        setLogs(data || []);
-        sessionStorage.setItem(getCacheKey(), JSON.stringify(data || []));
+        const safeData = Array.isArray(data) ? data : [];
+        setLogs(safeData);
+        sessionStorage.setItem(getCacheKey(), JSON.stringify(safeData));
+      } else {
+        console.error("Supabase Fetch Error:", error);
+        alert("Failed to fetch logs: " + error.message);
       }
-    } catch (err) { console.error(err); } finally {
+    } catch (err) {
+      console.error("Fetch Exception:", err);
+      alert("Error: " + err.message);
+    } finally {
       if (showLoading) setIsRefreshing(false);
       setLoading(false);
     }
   };
 
   const finalLogs = useMemo(() => {
-    return logs.filter(log => {
+    if (!Array.isArray(logs)) return [];
+    const filtered = logs.filter(log => {
       const { name, id } = getStaffDetails(log);
-      const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) || id.toLowerCase().includes(searchTerm.toLowerCase());
+      const safeSearch = String(searchTerm || "").toLowerCase();
+      const matchesSearch = String(name || "").toLowerCase().includes(safeSearch) || String(id || "").toLowerCase().includes(safeSearch);
       if (!matchesSearch) return false;
-      const logDate = new Date(log.login_at).toLocaleDateString('en-CA');
-      return filterType === 'date' ? logDate === selectedDate : (logDate >= startDate && logDate <= endDate);
+
+      if (!log.login_at) return true; // Include if no date
+
+      // Fix date filtering using actual local date fields to ensure exact match avoiding timezone shift comparisons
+      const logDateObj = new Date(log.login_at);
+      const year = logDateObj.getFullYear();
+      const month = String(logDateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(logDateObj.getDate()).padStart(2, '0');
+      const logDate = `${year}-${month}-${day}`;
+
+      if (filterType === 'date') {
+        if (!selectedDate) return true;
+        return logDate === selectedDate;
+      } else {
+        if (!startDate && !endDate) return true;
+        if (startDate && logDate < startDate) return false;
+        if (endDate && logDate > endDate) return false;
+        return true;
+      }
     });
+    console.log("Filtered logs (showing on screen):", filtered);
+    return filtered;
   }, [logs, searchTerm, filterType, selectedDate, startDate, endDate]);
 
   const stats = useMemo(() => {
