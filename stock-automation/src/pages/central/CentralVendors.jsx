@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Search, Plus, Edit2, Trash2, X, Users, RefreshCw, Layers, Filter, AlertCircle
+  ArrowLeft, Search, Plus, Edit2, Trash2, X, Users, RefreshCw, Layers, Filter, AlertCircle, Building2, ChevronDown
 } from "lucide-react";
 import { supabase } from "../../supabase/supabaseClient";
+import { useAuth } from "../../context/AuthContext"; // IMPORTED AUTH CONTEXT
 
 // --- THEME ---
 const BRAND_COLOR = "#065f46";
@@ -18,11 +19,14 @@ const CustomStyles = () => (
 
 const CentralVendors = () => {
   const navigate = useNavigate();
+  const { profile: authProfile } = useAuth(); // EXTRACTED PROFILE
 
-  // --- STATE ---
-  const [franchiseId, setFranchiseId] = useState(null);
+  // --- DROPDOWN & AUTH STATE ---
+  const [companyList, setCompanyList] = useState([]);
+  const [selectedCompany, setSelectedCompany] = useState(() => sessionStorage.getItem("vendor_central_selectedCompany") || "");
+
   const [vendors, setVendors] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Filters
@@ -46,71 +50,62 @@ const CentralVendors = () => {
   // --- LIFECYCLE ---
   useEffect(() => {
     fetchUserData();
+    fetchCompanyList();
   }, []);
 
+  // Save dropdown state to session storage
   useEffect(() => {
-    if (franchiseId) {
-      fetchVendors();
+    sessionStorage.setItem("vendor_central_selectedCompany", selectedCompany);
+  }, [selectedCompany]);
+
+  // Auto-Fetch vendors when Company changes
+  useEffect(() => {
+    if (selectedCompany) {
+      fetchVendors(selectedCompany);
+    } else {
+      setVendors([]);
     }
-  }, [franchiseId]);
+  }, [selectedCompany]);
+
 
   // --- DATA FETCHING ---
   const fetchUserData = async () => {
-    console.log("[DEBUG - AUTH] Fetching user data...");
     try {
       const { data: { user } } = await supabase.auth.getUser();
-
       if (!user) {
-        console.warn("[DEBUG - AUTH] No user found. Redirecting to login.");
         navigate("/login");
         return;
       }
-
-      console.log(`[DEBUG - AUTH] User ID found: ${user.id}`);
-
-      // We are fetching role here too just for the debug logs to ensure it is 'central'
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('franchise_id, role')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) {
-        console.error("[DEBUG - AUTH] Error fetching profile:", profileError);
-        throw profileError;
-      }
-
-      console.log(`[DEBUG - AUTH] Profile fetched perfectly. Role: '${profile.role}', Franchise: '${profile.franchise_id}'`);
-
-      if (profile.role !== 'central') {
-        console.warn(`[DEBUG - AUTH WARNING] User role is '${profile.role}', NOT 'central'. RLS policies might block operations!`);
-      }
-
-      setFranchiseId(profile?.franchise_id || "CENTRAL");
     } catch (err) {
       console.error("[DEBUG - AUTH] Catch block hit:", err);
-      setError("Failed to load user profile.");
-      setLoading(false);
+      setError("Failed to verify user session.");
     }
   };
 
-  const fetchVendors = async () => {
-    console.log(`[DEBUG - FETCH] Fetching vendors for Franchise ID: ${franchiseId}`);
+  const fetchCompanyList = async () => {
+    try {
+      const { data, error } = await supabase.from('companies').select('company_name');
+      if (data && !error) {
+        const uniqueCompanies = [...new Set(data.map(c => c.company_name).filter(Boolean))];
+        setCompanyList(uniqueCompanies);
+      }
+    } catch (err) {
+      console.error("Failed to load companies:", err);
+    }
+  };
+
+  const fetchVendors = async (companyName) => {
     setLoading(true);
     setError(null);
     try {
+      // We use the company name as the franchise_id for central vendors
       const { data, error } = await supabase
         .from('vendors')
         .select('*')
-        .eq('franchise_id', franchiseId)
+        .eq('company_name', companyName)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error("[DEBUG - FETCH] Supabase error fetching vendors:", error);
-        throw error;
-      }
-
-      console.log(`[DEBUG - FETCH] Successfully fetched ${data?.length || 0} vendors.`);
+      if (error) throw error;
       setVendors(data || []);
     } catch (err) {
       console.error("[DEBUG - FETCH] Catch block hit:", err.message);
@@ -122,6 +117,7 @@ const CentralVendors = () => {
 
   // --- HANDLERS ---
   const handleOpenAdd = () => {
+    if (!selectedCompany) return alert("Please select a Company first.");
     setEditingId(null);
     setFormData({ name: "", category: "", phone: "", address: "", gst: "" });
     setIsModalOpen(true);
@@ -139,59 +135,24 @@ const CentralVendors = () => {
     setIsModalOpen(true);
   };
 
-  // ==========================================
-  // EXTREME DEBUGGING IN DELETE FUNCTION
-  // ==========================================
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this vendor? This cannot be undone.")) return;
 
-    console.log(`\n--- [DEBUG DELETE START] ---`);
-    console.log(`Attempting to delete Vendor ID: ${id}`);
-
     try {
-      // Adding .select() is a massive hack to catch silent RLS failures
-      const response = await supabase
-        .from('vendors')
-        .delete()
-        .eq('id', id)
-        .select();
+      const response = await supabase.from('vendors').delete().eq('id', id).select();
 
-      console.log(`[DEBUG - RAW RESPONSE]`, response);
+      if (response.error) throw response.error;
 
-      if (response.error) {
-        console.error(`[DEBUG - SUPABASE ERROR OBJECT]`, response.error);
-        throw response.error;
-      }
-
-      // If there is no error, but data is empty, RLS blocked it silently!
       if (!response.data || response.data.length === 0) {
-        console.warn(`[DEBUG - SILENT FAILURE] Supabase returned success, but 0 rows were deleted.`);
-        throw new Error("RLS Silent Failure: The database refused to delete the row, likely due to Row Level Security policies evaluating to false.");
+        throw new Error("RLS Silent Failure: The database refused to delete the row.");
       }
 
-      console.log(`[DEBUG - SUCCESS] Vendor deleted successfully!`, response.data);
       setVendors(prev => prev.filter(v => v.id !== id));
-
-      // Optional: Give a success toast so you know it actually worked
-      // alert("Vendor deleted successfully."); 
-
     } catch (err) {
       console.error("[DEBUG - CATCH BLOCK ERROR]", err);
-
-      // EXTREME ALERT: Spits out the exact database error code onto the screen
-      const debugMessage = `
-        DELETE FAILED!
-        -----------------------
-        Message: ${err.message || 'Unknown Error'}
-        Code: ${err.code || 'N/A'}
-        Details: ${err.details || 'N/A'}
-        Hint: ${err.hint || 'N/A'}
-      `;
-      alert(debugMessage);
+      alert(`DELETE FAILED!\nMessage: ${err.message || 'Unknown Error'}`);
     }
-    console.log(`--- [DEBUG DELETE END] ---\n`);
   };
-  // ==========================================
 
   const handlePhoneChange = (e) => {
     const val = e.target.value.replace(/\D/g, '');
@@ -202,7 +163,7 @@ const CentralVendors = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!franchiseId) return alert("System Error: Franchise ID missing.");
+    if (!selectedCompany) return alert("System Error: Company missing.");
 
     if (formData.phone.length !== 10) {
       alert("Please enter a valid 10-digit mobile number.");
@@ -210,7 +171,6 @@ const CentralVendors = () => {
     }
 
     setSubmitting(true);
-    console.log(`[DEBUG - SUBMIT] Attempting to ${editingId ? 'update' : 'insert'} vendor...`);
 
     try {
       const payload = {
@@ -219,7 +179,7 @@ const CentralVendors = () => {
         phone: formData.phone.trim(),
         address: formData.address.trim(),
         gst: formData.gst.trim().toUpperCase(),
-        franchise_id: franchiseId
+        company_name: selectedCompany
       };
 
       if (!payload.name || !payload.phone) {
@@ -227,29 +187,18 @@ const CentralVendors = () => {
       }
 
       if (editingId) {
-        const { error } = await supabase
-          .from('vendors')
-          .update(payload)
-          .eq('id', editingId);
-        if (error) {
-          console.error("[DEBUG - SUBMIT UPDATE ERROR]", error);
-          throw error;
-        }
+        const { error } = await supabase.from('vendors').update(payload).eq('id', editingId);
+        if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from('vendors')
-          .insert([payload]);
-        if (error) {
-          console.error("[DEBUG - SUBMIT INSERT ERROR]", error);
-          throw error;
-        }
+        const { error } = await supabase.from('vendors').insert([payload]);
+        if (error) throw error;
       }
-      console.log(`[DEBUG - SUBMIT] Success!`);
+
       setIsModalOpen(false);
-      fetchVendors();
+      fetchVendors(selectedCompany);
     } catch (err) {
       console.error("[DEBUG - SUBMIT CATCH]", err);
-      alert(`Save failed: ${err.message}\nCode: ${err.code || 'N/A'}`);
+      alert(`Save failed: ${err.message}`);
     } finally {
       setSubmitting(false);
     }
@@ -258,13 +207,8 @@ const CentralVendors = () => {
   const openWhatsApp = (phone) => {
     if (!phone) return alert("No phone number available");
     let cleanNumber = phone.replace(/[^0-9]/g, '');
-
-    if (cleanNumber.length === 10) {
-      cleanNumber = "91" + cleanNumber;
-    }
-
-    const url = `https://api.whatsapp.com/send?phone=${cleanNumber}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    if (cleanNumber.length === 10) cleanNumber = "91" + cleanNumber;
+    window.open(`https://api.whatsapp.com/send?phone=${cleanNumber}`, '_blank', 'noopener,noreferrer');
   };
 
   // --- MEMOIZED DATA ---
@@ -277,7 +221,6 @@ const CentralVendors = () => {
   const filteredVendors = useMemo(() => {
     return vendors.filter(v => {
       const vendorCat = v.category || "";
-
       if (selectedCategory !== "All" && vendorCat !== selectedCategory) return false;
 
       const searchLower = searchTerm.toLowerCase();
@@ -302,24 +245,44 @@ const CentralVendors = () => {
               <ArrowLeft size={18} /> <span>Back</span>
             </button>
             <h1 className="text-xs md:text-2xl font-black uppercase text-black text-center flex-1 truncate px-2">
-              Vendor <span style={{ color: BRAND_COLOR }}>List</span>
+              Company <span style={{ color: BRAND_COLOR }}>Vendors</span>
             </h1>
 
+            {/* UPDATED: Displays ID of logged in user */}
             <div className="flex items-center flex-shrink-0">
               <div className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
                 <span className="text-[10px] md:text-xs text-slate-400 font-black uppercase tracking-wider">ID :</span>
                 <span className="text-[10px] md:text-sm font-bold text-slate-700 font-mono">
-                  {franchiseId || "..."}
+                  {authProfile?.franchise_id || authProfile?.staff_id || "---"}
                 </span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* --- SEARCH & ACTIONS --- */}
+        {/* --- COMPANY DROPDOWN & ACTIONS --- */}
         <div className="w-full px-4 md:px-6 py-4 pb-0">
+
+          <div className="flex flex-col md:flex-row items-center gap-3 w-full mb-3 bg-white p-3 md:p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-2 text-[#065f46] font-bold text-sm w-full md:w-auto flex-shrink-0">
+              <Building2 size={18} />
+              <span className="whitespace-nowrap">Select Company:</span>
+            </div>
+
+            <div className="relative flex-1 w-full">
+              <select
+                value={selectedCompany}
+                onChange={(e) => setSelectedCompany(e.target.value)}
+                className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-[#065f46] outline-none focus:border-[#065f46] cursor-pointer"
+              >
+                <option value="" disabled>-- Choose a Company --</option>
+                {companyList.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
+
           <div className="flex flex-col lg:flex-row gap-3 mb-3">
-            {/* Search Input */}
             <div className="relative flex-1 min-w-0">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
@@ -331,10 +294,10 @@ const CentralVendors = () => {
               />
             </div>
 
-            {/* Action Buttons Row */}
             <div className="flex items-center justify-end overflow-x-auto no-scrollbar pb-1 lg:pb-0">
               <button onClick={handleOpenAdd}
-                className="h-[46px] text-white px-4 md:px-5 rounded-xl font-bold uppercase text-[10px] md:text-xs flex items-center gap-2 shadow-md flex-shrink-0 whitespace-nowrap transition-transform active:scale-95"
+                disabled={!selectedCompany}
+                className="h-[46px] text-white px-4 md:px-5 rounded-xl font-bold uppercase text-[10px] md:text-xs flex items-center gap-2 shadow-md flex-shrink-0 whitespace-nowrap transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ backgroundColor: BRAND_COLOR }}>
                 <span>Add Vendor</span>
                 <Plus size={16} />
@@ -343,17 +306,19 @@ const CentralVendors = () => {
           </div>
 
           {/* Categories */}
-          <div className="flex gap-2 overflow-x-auto pb-3 border-t border-slate-100 pt-3 no-scrollbar touch-pan-x">
-            {uniqueCategories.map((cat) => (
-              <button key={cat} onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-1.5 rounded-full text-[10px] md:text-xs font-bold border transition-all whitespace-nowrap flex items-center gap-1
-                    ${selectedCategory === cat ? "text-white shadow-md" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}
-                style={selectedCategory === cat ? { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR } : {}}>
-                {selectedCategory === cat && <Layers size={12} />}
-                {cat}
-              </button>
-            ))}
-          </div>
+          {selectedCompany && (
+            <div className="flex gap-2 overflow-x-auto pb-3 border-t border-slate-100 pt-3 no-scrollbar touch-pan-x">
+              {uniqueCategories.map((cat) => (
+                <button key={cat} onClick={() => setSelectedCategory(cat)}
+                  className={`px-4 py-1.5 rounded-full text-[10px] md:text-xs font-bold border transition-all whitespace-nowrap flex items-center gap-1
+                      ${selectedCategory === cat ? "text-white shadow-md" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}
+                  style={selectedCategory === cat ? { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR } : {}}>
+                  {selectedCategory === cat && <Layers size={12} />}
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -369,7 +334,14 @@ const CentralVendors = () => {
             <div className="flex flex-col items-center justify-center h-64 text-red-500 gap-3">
               <AlertCircle size={32} />
               <span className="text-sm font-bold">{error}</span>
-              <button onClick={fetchVendors} className="text-xs underline">Try Again</button>
+              <button onClick={() => fetchVendors(selectedCompany)} className="text-xs underline">Try Again</button>
+            </div>
+          ) : !selectedCompany ? (
+            <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-3">
+              <div className="bg-slate-100 p-4 rounded-full">
+                <Building2 size={32} />
+              </div>
+              <span className="text-xs font-bold uppercase tracking-wider">Select a company to view vendors</span>
             </div>
           ) : filteredVendors.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-3">
@@ -417,10 +389,8 @@ const CentralVendors = () => {
       {/* --- MODAL --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          {/* Backdrop */}
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
 
-          {/* Content */}
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl flex flex-col relative z-10 animate-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
               <h2 className="font-black uppercase tracking-widest text-black flex items-center gap-2 text-sm md:text-base">
@@ -431,8 +401,15 @@ const CentralVendors = () => {
                 <X size={20} />
               </button>
             </div>
-            {/* Made form scrollable in case it exceeds screen height on mobile */}
+
             <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4 overflow-y-auto max-h-[80vh] no-scrollbar">
+
+              {/* Context Banner */}
+              <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center gap-2 mb-2">
+                <Building2 size={16} className="text-slate-400" />
+                <span className="text-xs font-bold text-slate-600">Company: <span style={{ color: BRAND_COLOR }}>{selectedCompany}</span></span>
+              </div>
+
               <div>
                 <input
                   required
@@ -461,8 +438,6 @@ const CentralVendors = () => {
                   className="w-full bg-slate-50 rounded-xl border border-slate-200 p-4 outline-none focus:border-[#065f46] focus:ring-1 focus:ring-[#065f46] font-mono text-sm transition-all"
                 />
               </div>
-
-              {/* NEW OPTIONAL FIELDS */}
               <div>
                 <input
                   value={formData.gst}

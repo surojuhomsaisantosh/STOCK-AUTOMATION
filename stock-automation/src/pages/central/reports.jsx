@@ -8,7 +8,7 @@ import {
 import {
     ArrowLeft, Search, Calendar, Download,
     RotateCcw, Building2, Layers,
-    X, TrendingUp, MapPin, ShoppingBag, ChevronRight,
+    X, TrendingUp, MapPin, ShoppingBag, ChevronRight, ChevronDown,
     ListFilter
 } from "lucide-react";
 
@@ -34,14 +34,58 @@ function Reports() {
     const [currentBillItems, setCurrentBillItems] = useState([]);
     const [modalLoading, setModalLoading] = useState(false);
 
-    // Filters
+    // --- DB CASCADING FILTERS ---
+    const [dbCompanyList, setDbCompanyList] = useState([]);
+    const [dbFranchiseList, setDbFranchiseList] = useState([]);
+
     const [search, setSearch] = useState("");
-    const [selectedFranchise, setSelectedFranchise] = useState("all");
+    const [selectedCompany, setSelectedCompany] = useState(() => sessionStorage.getItem("reports_selectedCompany") || "all");
+    const [selectedFranchise, setSelectedFranchise] = useState(() => sessionStorage.getItem("reports_selectedFranchise") || "all");
+
+    // --- DATE FILTERS ---
     const [dateMode, setDateMode] = useState("single"); // 'single' | 'range'
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
 
-    // --- DATA FETCHING ---
+    // --- DB DROPDOWN FETCHING ---
+    useEffect(() => {
+        const fetchCompanies = async () => {
+            const { data } = await supabase.from('companies').select('company_name');
+            if (data) {
+                const unique = [...new Set(data.map(c => c.company_name).filter(Boolean))].sort();
+                setDbCompanyList(unique);
+            }
+        };
+        fetchCompanies();
+    }, []);
+
+    useEffect(() => {
+        const fetchFranchisesForCompany = async () => {
+            if (!selectedCompany || selectedCompany === "all") {
+                setDbFranchiseList([]);
+                return;
+            }
+            const { data } = await supabase
+                .from('profiles')
+                .select('franchise_id')
+                .eq('company', selectedCompany)
+                .neq('franchise_id', null);
+
+            if (data) {
+                const unique = [...new Set(data.map(p => p.franchise_id).filter(Boolean))].sort();
+                setDbFranchiseList(unique);
+            }
+        };
+        fetchFranchisesForCompany();
+    }, [selectedCompany]);
+
+    // Save dropdown selections to session storage
+    useEffect(() => {
+        sessionStorage.setItem("reports_selectedCompany", selectedCompany);
+        sessionStorage.setItem("reports_selectedFranchise", selectedFranchise);
+    }, [selectedCompany, selectedFranchise]);
+
+    // --- REPORT DATA FETCHING ---
     const fetchData = useCallback(async (forceRefresh = false) => {
         setLoading(true);
         try {
@@ -52,7 +96,6 @@ function Reports() {
                     if (Date.now() - parsed.timestamp < CACHE_DURATION) {
                         console.log("⚡ Loading Reports from Cache");
                         setRawData(parsed.data);
-                        // Fetch user profile for header only
                         const { data: { user } } = await supabase.auth.getUser();
                         if (user) {
                             const { data } = await supabase.from("profiles").select("franchise_id").eq("id", user.id).single();
@@ -71,13 +114,13 @@ function Reports() {
                 setProfile(data);
             }
 
-            // Fetch Data in Parallel
+            // Fetch Data in Parallel (Added 'company' to profiles query)
             const [billsReq, bItemsReq, invReq, iItemsReq, profilesReq] = await Promise.all([
                 supabase.from("bills_generated").select("*").order("created_at", { ascending: false }),
                 supabase.from("bills_items_generated").select("bill_id, item_name, qty, price"),
                 supabase.from("invoices").select("*").order("created_at", { ascending: false }),
                 supabase.from("invoice_items").select("invoice_id, item_name, quantity, price"),
-                supabase.from("profiles").select("franchise_id, branch_location, address")
+                supabase.from("profiles").select("franchise_id, branch_location, address, company")
             ]);
 
             // Create Profile Map
@@ -88,9 +131,10 @@ function Reports() {
                 });
             }
 
-            // Merge Data
+            // Merge Data & Attach Company Name
             const enrichedBills = (billsReq.data || []).map(bill => ({
                 ...bill,
+                company: profileMap[bill.franchise_id]?.company || "Unknown Company",
                 mapped_location: profileMap[bill.franchise_id]?.branch_location || "",
                 mapped_address: profileMap[bill.franchise_id]?.address || "Location not updated"
             }));
@@ -99,6 +143,7 @@ function Reports() {
                 const fid = inv.franchise_id;
                 return {
                     ...inv,
+                    company: profileMap[fid]?.company || "Unknown Company",
                     mapped_location: profileMap[fid]?.branch_location || "",
                     mapped_address: profileMap[fid]?.address || "Location not updated"
                 };
@@ -124,7 +169,7 @@ function Reports() {
     useEffect(() => { fetchData(); }, [fetchData]);
 
     const handleRefresh = () => {
-        setSearch(""); setStartDate(""); setEndDate(""); setSelectedFranchise("all"); setDateMode("single");
+        setSearch(""); setStartDate(""); setEndDate(""); setSelectedCompany("all"); setSelectedFranchise("all"); setDateMode("single");
         fetchData(true);
     };
 
@@ -134,14 +179,15 @@ function Reports() {
 
     const handleDownload = () => {
         if (!filteredData.length) return alert("No data to export!");
-        const headers = ["S.No", "Bill ID", "Franchise ID", "Branch Name", "Date", "Time", "Total Amount (INR)"];
+        const headers = ["S.No", "Company", "Bill/Invoice ID", "Franchise ID", "Branch Name", "Date", "Time", "Total Amount (INR)"];
         const rows = filteredData.map((item, index) => {
             const id = item.id;
             const fid = item.franchise_id || "Head Office";
+            const company = item.company || "Unknown";
             const name = (item.mapped_location || item.customer_name || "Standard Sale").replace(/,/g, " ");
             const dateObj = new Date(item.created_at);
             const amount = item.total || item.total_amount || 0;
-            return [index + 1, id, fid, name, dateObj.toLocaleDateString('en-IN'), dateObj.toLocaleTimeString('en-IN'), amount].join(",");
+            return [index + 1, company, id, fid, name, dateObj.toLocaleDateString('en-IN'), dateObj.toLocaleTimeString('en-IN'), amount].join(",");
         });
         const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
         const link = document.createElement("a");
@@ -164,6 +210,7 @@ function Reports() {
         setModalLoading(false);
     };
 
+    // --- DATA FILTERING LOGIC ---
     const filteredData = useMemo(() => {
         const dataSet = activeTab === "store" ? rawData.store : rawData.invoices;
         if (!dataSet.length) return [];
@@ -172,8 +219,15 @@ function Reports() {
             const customer = (item.customer_name || item.mapped_location || "").toLowerCase();
             const itemId = (item.id || "").toString().toLowerCase();
             const s = search.toLowerCase();
+
+            // Search Match
             const matchesSearch = !search || franchiseId.includes(s) || customer.includes(s) || itemId.includes(s);
+
+            // Company & Franchise Match
+            const matchesCompany = selectedCompany === "all" || item.company === selectedCompany;
             const matchesFranchise = selectedFranchise === "all" || franchiseId === selectedFranchise.toLowerCase();
+
+            // Date Match
             const itemDate = item.created_at?.split('T')[0];
             let matchesDate = true;
             if (startDate) {
@@ -183,9 +237,10 @@ function Reports() {
                     matchesDate = itemDate === startDate;
                 }
             }
-            return matchesSearch && matchesFranchise && matchesDate;
+
+            return matchesSearch && matchesCompany && matchesFranchise && matchesDate;
         });
-    }, [activeTab, rawData, search, selectedFranchise, startDate, endDate, dateMode]);
+    }, [activeTab, rawData, search, selectedCompany, selectedFranchise, startDate, endDate, dateMode]);
 
     const itemPieData = useMemo(() => {
         const validIds = new Set(filteredData.map(b => b.id));
@@ -209,13 +264,6 @@ function Reports() {
         });
         return Object.entries(daily).map(([name, revenue]) => ({ name, revenue }));
     }, [filteredData]);
-
-    const franchiseList = useMemo(() => {
-        const set = new Set();
-        rawData.store.forEach(i => i.franchise_id && set.add(i.franchise_id));
-        rawData.invoices.forEach(i => i.franchise_id && set.add(i.franchise_id));
-        return Array.from(set);
-    }, [rawData]);
 
     const totalMoney = filteredData.reduce((acc, curr) => acc + Number(curr.total || curr.total_amount || 0), 0);
 
@@ -249,26 +297,33 @@ function Reports() {
 
             <div className="max-w-[1400px] mx-auto px-4 md:px-8 mt-6 md:mt-8">
 
-                {/* Tabs & Download */}
-                <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
-                    <div className="hidden md:block flex-1"></div>
-                    <div className="flex gap-2 p-1 bg-white border border-black/10 rounded-2xl shadow-sm w-full md:w-auto overflow-x-auto">
-                        <button
-                            onClick={() => setActiveTab("store")}
-                            className={`flex-1 md:flex-none px-4 md:px-6 py-3 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab !== "store" ? "text-black/40 hover:text-black/70" : "text-white shadow-md"}`}
-                            style={activeTab === "store" ? { backgroundColor: PRIMARY } : {}}
-                        >
-                            Daily Shop Sales
-                        </button>
-                        <button
-                            onClick={() => setActiveTab("invoice")}
-                            className={`flex-1 md:flex-none px-4 md:px-6 py-3 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab !== "invoice" ? "text-black/40 hover:text-black/70" : "text-white shadow-md"}`}
-                            style={activeTab === "invoice" ? { backgroundColor: PRIMARY } : {}}
-                        >
-                            Supply Invoices
-                        </button>
+                {/* Tabs & Download (CENTERED TABS FIX) */}
+                <div className="flex flex-col md:flex-row items-center w-full mb-6 gap-4">
+                    {/* Left Spacer to force center alignment */}
+                    <div className="hidden md:block md:flex-1"></div>
+
+                    {/* Centered Tabs Container */}
+                    <div className="flex justify-center w-full md:w-auto shrink-0">
+                        <div className="flex gap-2 p-1 bg-white border border-black/10 rounded-2xl shadow-sm overflow-x-auto w-full max-w-[400px]">
+                            <button
+                                onClick={() => { setActiveTab("store"); setSelectedCompany("all"); setSelectedFranchise("all"); }}
+                                className={`flex-1 px-4 md:px-6 py-3 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab !== "store" ? "text-black/40 hover:text-black/70" : "text-white shadow-md"}`}
+                                style={activeTab === "store" ? { backgroundColor: PRIMARY } : {}}
+                            >
+                                Daily Shop Sales
+                            </button>
+                            <button
+                                onClick={() => { setActiveTab("invoice"); setSelectedCompany("all"); setSelectedFranchise("all"); }}
+                                className={`flex-1 px-4 md:px-6 py-3 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab !== "invoice" ? "text-black/40 hover:text-black/70" : "text-white shadow-md"}`}
+                                style={activeTab === "invoice" ? { backgroundColor: PRIMARY } : {}}
+                            >
+                                Supply Invoices
+                            </button>
+                        </div>
                     </div>
-                    <div className="w-full md:w-auto flex justify-end">
+
+                    {/* Right Aligned Download */}
+                    <div className="w-full md:flex-1 flex justify-end">
                         <button
                             className="flex items-center justify-center gap-2 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-colors shadow-sm w-full md:w-auto"
                             style={{ backgroundColor: PRIMARY }}
@@ -286,75 +341,102 @@ function Reports() {
                         <Search size={18} className="text-black" />
                         <input
                             className="bg-transparent border-none outline-none text-xs font-bold w-full placeholder:text-black/30 text-black uppercase"
-                            placeholder="Search ID or Name..."
+                            placeholder="Search ID, Name or Invoice..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
 
-                    {/* Controls Grid - Stacks on Mobile, Grid on Tablet, Flex on Desktop */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:items-center gap-3 w-full">
+                    {/* Controls Grid */}
+                    <div className="flex flex-col lg:flex-row gap-3 w-full">
 
-                        {/* Franchise Select */}
-                        <div className="relative h-12 md:h-14 border border-black/10 rounded-2xl px-4 flex items-center gap-3 w-full lg:flex-1 hover:border-black/30 transition-colors bg-white">
-                            <Building2 size={18} className="text-black shrink-0" />
-                            <select
-                                className="bg-transparent border-none outline-none text-xs font-bold w-full appearance-none uppercase z-10 text-black"
-                                value={selectedFranchise}
-                                onChange={(e) => setSelectedFranchise(e.target.value)}
-                            >
-                                <option value="all">All Shops</option>
-                                {franchiseList.map(f => <option key={f} value={f}>ID: {f}</option>)}
-                            </select>
-                            <ChevronRight size={14} className="absolute right-4 text-black rotate-90 z-0" />
+                        {/* DB-DRIVEN Company & Franchise Dropdowns */}
+                        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-5/12 shrink-0">
+                            {/* Company Select */}
+                            <div className="relative h-12 md:h-14 border border-black/10 rounded-2xl px-4 flex items-center gap-3 w-full hover:border-black/30 transition-colors bg-white">
+                                <Building2 size={18} className="text-black shrink-0" />
+                                <select
+                                    className="bg-transparent border-none outline-none text-[10px] sm:text-xs font-bold w-full appearance-none uppercase z-10 text-black cursor-pointer truncate pr-6"
+                                    value={selectedCompany}
+                                    onChange={(e) => {
+                                        setSelectedCompany(e.target.value);
+                                        setSelectedFranchise("all"); // Reset branch when company changes
+                                    }}
+                                >
+                                    <option value="all">All Companies</option>
+                                    {dbCompanyList.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <ChevronDown size={14} className="absolute right-4 text-black z-0 pointer-events-none" />
+                            </div>
+
+                            {/* Franchise Select (FIXED CUTOFF) */}
+                            <div className="relative h-12 md:h-14 border border-black/10 rounded-2xl px-4 flex items-center gap-3 w-full hover:border-black/30 transition-colors bg-white">
+                                <MapPin size={18} className="text-black shrink-0" />
+                                <select
+                                    className={`bg-transparent border-none outline-none text-[10px] sm:text-xs font-bold w-full appearance-none uppercase z-10 text-black truncate pr-6 ${selectedCompany === 'all' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                    value={selectedFranchise}
+                                    onChange={(e) => setSelectedFranchise(e.target.value)}
+                                    disabled={selectedCompany === "all"}
+                                >
+                                    <option value="all">{selectedCompany === "all" ? "Select Company" : "All Branches"}</option>
+                                    {dbFranchiseList.map(f => <option key={f} value={f}>ID: {f}</option>)}
+                                </select>
+                                <ChevronDown size={14} className="absolute right-4 text-black z-0 pointer-events-none" />
+                            </div>
                         </div>
 
-                        {/* Date Toggle */}
-                        <div className="bg-slate-100 p-1 rounded-2xl flex shrink-0 h-12 md:h-14 items-center w-full lg:w-auto">
-                            <button
-                                onClick={() => handleDateModeChange("single")}
-                                className={`flex-1 px-4 h-full rounded-xl text-[10px] font-bold uppercase transition-all ${dateMode === "single" ? "bg-white text-black shadow-sm" : "text-black/40 hover:text-black/60"}`}
-                            >
-                                Single
-                            </button>
-                            <button
-                                onClick={() => handleDateModeChange("range")}
-                                className={`flex-1 px-4 h-full rounded-xl text-[10px] font-bold uppercase transition-all ${dateMode === "range" ? "bg-white text-black shadow-sm" : "text-black/40 hover:text-black/60"}`}
-                            >
-                                Range
-                            </button>
-                        </div>
+                        {/* Date Controls & Reset (FIXED BUTTON SIZING) */}
+                        <div className="flex flex-col sm:flex-row gap-3 w-full lg:flex-1">
+                            {/* Date Mode Toggle */}
+                            <div className="bg-slate-100 p-1 rounded-2xl flex shrink-0 h-12 md:h-14 items-center w-full sm:w-auto">
+                                <button
+                                    onClick={() => handleDateModeChange("single")}
+                                    className={`flex-1 px-4 h-full rounded-xl text-[10px] font-bold uppercase transition-all ${dateMode === "single" ? "bg-white text-black shadow-sm" : "text-black/40 hover:text-black/60"}`}
+                                >
+                                    Single
+                                </button>
+                                <button
+                                    onClick={() => handleDateModeChange("range")}
+                                    className={`flex-1 px-4 h-full rounded-xl text-[10px] font-bold uppercase transition-all ${dateMode === "range" ? "bg-white text-black shadow-sm" : "text-black/40 hover:text-black/60"}`}
+                                >
+                                    Range
+                                </button>
+                            </div>
 
-                        {/* Date Inputs */}
-                        <div className="flex items-center gap-2 h-12 md:h-14 border border-black/10 rounded-2xl px-3 w-full lg:flex-[2] hover:border-black/30 transition-colors bg-white sm:col-span-2 lg:col-span-1">
-                            <Calendar size={18} className="text-black shrink-0" />
-                            <input
-                                type="date"
-                                className="bg-transparent border-none outline-none text-[10px] font-bold uppercase w-full text-center text-black"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                            />
-                            {dateMode === "range" && (
-                                <>
-                                    <span className="text-black/30 font-bold">-</span>
+                            {/* Date Inputs & Rest Container */}
+                            <div className="flex gap-2 w-full">
+                                <div className="flex items-center gap-2 h-12 md:h-14 border border-black/10 rounded-2xl px-3 w-full hover:border-black/30 transition-colors bg-white flex-1 min-w-0">
+                                    <Calendar size={18} className="text-black shrink-0" />
                                     <input
                                         type="date"
                                         className="bg-transparent border-none outline-none text-[10px] font-bold uppercase w-full text-center text-black"
-                                        value={endDate}
-                                        onChange={(e) => setEndDate(e.target.value)}
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
                                     />
-                                </>
-                            )}
+                                    {dateMode === "range" && (
+                                        <>
+                                            <span className="text-black/30 font-bold">-</span>
+                                            <input
+                                                type="date"
+                                                className="bg-transparent border-none outline-none text-[10px] font-bold uppercase w-full text-center text-black"
+                                                value={endDate}
+                                                onChange={(e) => setEndDate(e.target.value)}
+                                            />
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Reset Button - Fixed Square Shape */}
+                                <button
+                                    onClick={handleRefresh}
+                                    className="h-12 w-12 md:h-14 md:w-14 shrink-0 flex items-center justify-center rounded-2xl bg-red-50 text-red-500 hover:bg-red-100 border border-red-100 transition-colors"
+                                    title="Reset & Refresh"
+                                >
+                                    <RotateCcw size={18} />
+                                </button>
+                            </div>
                         </div>
 
-                        {/* Reset Button */}
-                        <button
-                            onClick={handleRefresh}
-                            className="h-12 md:h-14 w-full sm:w-14 flex items-center justify-center rounded-2xl bg-red-50 text-red-500 hover:bg-red-100 border border-red-100 transition-colors shrink-0"
-                            title="Reset & Refresh"
-                        >
-                            <RotateCcw size={20} />
-                        </button>
                     </div>
                 </div>
 
@@ -370,7 +452,7 @@ function Reports() {
                                 <AreaChart data={chartData}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
                                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#000000' }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#000000' }} tickFormatter={(v) => `₹${v}`} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#000000' }} tickFormatter={(v) => `₹${v}`} width={50} />
                                     <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
                                     <Area type="monotone" dataKey="revenue" stroke={PRIMARY} strokeWidth={3} fill={PRIMARY} fillOpacity={0.05} />
                                 </AreaChart>
@@ -409,7 +491,7 @@ function Reports() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-white p-6 md:p-8 rounded-[2.5rem] shadow-lg mb-8" style={{ backgroundColor: PRIMARY }}>
                     <div>
-                        <p className="text-[10px] font-black uppercase text-white tracking-widest mb-1">Total Earnings (Period)</p>
+                        <p className="text-[10px] font-black uppercase text-white tracking-widest mb-1">Total Earnings (Filtered)</p>
                         <h2 className="text-3xl font-black">₹ {totalMoney.toLocaleString('en-IN')}</h2>
                     </div>
                     <div className="md:text-right">
@@ -430,21 +512,26 @@ function Reports() {
                             <thead className="bg-white text-[10px] font-black uppercase text-black/40 sticky top-0 z-10 shadow-sm">
                                 <tr>
                                     <th className="p-5 tracking-widest bg-white w-20">S.No.</th>
-                                    <th className="p-5 tracking-widest bg-white">Bill No.</th>
-                                    <th className="p-5 tracking-widest bg-white">From Shop / Customer</th>
+                                    <th className="p-5 tracking-widest bg-white">ID (Ref)</th>
+                                    <th className="p-5 tracking-widest bg-white">Company</th>
+                                    <th className="p-5 tracking-widest bg-white">Branch / Customer</th>
                                     <th className="p-5 tracking-widest bg-white">Date</th>
-                                    <th className="p-5 tracking-widest text-right bg-white">Amount Paid</th>
+                                    <th className="p-5 tracking-widest text-right bg-white">Amount</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-black/5 text-sm font-bold text-black">
                                 {filteredData.length === 0 ? (
-                                    <tr><td colSpan="5" className="p-10 text-center text-black/40">No records found.</td></tr>
+                                    <tr><td colSpan="6" className="p-10 text-center text-black/40">No records found.</td></tr>
                                 ) : filteredData.map((item, index) => (
                                     <tr key={item.id} onClick={() => openDetails(item)} className="hover:bg-black/5 cursor-pointer transition-colors">
                                         <td className="p-5 text-black/40">{index + 1}</td>
-                                        <td className="p-5"><span className="bg-black/5 text-black px-2 py-1 rounded-md text-[10px]">#{item.id.toString().slice(-8)}</span></td>
-                                        <td className="p-5">{item.mapped_location || item.customer_name || "Standard Sale"}</td>
-                                        <td className="p-5 text-black/60 text-xs font-bold uppercase">{new Date(item.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}</td>
+                                        <td className="p-5">
+                                            <span className="bg-black/5 text-black px-2 py-1 rounded-md text-[10px]">#{item.id.toString().slice(-8)}</span>
+                                            <div className="text-[10px] text-black/40 mt-1">{item.franchise_id}</div>
+                                        </td>
+                                        <td className="p-5 text-xs text-black/60 uppercase">{item.company || "Unknown"}</td>
+                                        <td className="p-5 text-xs uppercase">{item.mapped_location || item.customer_name || "Standard Sale"}</td>
+                                        <td className="p-5 text-black/60 text-[11px] font-bold uppercase">{new Date(item.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                                         <td className="p-5 text-right font-black" style={{ color: PRIMARY }}>₹{(item.total || item.total_amount || 0).toFixed(2)}</td>
                                     </tr>
                                 ))}
@@ -463,7 +550,8 @@ function Reports() {
                                             <span className="text-[10px] font-black text-black/30">#{index + 1}</span>
                                             <span className="bg-black/5 text-black/60 px-2 py-1 rounded-md text-[10px] font-black uppercase inline-block">#{item.id.toString().slice(-8)}</span>
                                         </div>
-                                        <h3 className="text-sm font-black text-black">{item.mapped_location || item.customer_name || "Standard Sale"}</h3>
+                                        <h3 className="text-sm font-black text-black uppercase">{item.mapped_location || item.customer_name || "Standard Sale"}</h3>
+                                        <p className="text-[10px] text-black/50 uppercase mt-1 flex items-center gap-1"><Building2 size={10} /> {item.company || "Unknown"} • {item.franchise_id}</p>
                                     </div>
                                     <p className="text-lg font-black" style={{ color: PRIMARY }}>₹{(item.total || item.total_amount || 0).toFixed(2)}</p>
                                 </div>
@@ -499,8 +587,9 @@ function Reports() {
                                     <p className="text-xs font-bold text-black">{selectedBill.customer_name || selectedBill.mapped_location || "Standard Sale"}</p>
                                 </div>
                                 <div className="bg-white p-4 rounded-2xl border border-black/10">
-                                    <label className="text-[9px] font-black text-black/40 uppercase block mb-1">Shop ID</label>
-                                    <p className="text-xs font-bold text-black">{selectedBill.franchise_id || "N/A"}</p>
+                                    <label className="text-[9px] font-black text-black/40 uppercase block mb-1">Company / ID</label>
+                                    <p className="text-xs font-bold text-black">{selectedBill.company || "Unknown"}</p>
+                                    <p className="text-[10px] font-bold text-black/50 mt-1">{selectedBill.franchise_id || "N/A"}</p>
                                 </div>
                             </div>
 

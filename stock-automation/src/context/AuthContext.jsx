@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "../supabase/supabaseClient";
+import { supabase, fetchWithRetry } from "../supabase/supabaseClient";
 
 const AuthContext = createContext({
   user: null,
@@ -25,30 +25,36 @@ export function AuthProvider({ children }) {
       return null;
     }
 
-    let { data: ownerProfile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", supabaseUser.id)
-      .maybeSingle();
+    let { data: ownerProfile } = await fetchWithRetry(() =>
+      supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", supabaseUser.id)
+        .maybeSingle()
+    );
 
     let finalProfile = null;
 
     if (ownerProfile) {
       finalProfile = { ...ownerProfile, role: ownerProfile.role || "owner" };
     } else {
-      const { data: staffProfile } = await supabase
-        .from("staff_profiles")
-        .select("*")
-        .eq("id", supabaseUser.id)
-        .maybeSingle();
+      const { data: staffProfile } = await fetchWithRetry(() =>
+        supabase
+          .from("staff_profiles")
+          .select("*")
+          .eq("id", supabaseUser.id)
+          .maybeSingle()
+      );
 
       if (staffProfile) {
-        const { data: storeInfo } = await supabase
-          .from("profiles")
-          .select("company, address, city, state, pincode, phone")
-          .eq("franchise_id", staffProfile.franchise_id)
-          .limit(1)
-          .maybeSingle();
+        const { data: storeInfo } = await fetchWithRetry(() =>
+          supabase
+            .from("profiles")
+            .select("company, address, city, state, pincode, phone")
+            .eq("franchise_id", staffProfile.franchise_id)
+            .limit(1)
+            .maybeSingle()
+        );
 
         finalProfile = { ...staffProfile, role: "staff", staff_profile_id: staffProfile.id, ...storeInfo };
       }
@@ -78,6 +84,9 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       hydrate(data?.session?.user ?? null);
+    }).catch((err) => {
+      console.error("[AUTH] Failed to get initial session (network issue):", err);
+      setLoading(false); // Don't leave app in loading state if network fails
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(

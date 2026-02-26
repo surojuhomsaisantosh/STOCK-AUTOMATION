@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { supabase } from "../../supabase/supabaseClient";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { supabase, fetchWithRetry, isNetworkError, checkSupabaseConnection } from "../../supabase/supabaseClient";
+import { Eye, EyeOff, Loader2, WifiOff } from "lucide-react";
 
 const PRIMARY = "#065f46";
 const BORDER = "#e5e7eb";
@@ -19,6 +19,7 @@ function Login() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [statusMsg, setStatusMsg] = useState(""); // Shows retry/connection status
 
   // UI States
   const [dynamicLogo, setDynamicLogo] = useState(null);
@@ -54,23 +55,26 @@ function Login() {
 
       console.log("🌐 [FETCH DEBUG] Requesting logo URL from Supabase...");
       try {
-        const { data, error } = await supabase
-          .from('companies')
-          .select('logo_url')
-          .ilike('company_name', '%JKSH%')
-          .maybeSingle();
+        const { data, error } = await fetchWithRetry(() =>
+          supabase
+            .from('companies')
+            .select('logo_url')
+            .ilike('company_name', '%JKSH%')
+            .maybeSingle()
+        );
 
         if (error) throw error;
 
         if (data?.logo_url) {
           console.log("✅ [FETCH DEBUG] Logo URL retrieved successfully.");
           setDynamicLogo(data.logo_url);
-          sessionStorage.setItem("jksh_logo_url", data.logo_url); // Cache it!
+          sessionStorage.setItem("jksh_logo_url", data.logo_url);
         } else {
           console.log("⚠️ [FETCH DEBUG] No logo URL found in database.");
         }
       } catch (err) {
         console.error("❌ [FETCH DEBUG] Logo fetch failed:", err);
+        // Non-critical — don't show error to user, logo is just cosmetic
       }
     };
 
@@ -87,6 +91,7 @@ function Login() {
     console.log(`🚀 [LOGIN DEBUG] Attempting login as type: ${loginType}`);
     setErrorMsg("");
     setSuccessMsg("");
+    setStatusMsg("");
     setIsLoading(true);
 
     try {
@@ -95,47 +100,90 @@ function Login() {
 
       if (!cleanEmail || !cleanPassword) {
         console.log("⚠️ [LOGIN DEBUG] Missing credentials.");
-        throw new Error("Email and Password are required");
+        throw new Error("Email and Password are required.");
       }
 
+      // ── STEP 1: Check if we can reach Supabase at all ──
+      setStatusMsg("Checking connection...");
+      const connectionCheck = await checkSupabaseConnection();
+      if (!connectionCheck.ok) {
+        console.log("❌ [LOGIN DEBUG] Connection check failed:", connectionCheck.reason);
+        throw new Error(connectionCheck.reason);
+      }
+
+      // ── STEP 2: Authenticate with retry ──
+      setStatusMsg("Verifying credentials...");
       console.log("⏳ [LOGIN DEBUG] Verifying credentials with Supabase Auth...");
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: cleanPassword,
-      });
 
-      if (authError) {
-        console.log("❌ [LOGIN DEBUG] Invalid credentials.", authError.message);
-        throw new Error("Invalid credentials.");
+      let authData;
+      try {
+        const result = await fetchWithRetry(async () => {
+          const res = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password: cleanPassword,
+          });
+          // signInWithPassword returns { data, error } — if it's a network error, fetchWithRetry handles retry
+          if (res.error && isNetworkError(res.error)) {
+            throw res.error;
+          }
+          return res;
+        });
+
+        if (result.error) {
+          // This is an auth error (wrong password, user not found, etc.)
+          console.log("❌ [LOGIN DEBUG] Invalid credentials.", result.error.message);
+          throw new Error("Invalid email or password.");
+        }
+        authData = result.data;
+      } catch (retryErr) {
+        if (isNetworkError(retryErr)) {
+          throw new Error("Network error — could not reach the server after multiple attempts. Please check your internet connection and try again.");
+        }
+        throw retryErr; // Re-throw auth errors
       }
 
+      // ── STEP 3: Fetch profile with retry ──
+      setStatusMsg("Loading your profile...");
       console.log(`✅ [LOGIN DEBUG] Auth successful. Fetching profile for User ID: ${authData.user.id}`);
       let userRole = "";
       let finalProfileData = null;
 
-      // Try fetching from profiles
-      let { data: ownerProfile } = await supabase.from("profiles").select("*").eq("id", authData.user.id).maybeSingle();
+      try {
+        const { data: ownerProfile } = await fetchWithRetry(() =>
+          supabase.from("profiles").select("*").eq("id", authData.user.id).maybeSingle()
+        );
 
-      if (ownerProfile) {
-        console.log("👤 [LOGIN DEBUG] Owner/Admin profile found.");
-        userRole = ownerProfile.role;
-        finalProfileData = ownerProfile;
-      } else {
-        console.log("🔍 [LOGIN DEBUG] Not an owner. Checking staff_profiles...");
-        // Try fetching from staff_profiles
-        const { data: staffProfile } = await supabase.from("staff_profiles").select("*").eq("id", authData.user.id).maybeSingle();
-
-        if (staffProfile) {
-          console.log("🧑‍💼 [LOGIN DEBUG] Staff profile found. Fetching franchise info...");
-          userRole = "staff";
-          const { data: franchiseInfo } = await supabase.from("profiles").select("*").eq("franchise_id", staffProfile.franchise_id).maybeSingle();
-          finalProfileData = { ...staffProfile, role: "staff", ...franchiseInfo };
+        if (ownerProfile) {
+          console.log("👤 [LOGIN DEBUG] Owner/Admin profile found.");
+          userRole = ownerProfile.role;
+          finalProfileData = ownerProfile;
         } else {
-          console.error("❌ [LOGIN DEBUG] Profile completely missing for authenticated user.");
-          throw new Error("Profile not found.");
+          console.log("🔍 [LOGIN DEBUG] Not an owner. Checking staff_profiles...");
+          const { data: staffProfile } = await fetchWithRetry(() =>
+            supabase.from("staff_profiles").select("*").eq("id", authData.user.id).maybeSingle()
+          );
+
+          if (staffProfile) {
+            console.log("🧑‍💼 [LOGIN DEBUG] Staff profile found. Fetching franchise info...");
+            userRole = "staff";
+            const { data: franchiseInfo } = await fetchWithRetry(() =>
+              supabase.from("profiles").select("*").eq("franchise_id", staffProfile.franchise_id).maybeSingle()
+            );
+            finalProfileData = { ...staffProfile, role: "staff", ...franchiseInfo };
+          } else {
+            console.error("❌ [LOGIN DEBUG] Profile completely missing for authenticated user.");
+            throw new Error("Profile not found. Please contact your administrator.");
+          }
         }
+      } catch (profileErr) {
+        if (isNetworkError(profileErr)) {
+          throw new Error("Logged in successfully but couldn't load your profile due to a network issue. Please try again.");
+        }
+        throw profileErr;
       }
 
+      // ── STEP 4: Navigate ──
+      setStatusMsg("Redirecting...");
       let finalLoginMode = (userRole === "staff") ? "store" : loginType;
       console.log(`🔄 [LOGIN DEBUG] Finalizing context setup. Routing user to: ${finalLoginMode}`);
 
@@ -152,6 +200,7 @@ function Login() {
       setErrorMsg(err.message);
     } finally {
       setIsLoading(false);
+      setStatusMsg("");
       console.log("🛑 [LOGIN DEBUG] Login cycle complete.");
     }
   };
@@ -255,8 +304,9 @@ function Login() {
           </div>
         )}
 
-        {errorMsg && <div style={styles.errorBox}>{errorMsg}</div>}
+        {errorMsg && <div style={styles.errorBox}><WifiOff size={14} style={{ marginRight: 6, flexShrink: 0, verticalAlign: 'middle' }} />{errorMsg}</div>}
         {successMsg && <div style={styles.successBox}>{successMsg}</div>}
+        {statusMsg && !errorMsg && <div style={styles.statusBox}><Loader2 className="animate-spin" size={14} style={{ marginRight: 6, flexShrink: 0 }} />{statusMsg}</div>}
 
         <div style={styles.form}>
           {!isRecoveryMode && (
@@ -283,7 +333,7 @@ function Login() {
           ) : (
             <>
               <button style={styles.button} onClick={handleLogin} disabled={isLoading}>
-                {isLoading ? "Verifying..." : "Login"}
+                {isLoading ? (statusMsg || "Verifying...") : "Login"}
               </button>
               <button type="button" onClick={handleForgotPassword} style={styles.forgotBtn}>
                 Forgot Password?
@@ -312,8 +362,9 @@ const styles = {
   eyeBtn: { position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
   button: { width: "100%", padding: "18px", borderRadius: "16px", background: PRIMARY, color: "#fff", border: "none", fontSize: "13px", fontWeight: "800", marginTop: "10px", cursor: "pointer", transition: "opacity 0.2s" },
   forgotBtn: { background: 'none', border: 'none', color: '#6b7280', fontSize: '11px', fontWeight: '700', cursor: 'pointer', textDecoration: 'underline', marginTop: '4px' },
-  errorBox: { width: "100%", background: "#fee2e2", color: "#ef4444", padding: "12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", boxSizing: "border-box" },
+  errorBox: { width: "100%", background: "#fee2e2", color: "#ef4444", padding: "12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", boxSizing: "border-box", display: "flex", alignItems: "center" },
   successBox: { width: "100%", background: "#dcfce7", color: "#166534", padding: "12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", boxSizing: "border-box" },
+  statusBox: { width: "100%", background: "#eff6ff", color: "#1d4ed8", padding: "12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", boxSizing: "border-box", display: "flex", alignItems: "center" },
 };
 
 export default Login;

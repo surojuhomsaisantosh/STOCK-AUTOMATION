@@ -1,11 +1,11 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import {
-    ArrowLeft, Search, X, RotateCcw, User,
-    FileText, IndianRupee, Printer, Phone, Hash, ShoppingBag, Shield, Activity, Calendar, Inbox,
-    ArrowUp, ArrowDown, ArrowUpDown, MapPin
+    ArrowLeft, Search, X, RotateCcw,
+    FileText, IndianRupee, Printer, Hash, ShoppingBag, Shield, Activity, Calendar, Inbox,
+    ArrowUp, ArrowDown, ArrowUpDown, Building2, ChevronDown
 } from "lucide-react";
 
 const PRIMARY = "rgb(0, 100, 55)";
@@ -46,8 +46,6 @@ const amountToWords = (price) => {
 const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsChunk }) => {
     if (!order) return null;
     const companyName = companyDetails?.company_name || "";
-
-    // FETCH LOGO FROM DATABASE (Storage Bucket URL)
     const currentLogo = companyDetails?.logo_url || null;
 
     const invDate = new Date(order.created_at).toLocaleDateString('en-GB', {
@@ -237,6 +235,9 @@ function CentralInvoices() {
     const [userProfile, setUserProfile] = useState(null);
     const [companyDetails, setCompanyDetails] = useState(null);
 
+    const [companyList, setCompanyList] = useState([]);
+    const [selectedCompany, setSelectedCompany] = useState(() => sessionStorage.getItem("central_invoice_company") || "All");
+
     const [search, setSearch] = useState("");
     const [rangeMode, setRangeMode] = useState(false);
     const [singleDate, setSingleDate] = useState(new Date().toISOString().split('T')[0]);
@@ -256,9 +257,18 @@ function CentralInvoices() {
         const initData = async () => {
             setLoading(true);
             const profile = await fetchUserProfile();
-            if (profile?.company) {
-                await fetchCompanyDetails(profile.company);
+
+            await fetchCompanyList();
+
+            if (!sessionStorage.getItem("central_invoice_company") && profile?.company) {
+                setSelectedCompany(profile.company);
             }
+
+            const activeCompanyToFetch = sessionStorage.getItem("central_invoice_company") || profile?.company;
+            if (activeCompanyToFetch && activeCompanyToFetch !== "All") {
+                await fetchCompanyDetails(activeCompanyToFetch);
+            }
+
             await fetchInvoices(false);
             setLoading(false);
         };
@@ -273,6 +283,13 @@ function CentralInvoices() {
         return () => { supabase.removeChannel(channel); };
     }, [user]);
 
+    useEffect(() => {
+        sessionStorage.setItem("central_invoice_company", selectedCompany);
+        if (selectedCompany !== "All") {
+            fetchCompanyDetails(selectedCompany);
+        }
+    }, [selectedCompany]);
+
     const fetchUserProfile = async () => {
         try {
             const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
@@ -283,15 +300,23 @@ function CentralInvoices() {
         } catch (e) { console.error(e); }
     };
 
-    // FIXED: Strictly matches the company name from the user profile
-    const fetchCompanyDetails = async (profileCompany) => {
+    const fetchCompanyList = async () => {
         try {
-            const { data, error } = await supabase
+            const { data } = await supabase.from('companies').select('company_name');
+            if (data) {
+                const uniqueCompanies = [...new Set(data.map(c => c.company_name).filter(Boolean))];
+                setCompanyList(uniqueCompanies);
+            }
+        } catch (err) { console.error("Failed to load companies:", err); }
+    };
+
+    const fetchCompanyDetails = async (companyName) => {
+        try {
+            const { data } = await supabase
                 .from('companies')
                 .select('*')
-                .eq('company_name', profileCompany)
+                .eq('company_name', companyName)
                 .single();
-
             if (data) setCompanyDetails(data);
         } catch (err) { console.error("Company fetch error:", err); }
     };
@@ -299,7 +324,13 @@ function CentralInvoices() {
     const fetchInvoices = async (showLoading = true) => {
         if (showLoading) setLoading(true);
         try {
-            const { data, error } = await supabase.from("invoices").select(`*`).order("created_at", { ascending: false });
+            const { data, error } = await supabase
+                .from("invoices")
+                .select(`
+                    *,
+                    profiles:created_by (company)
+                `)
+                .order("created_at", { ascending: false });
             if (error) throw error;
             setInvoices(data || []);
         } catch (error) { console.error(error); }
@@ -341,6 +372,7 @@ function CentralInvoices() {
         setDateRange({ start: "", end: "" });
         setSortConfig({ key: 'created_at', direction: 'descending' });
         setStatusFilter("All");
+        setSelectedCompany("All");
         fetchInvoices();
     };
 
@@ -366,9 +398,13 @@ function CentralInvoices() {
             const q = search.toLowerCase();
             const fId = (inv.franchise_id || "").toString().toLowerCase();
             const custName = (inv.customer_name || "").toLowerCase();
-            const matchesSearch = !search || fId.includes(q) || custName.includes(q);
-            const currentStatus = (inv.status || 'Incoming').toLowerCase();
 
+            const matchesSearch = !search || fId.includes(q) || custName.includes(q);
+
+            const invCompany = inv.profiles?.company || "Unknown";
+            const matchesCompany = selectedCompany === "All" || invCompany === selectedCompany;
+
+            const currentStatus = (inv.status || 'Incoming').toLowerCase();
             let matchesDate = true;
             if (currentStatus === 'dispatched') {
                 const invDate = inv.created_at?.split('T')[0];
@@ -386,7 +422,7 @@ function CentralInvoices() {
                 matchesStatus = currentStatus === statusFilter.toLowerCase();
             }
 
-            return matchesSearch && matchesDate && matchesStatus;
+            return matchesSearch && matchesDate && matchesStatus && matchesCompany;
         });
 
         if (sortConfig.key) {
@@ -403,7 +439,7 @@ function CentralInvoices() {
             });
         }
         return data;
-    }, [search, singleDate, dateRange, rangeMode, invoices, sortConfig, statusFilter]);
+    }, [search, singleDate, dateRange, rangeMode, invoices, sortConfig, statusFilter, selectedCompany]);
 
     const stats = useMemo(() => {
         const revenue = filteredInvoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
@@ -432,6 +468,8 @@ function CentralInvoices() {
                   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                 }
                 .print-content { display: none; }
+                .scrollbar-hide::-webkit-scrollbar { display: none; }
+                .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
             `}</style>
 
             <div className="print-content bg-white">
@@ -546,15 +584,16 @@ function CentralInvoices() {
                         </button>
                     </div>
                     <h1 className="text-sm md:text-xl font-black uppercase tracking-[0.2em] text-black text-center absolute left-1/2 -translate-x-1/2">Invoices</h1>
-                    <div className="flex items-center">
+
+                    <div className="flex items-center gap-3">
                         <div className="flex items-center bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">ID :</span>
-                            <span className="text-xs font-black text-black">{userProfile?.franchise_id || "..."}</span>
+                            <span className="text-xs font-black text-black">{userProfile?.franchise_id || userProfile?.staff_id || "..."}</span>
                         </div>
                     </div>
                 </nav>
 
-                <div className="max-w-[1400px] mx-auto px-4 md:px-8 mt-6 md:mt-8">
+                <div className="max-w-[1400px] mx-auto px-4 md:px-8 mt-4 md:mt-8">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                         <div className="bg-white border-2 border-slate-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-all hover:border-black/10">
                             <div className="h-12 w-12 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100"><FileText size={24} /></div>
@@ -566,19 +605,42 @@ function CentralInvoices() {
                         </div>
                     </div>
 
-                    <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide w-full">
-                        {["All", "Incoming", "Packed", "Dispatched"].map((status) => (
-                            <button
-                                key={status}
-                                onClick={() => setStatusFilter(status)}
-                                className={`px-5 py-2.5 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${statusFilter === status
-                                    ? "bg-slate-900 text-white shadow-md shadow-black/10 scale-[1.02]"
-                                    : "bg-white text-slate-500 border-2 border-slate-100 hover:border-slate-300 hover:text-slate-700"
-                                    }`}
+                    {/* --- REARRANGED: COMPANY DROPDOWN + STATUS FILTERS --- */}
+                    <div className="flex flex-col md:flex-row gap-3 mb-6 w-full items-start md:items-center">
+
+                        {/* Company Dropdown placed cleanly on the left */}
+                        <div className="relative shrink-0 w-full md:w-[220px]">
+                            <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                                <Building2 size={16} className="text-slate-400" />
+                            </div>
+                            <select
+                                value={selectedCompany}
+                                onChange={(e) => setSelectedCompany(e.target.value)}
+                                className="w-full h-[42px] appearance-none pl-11 pr-10 bg-white border-2 border-slate-100 rounded-2xl text-[10px] md:text-xs font-black uppercase text-slate-700 outline-none cursor-pointer shadow-sm hover:border-slate-300 transition-colors focus:border-black"
                             >
-                                {status}
-                            </button>
-                        ))}
+                                <option value="All">All Companies</option>
+                                {companyList.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                                <ChevronDown size={14} className="text-slate-400" />
+                            </div>
+                        </div>
+
+                        {/* Status Filters on the right side of the company dropdown */}
+                        <div className="flex gap-2 overflow-x-auto scrollbar-hide w-full flex-1">
+                            {["All", "Incoming", "Packed", "Dispatched"].map((status) => (
+                                <button
+                                    key={status}
+                                    onClick={() => setStatusFilter(status)}
+                                    className={`px-5 h-[42px] rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center justify-center ${statusFilter === status
+                                        ? "bg-slate-900 text-white shadow-md shadow-black/10 scale-[1.02]"
+                                        : "bg-white text-slate-500 border-2 border-slate-100 hover:border-slate-300 hover:text-slate-700"
+                                        }`}
+                                >
+                                    {status}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     <div className="flex flex-col lg:flex-row gap-4 mb-6">

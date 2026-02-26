@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Search, Plus, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight, User, Phone, ChevronDown, MapPin, Mail, ShieldCheck
+  ArrowLeft, Search, Plus, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight, User, Phone, ChevronDown, MapPin, Mail, ShieldCheck, Hash
 } from "lucide-react";
 
-// FIXED: Removed 'createClient' import from here
 import { supabase, supabaseAdmin } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 
@@ -14,8 +13,6 @@ const BORDER = "#e5e7eb";
 const BLACK = "#000000";
 
 const ITEMS_PER_INVOICE_PAGE = 15;
-
-// FIXED: DELETED the local 'supabaseAdmin' initialization that was causing the warning.
 
 // --- INVOICE PRINT COMPONENT ---
 const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsChunk }) => {
@@ -86,7 +83,13 @@ const CentralStaffProfiles = () => {
 
   const [profiles, setProfiles] = useState([]);
   const [loggedInFranchiseId, setLoggedInFranchiseId] = useState("");
+
+  // --- DROPDOWN STATES ---
+  const [companyList, setCompanyList] = useState([]);
+  const [selectedCompany, setSelectedCompany] = useState("");
+  const [franchiseList, setFranchiseList] = useState([]);
   const [searchFranchiseId, setSearchFranchiseId] = useState("");
+
   const [searchTerm, setSearchTerm] = useState("");
   const [companyDetails, setCompanyDetails] = useState(null);
 
@@ -102,21 +105,69 @@ const CentralStaffProfiles = () => {
     name: "", staff_id: "", email: "", password: "", phone: "", address: ""
   });
 
+  // 1. Initial Setup & Window Resize
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
+
     if (authProfile?.franchise_id) {
       setLoggedInFranchiseId(authProfile.franchise_id);
       setSearchFranchiseId(authProfile.franchise_id);
-      fetchStaffProfiles(authProfile.franchise_id);
+      // Note: Auto-fetch will handle the data load since searchFranchiseId changed
     }
+
+    fetchCompanyList();
+
     return () => window.removeEventListener('resize', handleResize);
   }, [authProfile]);
 
-  const handleFranchiseFetch = async (e) => {
-    e.preventDefault();
-    if (!searchFranchiseId) return alert("Please enter a Franchise ID");
-    await fetchStaffProfiles(searchFranchiseId);
+  // 2. Fetch Franchises when Company is Selected
+  useEffect(() => {
+    if (selectedCompany) {
+      fetchFranchiseList(selectedCompany);
+    } else {
+      setFranchiseList([]);
+      setSearchFranchiseId("");
+    }
+  }, [selectedCompany]);
+
+  // 3. Auto-Fetch Profiles when Franchise ID is selected or changes
+  useEffect(() => {
+    if (searchFranchiseId) {
+      fetchStaffProfiles(searchFranchiseId);
+    } else {
+      setProfiles([]); // Clear profiles if no franchise is selected
+    }
+  }, [searchFranchiseId]);
+
+  // --- FETCH HELPERS ---
+  const fetchCompanyList = async () => {
+    try {
+      const { data, error } = await supabase.from('companies').select('company_name');
+      if (data && !error) {
+        const uniqueCompanies = [...new Set(data.map(c => c.company_name).filter(Boolean))];
+        setCompanyList(uniqueCompanies);
+      }
+    } catch (err) {
+      console.error("Failed to load companies:", err);
+    }
+  };
+
+  const fetchFranchiseList = async (companyName) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('franchise_id')
+        .eq('company', companyName)
+        .neq('franchise_id', null);
+
+      if (data && !error) {
+        const uniqueFranchises = [...new Set(data.map(p => p.franchise_id).filter(Boolean))];
+        setFranchiseList(uniqueFranchises);
+      }
+    } catch (err) {
+      console.error("Failed to load franchises:", err);
+    }
   };
 
   const fetchStaffProfiles = async (fid, isBackgroundRefresh = false) => {
@@ -188,13 +239,12 @@ const CentralStaffProfiles = () => {
         }
         alert("✅ Updated Successfully");
       } else {
-        // SIGNUP LOGIC (Using the shared supabaseAdmin instance from central file)
         const { data: authData, error: authError } = await supabaseAdmin.auth.signUp({
           email: formData.email.trim().toLowerCase(),
           password: formData.password,
           options: {
             data: {
-              name: formData.name, // FIXED: Sending name prevents 500 constraint error
+              name: formData.name,
               role: 'staff'
             }
           }
@@ -264,25 +314,60 @@ const CentralStaffProfiles = () => {
       </header>
 
       <main style={{ ...styles.mainContent, padding: isMobile ? "0 15px 20px 15px" : "0 40px 20px 40px" }}>
-        <div style={{ ...styles.filterCard, padding: isMobile ? '12px' : '15px' }}>
-          <form onSubmit={handleFranchiseFetch} style={{ ...styles.filterForm, flexDirection: isMobile ? "column" : "row" }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: isMobile ? '100%' : 'auto' }}>
+
+        {/* --- REFINED FILTER CARD NO LOAD BUTTON --- */}
+        <div style={{ ...styles.filterCard, padding: isMobile ? '16px' : '20px' }}>
+          <div style={{ ...styles.filterForm, flexDirection: isMobile ? "column" : "row" }}>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: isMobile ? '100%' : 'auto', minWidth: '130px' }}>
               <Building2 size={18} color={GREEN} />
               <span style={styles.filterLabel}>Load Branch:</span>
             </div>
-            <div style={{ display: 'flex', gap: '8px', width: "100%", flex: 1 }}>
-              <input
-                type="text"
-                placeholder="Enter ID (e.g. HYD01)"
-                value={searchFranchiseId}
-                onChange={(e) => setSearchFranchiseId(e.target.value.toUpperCase())}
-                style={{ ...styles.filterInput, flex: 1, fontSize: isMobile ? '13px' : '14px' }}
-              />
-              <button type="submit" style={styles.fetchBtn}>
-                {loading ? <Loader2 className="animate-spin" size={18} /> : "LOAD"}
-              </button>
+
+            <div style={{ display: 'flex', gap: '12px', width: "100%", flex: 1, flexDirection: isMobile ? "column" : "row" }}>
+
+              {/* Company Dropdown */}
+              <div style={{ position: 'relative', flex: 1 }}>
+                <select
+                  value={selectedCompany}
+                  onChange={(e) => {
+                    setSelectedCompany(e.target.value);
+                    setSearchFranchiseId(""); // Reset franchise ID when company changes
+                  }}
+                  style={styles.dropdownSelect}
+                >
+                  <option value="" disabled>Select Company</option>
+                  {companyList.map(comp => (
+                    <option key={comp} value={comp}>{comp}</option>
+                  ))}
+                </select>
+                <ChevronDown size={16} color="#94a3b8" style={styles.dropdownArrow} />
+              </div>
+
+              {/* Franchise ID Dropdown */}
+              <div style={{ position: 'relative', flex: 1 }}>
+                <select
+                  value={searchFranchiseId}
+                  onChange={(e) => setSearchFranchiseId(e.target.value)}
+                  disabled={!selectedCompany || franchiseList.length === 0}
+                  style={{
+                    ...styles.dropdownSelect,
+                    backgroundColor: (!selectedCompany || franchiseList.length === 0) ? '#f8fafc' : 'white',
+                    cursor: (!selectedCompany || franchiseList.length === 0) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <option value="" disabled>
+                    {!selectedCompany ? "Select Company First" : (franchiseList.length === 0 ? "No Franchises Found" : "Select Franchise ID")}
+                  </option>
+                  {franchiseList.map(fid => (
+                    <option key={fid} value={fid}>{fid}</option>
+                  ))}
+                </select>
+                <ChevronDown size={16} color="#94a3b8" style={styles.dropdownArrow} />
+              </div>
+
             </div>
-          </form>
+          </div>
         </div>
 
         <div style={{ ...styles.actionRow, gap: isMobile ? '8px' : '15px' }}>
@@ -296,7 +381,14 @@ const CentralStaffProfiles = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button style={styles.addBtn} onClick={() => setIsModalOpen(true)}>
+          {/* Prevent adding users to a null branch by disabling button if no franchise is loaded */}
+          <button
+            style={{ ...styles.addBtn, opacity: !searchFranchiseId ? 0.5 : 1, cursor: !searchFranchiseId ? 'not-allowed' : 'pointer' }}
+            onClick={() => {
+              if (searchFranchiseId) setIsModalOpen(true);
+            }}
+            disabled={!searchFranchiseId}
+          >
             <Plus size={20} /> {!isMobile && "Add New User"}
           </button>
         </div>
@@ -305,6 +397,10 @@ const CentralStaffProfiles = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {loading ? (
               <div style={styles.loaderCenter}><Loader2 className="animate-spin" color={GREEN} size={32} /></div>
+            ) : profiles.length === 0 && searchFranchiseId ? (
+              <div style={styles.emptyState}>No users found for this branch.</div>
+            ) : !searchFranchiseId ? (
+              <div style={styles.emptyState}>Select a Company and Branch above to load users.</div>
             ) : filteredProfiles.map((p) => (
               <div key={p.id} style={{ ...styles.mobileCard, borderColor: expandedId === p.id ? GREEN : (p.isOwner ? '#cbd5e1' : BORDER) }}>
                 <div onClick={() => setExpandedId(expandedId === p.id ? null : p.id)} style={styles.cardHeader}>
@@ -350,7 +446,13 @@ const CentralStaffProfiles = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredProfiles.map((profile, index) => (
+                {loading ? (
+                  <tr><td colSpan="6"><div style={styles.loaderCenter}><Loader2 className="animate-spin" color={GREEN} size={32} /></div></td></tr>
+                ) : profiles.length === 0 && searchFranchiseId ? (
+                  <tr><td colSpan="6"><div style={styles.emptyState}>No users found for this branch.</div></td></tr>
+                ) : !searchFranchiseId ? (
+                  <tr><td colSpan="6"><div style={styles.emptyState}>Select a Company and Branch above to load users.</div></td></tr>
+                ) : filteredProfiles.map((profile, index) => (
                   <tr key={profile.id} style={{ ...styles.tr, background: profile.isOwner ? '#f8fafc' : 'transparent' }}>
                     <td style={styles.td}>{index + 1}</td>
                     <td style={styles.td}>{profile.isOwner ? <span style={{ color: GREEN, fontWeight: '800' }}>OWNER</span> : "STAFF"}</td>
@@ -382,6 +484,12 @@ const CentralStaffProfiles = () => {
               </div>
               <button onClick={closeModal} style={styles.closeBtn}><X size={24} /></button>
             </div>
+
+            <div style={{ marginBottom: '15px', padding: '10px', background: '#f8fafc', borderRadius: '10px', border: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Building2 size={16} color="#64748b" />
+              <span style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>Adding to Branch: <span style={{ color: GREEN }}>{searchFranchiseId}</span></span>
+            </div>
+
             <form onSubmit={handleSubmit} style={{ ...styles.formGrid, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
               <div style={styles.inputGroup}>
                 <label style={styles.label}>Full Name *</label>
@@ -398,7 +506,7 @@ const CentralStaffProfiles = () => {
               <div style={styles.inputGroup}>
                 <label style={styles.label}>Password {!editingId && "*"}</label>
                 <div style={{ position: 'relative' }}>
-                  <input style={{ ...styles.input, width: '100%' }} type={showPassword ? "text" : "password"} placeholder={editingId ? "Blank to keep" : "Min 8 chars"} value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
+                  <input style={{ ...styles.input, width: '100%', boxSizing: 'border-box' }} type={showPassword ? "text" : "password"} placeholder={editingId ? "Blank to keep" : "Min 8 chars"} value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
                 </div>
               </div>
@@ -431,15 +539,15 @@ const styles = {
   idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 },
   mainContent: { width: "100%", display: "flex", flexDirection: "column", gap: "10px" },
   filterCard: { background: 'white', borderRadius: '16px', border: `1px solid ${BORDER}`, marginBottom: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' },
-  filterForm: { display: 'flex', alignItems: 'center', gap: '12px' },
-  filterLabel: { fontWeight: '700', fontSize: '13px', color: '#64748b' },
-  filterInput: { padding: '10px 14px', borderRadius: '10px', border: `1.5px solid ${BORDER}`, outline: 'none', fontWeight: '700', color: GREEN },
-  fetchBtn: { padding: '10px 20px', background: BLACK, color: 'white', borderRadius: '10px', fontWeight: '800', border: 'none', cursor: 'pointer' },
+  filterForm: { display: 'flex', alignItems: 'center', gap: '16px' },
+  filterLabel: { fontWeight: '700', fontSize: '14px', color: '#64748b', whiteSpace: 'nowrap' },
+  dropdownSelect: { width: '100%', padding: '12px 35px 12px 14px', borderRadius: '12px', border: `1.5px solid ${BORDER}`, outline: 'none', fontWeight: '700', fontSize: '14px', color: GREEN, backgroundColor: 'white', appearance: 'none', cursor: 'pointer', boxSizing: 'border-box', transition: 'border-color 0.2s' },
+  dropdownArrow: { position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' },
   actionRow: { display: 'flex', marginBottom: '10px' },
   searchContainer: { position: 'relative', display: 'flex', alignItems: 'center' },
   searchIcon: { position: 'absolute', left: '14px' },
   searchInput: { width: '100%', padding: '12px 12px 12px 42px', borderRadius: '14px', border: `1.5px solid ${BORDER}`, outline: 'none', fontWeight: '600', fontSize: '14px', background: 'white' },
-  addBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '12px 18px', background: GREEN, color: 'white', borderRadius: '14px', fontWeight: '800', border: 'none', cursor: 'pointer' },
+  addBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '12px 18px', background: GREEN, color: 'white', borderRadius: '14px', fontWeight: '800', border: 'none', cursor: 'pointer', transition: 'opacity 0.2s' },
   mobileCard: { background: 'white', borderRadius: '18px', border: `1.5px solid ${BORDER}`, overflow: 'hidden', transition: 'all 0.2s ease' },
   cardHeader: { padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' },
   cardAvatar: { width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' },
@@ -447,7 +555,7 @@ const styles = {
   cardDetailGrid: { display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' },
   cardInfoRow: { fontSize: '13px', fontWeight: '600', color: '#475569', display: 'flex', alignItems: 'center', gap: '10px' },
   cardActions: { display: 'flex', gap: '8px' },
-  cardActionBtn: { flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '11px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' },
+  cardActionBtn: { flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '11px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' },
   tableContainer: { background: 'white', borderRadius: '20px', border: `1px solid ${BORDER}`, overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
   th: { padding: '16px 20px', fontSize: '11px', fontWeight: '900', color: '#64748b', borderBottom: `1px solid ${BORDER}`, textTransform: 'uppercase', letterSpacing: '0.5px' },
@@ -456,7 +564,6 @@ const styles = {
   actionTd: { display: 'flex', justifyContent: 'center', gap: '10px', padding: '16px' },
   timeBtn: { padding: '8px', borderRadius: '8px', background: '#eff6ff', color: '#2563eb', border: 'none', cursor: 'pointer' },
   editBtn: { padding: '8px', borderRadius: '8px', background: '#f0fdf4', color: GREEN, border: 'none', cursor: 'pointer' },
-  deleteBtn: { padding: '8px', borderRadius: '8px', background: '#fef2f2', color: '#ef4444', border: 'none', cursor: 'pointer' },
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
   modalContent: { background: 'white', padding: '20px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', maxHeight: '95vh', overflowY: 'auto' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' },
@@ -465,13 +572,13 @@ const styles = {
   formGrid: { display: 'grid', gap: '12px' },
   inputGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
   label: { fontSize: '12px', fontWeight: '800', color: '#475569' },
-  input: { padding: '10px 12px', borderRadius: '12px', border: `1.5px solid ${BORDER}`, outline: 'none', fontSize: '14px', fontWeight: '600' },
+  input: { padding: '10px 12px', borderRadius: '12px', border: `1.5px solid ${BORDER}`, outline: 'none', fontSize: '14px', fontWeight: '600', boxSizing: 'border-box' },
   eyeBtn: { position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: '#64748b' },
   modalFooter: { display: 'flex', gap: '12px', marginTop: '15px' },
   cancelBtn: { flex: 1, padding: '14px', borderRadius: '12px', border: `1.5px solid ${BORDER}`, background: 'white', fontWeight: '700', cursor: 'pointer' },
   submitBtn: { flex: 1.5, padding: '14px', borderRadius: '12px', border: 'none', background: GREEN, color: 'white', fontWeight: '800', cursor: 'pointer' },
   loaderCenter: { display: 'flex', justifyContent: 'center', padding: '50px' },
-  emptyState: { textAlign: 'center', padding: '40px', color: '#94a3b8', fontWeight: '600', fontSize: '14px' }
+  emptyState: { textAlign: 'center', padding: '50px', color: '#94a3b8', fontWeight: '600', fontSize: '15px' }
 };
 
 export default CentralStaffProfiles;
