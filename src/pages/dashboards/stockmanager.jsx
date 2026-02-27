@@ -89,7 +89,7 @@ function StockManagerDashboard() {
     { title: "Invoices & Billing", path: "/stock/bills", icon: <Receipt />, desc: "Billing records" },
     { title: "Reports", path: "/stock/reports", icon: <BarChart3 />, desc: "Sales analytics", disabled: true },
     { title: "Staff", path: "/stock/staff", icon: <Users />, desc: "Team management", disabled: true },
-    { title: "Settings", path: "/stock/settings", icon: <Settings />, desc: "Configuration", disabled: true },
+    { title: "Settings", path: "/stock/settings", icon: <Settings />, desc: "Configuration" },
   ];
 
   const today = new Date().toLocaleDateString('en-GB', {

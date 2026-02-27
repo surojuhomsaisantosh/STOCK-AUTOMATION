@@ -138,22 +138,37 @@ function FranchiseSettingsCard() {
   return (
     <div className="min-h-screen bg-[#F8F9FA] text-slate-900 font-sans pb-20 relative">
 
-      {/* --- HEADER --- */}
-      <header style={styles.header}>
-        <div style={styles.headerInner}>
-          <button onClick={() => navigate(-1)} style={styles.backBtn}>
+      {/* --- STICKY HEADER --- */}
+      <div className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between shadow-sm gap-4 mb-8">
+        <div className="flex items-center justify-between w-full md:w-auto">
+          {/* Back Button */}
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-xs tracking-widest hover:text-black/70 transition-colors">
             <ArrowLeft size={18} /> <span>Back</span>
           </button>
 
-          <h1 style={styles.heading}>
-            Franchise <span style={{ color: brandGreen }}>Settings</span>
-          </h1>
+          {/* Mobile Title */}
+          <h1 className="text-base md:text-xl font-black uppercase tracking-widest text-center md:hidden text-black">Settings</h1>
 
-          <div style={styles.idBox}>
-            ID : {franchiseId || "---"}
+          {/* Mobile ID Box */}
+          <div className="flex items-center gap-2 md:hidden">
+            <div className="bg-slate-100 border border-slate-200 rounded-md px-3 py-1.5 flex items-center gap-2">
+              <span className="text-[11px] font-black text-slate-700 uppercase tracking-wide">ID:</span>
+              <span className="text-[11px] font-black text-slate-900 uppercase tracking-wide">{franchiseId}</span>
+            </div>
           </div>
         </div>
-      </header>
+
+        {/* Desktop Title */}
+        <h1 className="text-xl font-black uppercase tracking-widest text-center hidden md:block absolute left-1/2 -translate-x-1/2 text-black">Settings</h1>
+
+        {/* Desktop ID Box */}
+        <div className="hidden md:flex items-center gap-3">
+          <div className="bg-slate-100 border border-slate-200 rounded-md px-3 py-1.5 flex items-center gap-2">
+            <span className="text-[11px] font-black text-slate-700 uppercase tracking-wide">ID :</span>
+            <span className="text-[11px] font-black text-slate-900 uppercase tracking-wide">{franchiseId}</span>
+          </div>
+        </div>
+      </div>
 
       <main className="max-w-[1000px] mx-auto px-4 md:px-8 pb-8 md:pb-12">
 
@@ -163,48 +178,49 @@ function FranchiseSettingsCard() {
           {/* 1. IDENTITY CARD */}
           <button
             onClick={openProfile}
-            className="bg-white rounded-[2rem] border border-slate-200 p-8 shadow-sm flex flex-col justify-center items-center text-center transition-all hover:border-black/20 hover:shadow-md active:scale-95 group min-h-[200px]"
+            className="bg-white rounded-[24px] md:rounded-[32px] border border-slate-200 p-8 shadow-sm flex flex-col justify-center items-center text-center transition-all hover:border-black/20 hover:-translate-y-1 hover:shadow-lg active:scale-95 group min-h-[260px]"
           >
-            <div className="p-4 rounded-2xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all mb-4">
-              <User size={32} strokeWidth={2} />
+            <div className="p-4 rounded-3xl bg-indigo-50 text-indigo-600 transition-all mb-6">
+              <User size={36} strokeWidth={2.5} />
             </div>
-            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Profile Details</h3>
+            <h3 className="text-lg font-black text-black uppercase tracking-tight">Profile Details</h3>
             <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-widest">Edit Personal Info</p>
           </button>
 
           {/* 2. MENU CARD */}
           <button
             onClick={() => navigate("/franchise/menu")}
-            className="bg-white rounded-[2rem] border border-slate-200 p-8 shadow-sm flex flex-col justify-center items-center text-center transition-all hover:border-black/20 hover:shadow-md active:scale-95 group min-h-[200px]"
+            className="bg-white rounded-[24px] md:rounded-[32px] border border-slate-200 p-8 shadow-sm flex flex-col justify-center items-center text-center transition-all hover:border-black/20 hover:-translate-y-1 hover:shadow-lg active:scale-95 group min-h-[260px]"
           >
-            <div className="p-4 rounded-2xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-all mb-4">
-              <Utensils size={32} strokeWidth={2} />
+            <div className="p-4 rounded-3xl bg-emerald-50 text-emerald-600 transition-all mb-6">
+              <Utensils size={36} strokeWidth={2.5} />
             </div>
-            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Manage Menu</h3>
+            <h3 className="text-lg font-black text-black uppercase tracking-tight">Manage Menu</h3>
             <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-widest">Update Items & Prices</p>
           </button>
 
           {/* 3. SECURITY CARD */}
           <button
             onClick={openSecurity}
-            className="bg-white rounded-[2rem] border border-slate-200 p-8 shadow-sm flex flex-col justify-center items-center text-center transition-all hover:border-black/20 hover:shadow-md active:scale-95 group min-h-[200px]"
+            className="bg-white rounded-[24px] md:rounded-[32px] border border-slate-200 p-8 shadow-sm flex flex-col justify-center items-center text-center transition-all hover:border-black/20 hover:-translate-y-1 hover:shadow-lg active:scale-95 group min-h-[260px]"
           >
-            <div className="p-4 rounded-2xl bg-slate-100 text-slate-600 group-hover:bg-slate-800 group-hover:text-white transition-all mb-4">
-              <ShieldCheck size={32} strokeWidth={2} />
+            <div className="p-4 rounded-3xl bg-slate-100 text-slate-600 transition-all mb-6">
+              <ShieldCheck size={36} strokeWidth={2.5} />
             </div>
-            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Security</h3>
+            <h3 className="text-lg font-black text-black uppercase tracking-tight">Security</h3>
             <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-widest">Change Password</p>
           </button>
 
           {/* 4. LOGOUT CARD */}
           <button
             onClick={handleLogout}
-            className="bg-white rounded-[2rem] border border-slate-200 p-8 shadow-sm flex flex-col justify-center items-center text-center transition-all hover:border-rose-200 hover:shadow-rose-100 active:scale-95 group min-h-[200px]"
+            className="bg-white rounded-[24px] md:rounded-[32px] border p-8 shadow-sm flex flex-col justify-center items-center text-center transition-all hover:bg-rose-50 hover:-translate-y-1 hover:shadow-lg active:scale-95 group min-h-[260px]"
+            style={{ borderColor: "rgba(225, 29, 72, 0.15)" }}
           >
-            <div className="p-4 rounded-2xl bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-all mb-4">
-              <LogOut size={32} strokeWidth={2} />
+            <div className="p-4 rounded-3xl bg-rose-50 text-rose-600 transition-all mb-6 group-hover:bg-rose-100">
+              <LogOut size={36} strokeWidth={2.5} />
             </div>
-            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Sign Out</h3>
+            <h3 className="text-lg font-black text-black uppercase tracking-tight">Sign Out</h3>
             <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-widest">End Session</p>
           </button>
 
@@ -352,12 +368,7 @@ function FranchiseSettingsCard() {
 }
 
 // --- STYLES ---
-const styles = {
-  header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
-  headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', boxSizing: 'border-box' },
-  backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
-  heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
-  idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 }
-};
+// (No longer needed, using Tailwind inline on sticky header)
+const styles = {};
 
 export default FranchiseSettingsCard;

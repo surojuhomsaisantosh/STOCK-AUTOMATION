@@ -321,10 +321,13 @@ function Login() {
           </div>
         )}
 
-        {errorMsg && <div style={styles.errorBox}><WifiOff size={14} style={{ marginRight: 6, flexShrink: 0, verticalAlign: 'middle' }} />{errorMsg}</div>}
+        {errorMsg && (
+          <div style={styles.errorBox}>
+            <WifiOff size={16} style={{ marginRight: 8, flexShrink: 0, marginTop: "2px" }} />
+            <span>{errorMsg}</span>
+          </div>
+        )}
         {successMsg && <div style={styles.successBox}>{successMsg}</div>}
-        {statusMsg && !errorMsg && <div style={styles.statusBox}><Loader2 className="animate-spin" size={14} style={{ marginRight: 6, flexShrink: 0 }} />{statusMsg}</div>}
-
         <div style={styles.form}>
           {!isRecoveryMode && (
             <input style={styles.input} type="email" placeholder="Email Address" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -344,13 +347,23 @@ function Login() {
           </div>
 
           {isRecoveryMode ? (
-            <button style={styles.button} onClick={handleUpdatePassword} disabled={isLoading}>
-              {isLoading ? "Updating..." : "Update Password"}
+            <button style={{ ...styles.button, opacity: isLoading ? 0.8 : 1 }} onClick={handleUpdatePassword} disabled={isLoading}>
+              {isLoading ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                  <Loader2 className="animate-spin" size={16} />
+                  <span>Updating...</span>
+                </div>
+              ) : "Update Password"}
             </button>
           ) : (
             <>
-              <button style={styles.button} onClick={handleLogin} disabled={isLoading}>
-                {isLoading ? (statusMsg || "Verifying...") : "Login"}
+              <button style={{ ...styles.button, opacity: isLoading ? 0.8 : 1 }} onClick={handleLogin} disabled={isLoading}>
+                {isLoading ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                    <Loader2 className="animate-spin" size={16} />
+                    <span>{statusMsg || "Please wait..."}</span>
+                  </div>
+                ) : "Login"}
               </button>
               <button type="button" onClick={handleForgotPassword} style={styles.forgotBtn}>
                 Forgot Password?
@@ -379,9 +392,8 @@ const styles = {
   eyeBtn: { position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
   button: { width: "100%", padding: "18px", borderRadius: "16px", background: PRIMARY, color: "#fff", border: "none", fontSize: "13px", fontWeight: "800", marginTop: "10px", cursor: "pointer", transition: "opacity 0.2s" },
   forgotBtn: { background: 'none', border: 'none', color: '#6b7280', fontSize: '11px', fontWeight: '700', cursor: 'pointer', textDecoration: 'underline', marginTop: '4px' },
-  errorBox: { width: "100%", background: "#fee2e2", color: "#ef4444", padding: "12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", boxSizing: "border-box", display: "flex", alignItems: "center" },
-  successBox: { width: "100%", background: "#dcfce7", color: "#166534", padding: "12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", boxSizing: "border-box" },
-  statusBox: { width: "100%", background: "#eff6ff", color: "#1d4ed8", padding: "12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", boxSizing: "border-box", display: "flex", alignItems: "center" },
+  errorBox: { width: "100%", background: "#fee2e2", color: "#ef4444", padding: "12px 16px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", boxSizing: "border-box", display: "flex", alignItems: "flex-start", marginBottom: "16px", lineHeight: "1.4" },
+  successBox: { width: "100%", background: "#dcfce7", color: "#166534", padding: "12px 16px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", boxSizing: "border-box", marginBottom: "16px", textAlign: "center", lineHeight: "1.4" },
 };
 
 export default Login;

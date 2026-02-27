@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
-import { FiArrowLeft, FiLock, FiLogOut, FiEye, FiEyeOff } from "react-icons/fi";
+import { ArrowLeft, Lock, LogOut, Eye, EyeOff } from "lucide-react";
 
 const BRAND_GREEN = "rgb(0, 100, 55)";
 
@@ -72,120 +72,120 @@ function Settings() {
   return (
     <div className="min-h-screen bg-white text-[#111827] font-sans pb-10 md:pb-20">
 
-      {/* TOP NAVIGATION */}
-      <nav className="border-b border-gray-200 px-4 md:px-8 py-4 md:py-6 bg-white sticky top-0 z-50 flex items-center justify-between">
+      {/* --- STICKY HEADER --- */}
+      <div className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between shadow-sm gap-4">
+        <div className="flex items-center justify-between w-full md:w-auto">
+          {/* Back Button */}
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-black font-black uppercase text-xs tracking-widest hover:text-black/70 transition-colors">
+            <ArrowLeft size={18} /> <span>Back</span>
+          </button>
 
-        {/* TOP LEFT: BACK BUTTON */}
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1 md:gap-2 text-xs md:text-sm font-bold text-gray-600 hover:text-black transition-colors"
-        >
-          <FiArrowLeft size={18} className="md:w-5 md:h-5" />
-          <span>Back</span>
-        </button>
+          {/* Mobile Title */}
+          <h1 className="text-base md:text-xl font-black uppercase tracking-widest text-center md:hidden text-black">Settings</h1>
 
-        {/* CENTER: TITLE - Responsive Text Size */}
-        <h1 className="text-lg md:text-2xl font-black tracking-tight text-[#111827]">
-          SETTINGS
-        </h1>
-
-        {/* TOP RIGHT: ID BOX */}
-        <div className="flex items-center">
-          <div className="bg-[#f9fafb] px-3 md:px-5 py-1.5 md:py-2.5 border border-[#e5e7eb] rounded-lg md:rounded-xl flex items-center">
-            <span className="text-[10px] md:text-sm font-semibold text-gray-500 mr-1 md:mr-2">ID:</span>
-            <span className="text-[10px] md:text-sm font-extrabold text-[#111827] tracking-tight">
-              {displayId}
-            </span>
+          {/* Mobile ID Box */}
+          <div className="flex items-center gap-2 md:hidden">
+            <div className="bg-slate-100 border border-slate-200 rounded-md px-3 py-1.5 flex items-center gap-2">
+              <span className="text-[11px] font-black text-slate-700 uppercase tracking-wide">ID:</span>
+              <span className="text-[11px] font-black text-slate-900 uppercase tracking-wide">{displayId}</span>
+            </div>
           </div>
         </div>
-      </nav>
 
-      <div className="max-w-6xl mx-auto px-4 md:px-6 mt-8 md:mt-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-stretch">
+        {/* Desktop Title */}
+        <h1 className="text-xl font-black uppercase tracking-widest text-center hidden md:block absolute left-1/2 -translate-x-1/2 text-black">Settings</h1>
+
+        {/* Desktop ID Box */}
+        <div className="hidden md:flex items-center gap-3">
+          <div className="bg-slate-100 border border-slate-200 rounded-md px-3 py-1.5 flex items-center gap-2">
+            <span className="text-[11px] font-black text-slate-700 uppercase tracking-wide">ID :</span>
+            <span className="text-[11px] font-black text-slate-900 uppercase tracking-wide">{displayId}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 md:px-8 mt-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
 
           {/* CARD 1: CHANGE PASSWORD */}
-          <div className="bg-white border border-gray-200 p-6 md:p-10 rounded-[1.5rem] md:rounded-[2rem] shadow-sm flex flex-col h-full">
-            <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8">
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400">
-                <FiLock size={20} className="md:w-6 md:h-6" />
+          <div className="bg-white rounded-[24px] md:rounded-[32px] border p-6 md:p-8 shadow-sm flex flex-col h-full min-h-[320px]" style={{ borderColor: "rgba(0, 100, 55, 0.15)" }}>
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-3 rounded-xl bg-emerald-50" style={{ color: BRAND_GREEN }}>
+                <Lock className="w-6 h-6" strokeWidth={2.5} />
               </div>
-              <h3 className="text-base md:text-lg font-bold text-[#111827]">Security</h3>
+              <h3 className="text-lg font-black uppercase tracking-tight text-black">Change Password</h3>
             </div>
 
-            <div className="space-y-3 md:space-y-4 flex-1">
-
-              {/* New Password Input */}
+            <div className="space-y-4 flex-1">
               <div className="relative">
                 <input
                   type={showNew ? "text" : "password"}
                   placeholder="NEW PASSWORD"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-4 md:px-5 py-3 md:py-4 bg-[#f9fafb] border border-gray-200 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-bold outline-none focus:ring-2 ring-emerald-500/10 focus:border-emerald-600 transition-all"
+                  className="w-full px-5 py-3.5 rounded-xl bg-slate-50 border outline-none font-black text-xs transition-all focus:bg-white text-black focus:border-emerald-500"
+                  style={{ borderColor: "rgba(0, 100, 55, 0.15)" }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowNew(!showNew)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 opacity-30 hover:opacity-100 text-black"
                 >
-                  {showNew ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                  {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
 
-              {/* Confirm Password Input */}
               <div className="relative">
                 <input
                   type={showConfirm ? "text" : "password"}
                   placeholder="CONFIRM PASSWORD"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 md:px-5 py-3 md:py-4 bg-[#f9fafb] border border-gray-200 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-bold outline-none focus:ring-2 ring-emerald-500/10 focus:border-emerald-600 transition-all"
+                  className="w-full px-5 py-3.5 rounded-xl bg-slate-50 border outline-none font-black text-xs transition-all focus:bg-white text-black focus:border-emerald-500"
+                  style={{ borderColor: "rgba(0, 100, 55, 0.15)" }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirm(!showConfirm)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 opacity-30 hover:opacity-100 text-black"
                 >
-                  {showConfirm ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                  {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
 
-              {/* Color-Coded Messaging */}
               {passwordMsg && (
-                <p className={`text-[10px] md:text-xs font-bold uppercase px-2 ${passwordMsg.includes("Error") ? "text-red-500" : "text-emerald-600"}`}>
-                  {passwordMsg}
-                </p>
+                <div className={`text-[10px] font-black uppercase tracking-widest text-center py-2 rounded-lg ${passwordMsg.includes("Success") ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600"}`}>
+                  {passwordMsg.replace("Error: ", "").replace("Success: ", "")}
+                </div>
               )}
             </div>
 
             <button
               onClick={handleChangePassword}
               disabled={loading}
+              className="w-full mt-6 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-[0.3em] transition-all hover:brightness-110 active:scale-95 shadow-md shadow-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: BRAND_GREEN }}
-              className="mt-6 md:mt-8 w-full py-3 md:py-4 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-black uppercase tracking-widest text-white hover:opacity-90 active:scale-[0.98] transition-all shadow-lg shadow-emerald-900/10 disabled:opacity-50"
             >
-              {loading ? "UPDATING..." : "Update Password"}
+              {loading ? "UPDATING..." : "UPDATE PASSWORD"}
             </button>
           </div>
 
           {/* CARD 2: LOGOUT */}
-          <div className="bg-white border border-gray-200 p-6 md:p-10 rounded-[1.5rem] md:rounded-[2rem] shadow-sm flex flex-col h-full">
-            <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8">
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-red-50 flex items-center justify-center text-red-500">
-                <FiLogOut size={20} className="md:w-6 md:h-6" />
-              </div>
-              <h3 className="text-base md:text-lg font-bold text-[#111827]">Account</h3>
+          <div className="bg-white rounded-[24px] md:rounded-[32px] border p-6 md:p-10 shadow-sm flex flex-col justify-center items-center text-center h-full min-h-[320px]" style={{ borderColor: "rgba(225, 29, 72, 0.15)" }}>
+            <div className="p-6 rounded-2xl bg-rose-50 text-rose-600 mb-6 transition-transform hover:scale-110">
+              <LogOut className="w-10 h-10" strokeWidth={2.5} />
             </div>
 
-            <div className="flex-1 flex items-center justify-center py-6">
-              <p className="text-gray-400 text-xs md:text-sm font-medium text-center">Manage session and security access</p>
-            </div>
+            <h3 className="text-xl font-black uppercase tracking-tight text-black mb-2">Sign Out</h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-8 px-8 leading-relaxed">
+              End your current session securely. You will be redirected to the login screen.
+            </p>
 
             <button
               onClick={handleLogout}
-              className="w-full py-3 md:py-4 rounded-xl md:rounded-2xl border border-red-100 bg-red-50 text-red-600 text-[11px] md:text-xs font-black uppercase tracking-widest hover:bg-red-600 hover:text-white active:scale-[0.98] transition-all"
+              className="w-full text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-[0.3em] transition-all bg-rose-600 hover:bg-rose-700 active:scale-95 shadow-lg shadow-rose-100"
             >
-              Logout Account
+              LOGOUT
             </button>
           </div>
         </div>
