@@ -25,68 +25,68 @@ function FranchiseOwnerDashboard() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [franchiseName, setFranchiseName] = useState("");
   const [franchiseId, setFranchiseId] = useState("...");
-  const [notifications, setNotifications] = useState([]); 
+  const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
     let isMounted = true;
 
     const loadData = async () => {
-        await fetchProfileAndNotifications(isMounted);
+      await fetchProfileAndNotifications(isMounted);
     };
     loadData();
-    
+
     // Realtime subscription
     const channel = supabase
       .channel('realtime-stock-requests')
       .on(
         'postgres_changes',
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'stock_requests', 
-          filter: 'status=eq.fulfilled' 
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'stock_requests',
+          filter: 'status=eq.fulfilled'
         },
         () => { fetchProfileAndNotifications(true); }
       )
       .subscribe();
 
-    return () => { 
-        isMounted = false;
-        supabase.removeChannel(channel); 
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
     };
   }, []);
 
   const fetchProfileAndNotifications = async (isMounted = true) => {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-        const { data: profile } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
         .select('name, franchise_id')
         .eq('id', user.id)
         .single();
 
-        if (isMounted && profile) {
-            setFranchiseName(profile.name);
-            setFranchiseId(profile.franchise_id);
-        }
+      if (isMounted && profile) {
+        setFranchiseName(profile.name);
+        setFranchiseId(profile.franchise_id);
+      }
 
-        const { data: restockedItems } = await supabase
+      const { data: restockedItems } = await supabase
         .from('stock_requests')
         .select('id, item_name, created_at, status')
         .eq('user_id', user.id)
-        .eq('status', 'fulfilled') 
-        .eq('is_read', false) 
+        .eq('status', 'fulfilled')
+        .eq('is_read', false)
         .order('created_at', { ascending: false });
 
-        if (isMounted && restockedItems) {
-            setNotifications(restockedItems);
-        }
+      if (isMounted && restockedItems) {
+        setNotifications(restockedItems);
+      }
 
     } catch (error) {
-        console.error("Dashboard Error:", error);
+      console.error("Dashboard Error:", error);
     }
   };
 
@@ -95,16 +95,16 @@ function FranchiseOwnerDashboard() {
   const handleItemClick = async (itemId) => {
     setNotifications((prev) => prev.filter((n) => n.id !== itemId));
     try {
-        await supabase.from('stock_requests').update({ is_read: true }).eq('id', itemId);
+      await supabase.from('stock_requests').update({ is_read: true }).eq('id', itemId);
     } catch (error) {
-        console.error("Failed to mark read:", error);
+      console.error("Failed to mark read:", error);
     }
   };
 
   const navItems = [
-    { title: "Order Stock", path: "/stock-orders", icon: <ShoppingBag size={24} />, desc: "Procure inventory" },
+    { title: "Order Stock", path: "/stock-orders", icon: <ShoppingBag size={24} />, desc: "Procure inventory", comingSoon: true },
     { title: "Invoices", path: "/franchise/invoices", icon: <FileText size={24} />, desc: "Billing history" },
-    { title: "Stock Request", path: "/franchise/requestportal", icon: <SendHorizontal size={24} />, desc: "Support & maintenance" },
+    { title: "Stock Request", path: "/franchise/requestportal", icon: <SendHorizontal size={24} />, desc: "Support & maintenance", comingSoon: true },
     { title: "Analytics", path: "/franchise/analytics", icon: <BarChart3 size={24} />, desc: "Sales performance" },
     { title: "Staff Profiles", path: "/franchise/staff", icon: <Users size={24} />, desc: "Manage employees" },
     { title: "Settings", path: "/franchise/settings", icon: <Settings size={24} />, desc: "Configure store" },
@@ -113,33 +113,33 @@ function FranchiseOwnerDashboard() {
   return (
     <div className="dashboard-page">
       <div className="dashboard-container">
-        
+
         {/* HEADER SECTION */}
         <header className="dashboard-header">
-          
+
           <div className="header-left">
             <div className="desktop-only">
               <MobileNav
-                  navItems={navItems}
-                  title="Franchise Menu"
-                  userProfile={{ name: franchiseName, role: "Franchise Owner" }}
+                navItems={navItems}
+                title="Franchise Menu"
+                userProfile={{ name: franchiseName, role: "Franchise Owner" }}
               />
             </div>
-            
+
             {/* UPDATED: Added margin top to greeting for spacing */}
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <h1 className="header-title">FRANCHISE DASHBOARD</h1>
-                <p style={{ margin: '6px 0 0 0', fontSize: '11px', fontWeight: '700', color: '#64748b', lineHeight: '1.2' }}>
-                    Hello, <span style={{ color: PRIMARY, textTransform: 'uppercase' }}>{franchiseName || 'Owner'}</span>
-                </p>
+              <h1 className="header-title">FRANCHISE DASHBOARD</h1>
+              <p style={{ margin: '6px 0 0 0', fontSize: '11px', fontWeight: '700', color: '#64748b', lineHeight: '1.2' }}>
+                Hello, <span style={{ color: PRIMARY, textTransform: 'uppercase' }}>{franchiseName || 'Owner'}</span>
+              </p>
             </div>
           </div>
 
           {/* RIGHT SIDE */}
           <div className="header-right">
             <div className="id-badge">
-               <span className="id-label">ID:</span>
-               <span className="id-value">{franchiseId}</span>
+              <span className="id-label">ID:</span>
+              <span className="id-value">{franchiseId}</span>
             </div>
 
             <button className="notification-btn" onClick={handleOpenNotifications}>
@@ -159,8 +159,8 @@ function FranchiseOwnerDashboard() {
           {navItems.map((item, idx) => (
             <div
               key={idx}
-              onClick={() => navigate(item.path)}
-              className="nav-card"
+              onClick={() => !item.comingSoon && navigate(item.path)}
+              className={`nav-card ${item.comingSoon ? 'nav-card-disabled' : ''}`}
             >
               <div className="card-icon-wrapper">
                 {item.icon}
@@ -169,6 +169,9 @@ function FranchiseOwnerDashboard() {
                 <h2 className="card-title">{item.title}</h2>
                 <p className="card-desc">{item.desc}</p>
               </div>
+              {item.comingSoon && (
+                <span className="coming-soon-badge">Coming Soon</span>
+              )}
             </div>
           ))}
         </div>
@@ -180,14 +183,14 @@ function FranchiseOwnerDashboard() {
           <div className="notif-panel" onClick={(e) => e.stopPropagation()}>
             <div className="notif-header">
               <h3 className="notif-heading">
-                <PackageCheck size={20} color={PRIMARY}/> 
+                <PackageCheck size={20} color={PRIMARY} />
                 Restock Alerts
               </h3>
               <button className="close-btn" onClick={() => setShowNotifications(false)}>
                 <X size={24} />
               </button>
             </div>
-            
+
             <div className="notif-body custom-scrollbar">
               {notifications.length === 0 ? (
                 <div className="empty-state">
@@ -199,8 +202,8 @@ function FranchiseOwnerDashboard() {
                 <div className="notif-list">
                   <p className="notif-hint">Tap item to mark as read</p>
                   {notifications.map((n) => (
-                    <div 
-                      key={n.id} 
+                    <div
+                      key={n.id}
                       className="notif-item"
                       onClick={() => handleItemClick(n.id)}
                     >
@@ -312,6 +315,27 @@ function FranchiseOwnerDashboard() {
         }
         .nav-card:hover { border-color: ${PRIMARY}; transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
         .nav-card:active { transform: scale(0.98); }
+
+        .nav-card-disabled {
+          opacity: 0.55;
+          cursor: not-allowed !important;
+          position: relative;
+        }
+        .nav-card-disabled:hover { border-color: ${BORDER}; transform: none; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .nav-card-disabled:active { transform: none; }
+
+        .coming-soon-badge {
+          background: #fef3c7;
+          color: #92400e;
+          font-size: 10px;
+          font-weight: 800;
+          padding: 4px 10px;
+          border-radius: 20px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
 
         .card-icon-wrapper {
           width: 56px; height: 56px; background: rgba(6,95,70,0.08); border-radius: 14px;
