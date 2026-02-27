@@ -45,11 +45,21 @@ function Login() {
 
     // Optimized Logo Fetch
     const fetchJkshLogo = async () => {
-      // Check localStorage (persists across sessions — no need to re-fetch every time)
+      // Helper: rewrite supabase.co storage URLs to proxy in production
+      const proxyUrl = (url) => {
+        if (!url || import.meta.env.DEV) return url;
+        const supabaseDomain = import.meta.env.VITE_SUPABASE_URL;
+        if (url.startsWith(supabaseDomain)) {
+          return url.replace(supabaseDomain, window.location.origin + '/sb-proxy');
+        }
+        return url;
+      };
+
+      // Check localStorage — clear stale direct URLs from old cache
       const cachedLogo = localStorage.getItem("jksh_logo_url");
       if (cachedLogo) {
         console.log("⚡ [FETCH DEBUG] Using cached logo URL from localStorage.");
-        setDynamicLogo(cachedLogo);
+        setDynamicLogo(proxyUrl(cachedLogo));
         return;
       }
 
@@ -65,14 +75,13 @@ function Login() {
 
         if (data?.logo_url) {
           console.log("✅ [FETCH DEBUG] Logo URL retrieved successfully.");
-          setDynamicLogo(data.logo_url);
+          setDynamicLogo(proxyUrl(data.logo_url));
           localStorage.setItem("jksh_logo_url", data.logo_url);
         } else {
           console.log("⚠️ [FETCH DEBUG] No logo URL found in database.");
         }
       } catch (err) {
         console.error("❌ [FETCH DEBUG] Logo fetch failed:", err);
-        // Non-critical — don't show error to user, logo is just cosmetic
       }
     };
 

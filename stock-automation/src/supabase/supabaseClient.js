@@ -1,55 +1,37 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseDirectUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// In production, route through Vercel proxy to bypass carrier DNS blocking (e.g., Jio)
+// In dev, connect directly to Supabase
+const supabaseUrl = import.meta.env.DEV
+  ? supabaseDirectUrl
+  : window.location.origin + '/sb-proxy';
+
 // ============ GLOBAL RESILIENT FETCH ============
-// Injected into BOTH Supabase clients so EVERY call in the entire app
-// automatically gets timeout protection + 1 retry for server errors.
-// IMPORTANT: Kept lightweight to avoid saturating mobile browsers'
-// 6-connection-per-domain limit.
+// A lightweight fetch wrapper with timeout + server error retry.
+// Uses Promise.race() for timeouts instead of AbortController
+// so we NEVER override supabase-js's internal signals.
 
-const MAX_RETRIES = 1;         // 1 retry = 2 total attempts (was 3 = 4 attempts)
+const MAX_RETRIES = 1;
 const BASE_DELAY = 1000;
-const REQUEST_TIMEOUT = 10000; // 10 seconds per attempt (was 15s)
-
-function isRetryableError(error) {
-  // Don't retry AbortErrors — they're from our own timeout,
-  // retrying a timed-out request just holds more connections on mobile.
-  if (error?.name === "AbortError") return false;
-
-  const msg = (error?.message || "").toLowerCase();
-  return (
-    msg.includes("failed to fetch") ||
-    msg.includes("networkerror") ||
-    msg.includes("network request failed") ||
-    msg.includes("load failed") ||              // Safari
-    msg.includes("the internet connection appears to be offline")
-  );
-}
+const REQUEST_TIMEOUT = 15000; // 15 seconds before we give up
 
 async function resilientFetch(url, options = {}) {
   let lastError;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
-    // Respect any existing signal from the caller
-    const originalSignal = options.signal;
-    if (originalSignal?.aborted) {
-      clearTimeout(timeoutId);
-      throw new DOMException("Aborted", "AbortError");
-    }
-
     try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+      // Race the fetch against a timeout — we do NOT touch options.signal
+      const response = await Promise.race([
+        fetch(url, options),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Request timed out")), REQUEST_TIMEOUT)
+        )
+      ]);
 
-      // Only retry on 502/503/504 gateway errors
+      // Only retry on gateway errors (502/503/504)
       if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < MAX_RETRIES) {
         const delay = BASE_DELAY * Math.pow(2, attempt);
         console.log(`🔄 [NET] Server ${response.status} on attempt ${attempt + 1}. Retrying in ${delay}ms...`);
@@ -59,14 +41,18 @@ async function resilientFetch(url, options = {}) {
 
       return response;
     } catch (err) {
-      clearTimeout(timeoutId);
       lastError = err;
 
-      // If the caller explicitly aborted, don't retry
-      if (originalSignal?.aborted) throw err;
+      // Don't retry abort errors or if we've used all retries
+      if (err?.name === "AbortError" || attempt === MAX_RETRIES) {
+        throw err;
+      }
 
-      // Only retry on genuine network errors (not our own timeouts)
-      if (!isRetryableError(err) || attempt === MAX_RETRIES) {
+      const msg = (err?.message || "").toLowerCase();
+      const isNetwork = msg.includes("failed to fetch") || msg.includes("load failed") ||
+        msg.includes("networkerror") || msg.includes("request timed out");
+
+      if (!isNetwork) {
         throw err;
       }
 
@@ -110,8 +96,7 @@ export function isNetworkError(error) {
     msg.includes("err_connection") ||
     msg.includes("err_timed_out") ||
     msg.includes("err_internet_disconnected") ||
-    msg.includes("timeout") ||
-    msg.includes("aborted") ||
+    msg.includes("timed out") ||
     msg.includes("load failed") ||        // Safari-specific
     msg.includes("the internet connection appears to be offline") // Safari
   );
