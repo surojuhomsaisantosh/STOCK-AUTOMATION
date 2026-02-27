@@ -45,30 +45,28 @@ function Login() {
 
     // Optimized Logo Fetch
     const fetchJkshLogo = async () => {
-      // Check cache first to prevent database spam and layout shifts on reload
-      const cachedLogo = sessionStorage.getItem("jksh_logo_url");
+      // Check localStorage (persists across sessions — no need to re-fetch every time)
+      const cachedLogo = localStorage.getItem("jksh_logo_url");
       if (cachedLogo) {
-        console.log("⚡ [FETCH DEBUG] Using cached logo URL from session storage.");
+        console.log("⚡ [FETCH DEBUG] Using cached logo URL from localStorage.");
         setDynamicLogo(cachedLogo);
         return;
       }
 
       console.log("🌐 [FETCH DEBUG] Requesting logo URL from Supabase...");
       try {
-        const { data, error } = await fetchWithRetry(() =>
-          supabase
-            .from('companies')
-            .select('logo_url')
-            .ilike('company_name', '%JKSH%')
-            .maybeSingle()
-        );
+        const { data, error } = await supabase
+          .from('companies')
+          .select('logo_url')
+          .ilike('company_name', '%JKSH%')
+          .maybeSingle();
 
         if (error) throw error;
 
         if (data?.logo_url) {
           console.log("✅ [FETCH DEBUG] Logo URL retrieved successfully.");
           setDynamicLogo(data.logo_url);
-          sessionStorage.setItem("jksh_logo_url", data.logo_url);
+          localStorage.setItem("jksh_logo_url", data.logo_url);
         } else {
           console.log("⚠️ [FETCH DEBUG] No logo URL found in database.");
         }
@@ -142,9 +140,33 @@ function Login() {
         throw retryErr; // Re-throw auth errors
       }
 
+      // ── STEP 2.5: Ensure session is fully established (fixes mobile browsers) ──
+      setStatusMsg("Securing session...");
+      console.log("🔒 [LOGIN DEBUG] Ensuring auth session is fully set before profile fetch...");
+
+      // Give mobile browsers time to persist the session to storage
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Verify the session actually exists in the client
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (!currentSession) {
+        console.log("⚠️ [LOGIN DEBUG] Session not found after login! Force-setting it now...");
+        const { error: setSessionError } = await supabase.auth.setSession({
+          access_token: authData.session.access_token,
+          refresh_token: authData.session.refresh_token,
+        });
+        if (setSessionError) {
+          console.error("❌ [LOGIN DEBUG] Failed to force-set session:", setSessionError);
+        } else {
+          console.log("✅ [LOGIN DEBUG] Session force-set successfully.");
+        }
+      } else {
+        console.log("✅ [LOGIN DEBUG] Session confirmed active.");
+      }
+
       // ── STEP 3: Fetch profile with retry ──
       setStatusMsg("Loading your profile...");
-      console.log(`✅ [LOGIN DEBUG] Auth successful. Fetching profile for User ID: ${authData.user.id}`);
+      console.log(`✅ [LOGIN DEBUG] Fetching profile for User ID: ${authData.user.id}`);
       let userRole = "";
       let finalProfileData = null;
 
@@ -176,8 +198,11 @@ function Login() {
           }
         }
       } catch (profileErr) {
+        console.error("❌ [LOGIN DEBUG] Profile fetch failed. Full error:", profileErr);
+        console.error("❌ [LOGIN DEBUG] Error name:", profileErr?.name, "| Message:", profileErr?.message);
+        console.error("❌ [LOGIN DEBUG] isNetworkError result:", isNetworkError(profileErr));
         if (isNetworkError(profileErr)) {
-          throw new Error("Logged in successfully but couldn't load your profile due to a network issue. Please try again.");
+          throw new Error(`Logged in but couldn't load your profile. Error: ${profileErr?.message || "Unknown"}. Try clearing your browser cache, disabling ad blockers, or using a different browser.`);
         }
         throw profileErr;
       }
