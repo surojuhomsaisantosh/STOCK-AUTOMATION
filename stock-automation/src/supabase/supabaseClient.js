@@ -33,10 +33,15 @@ async function resilientFetch(url, options = {}) {
   const proxiedUrl = getProxiedUrl(url);
   let lastError;
 
+  // If supabase-js passed a pre-aborted signal, strip it and proceed
+  const cleanOptions = (options.signal && options.signal.aborted)
+    ? (() => { const { signal, ...rest } = options; return rest; })()
+    : options;
+
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const response = await Promise.race([
-        fetch(proxiedUrl, options),
+        fetch(proxiedUrl, cleanOptions),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Request timed out")), REQUEST_TIMEOUT)
         )
@@ -54,7 +59,23 @@ async function resilientFetch(url, options = {}) {
     } catch (err) {
       lastError = err;
 
-      // Don't retry abort errors or if we've used all retries
+      // If fetch threw AbortError, strip the signal and retry once
+      if (err?.name === "AbortError" && attempt < MAX_RETRIES) {
+        console.log(`🔄 [NET] Request aborted, retrying without signal...`);
+        const { signal, ...optsWithoutSignal } = options;
+        try {
+          const response = await Promise.race([
+            fetch(proxiedUrl, optsWithoutSignal),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("Request timed out")), REQUEST_TIMEOUT)
+            )
+          ]);
+          return response;
+        } catch (retryErr) {
+          throw retryErr;
+        }
+      }
+
       if (err?.name === "AbortError" || attempt === MAX_RETRIES) {
         throw err;
       }
