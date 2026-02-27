@@ -72,30 +72,45 @@ function PosManagement() {
 
   const fetchFranchises = async () => {
     try {
-      const { data, error } = await supabase
+      // 1. Fetch company names from the companies table
+      const { data: companyData, error: companyError } = await supabase
         .from("companies")
-        .select("franchise_id, company_name");
+        .select("company_name");
 
-      if (error) throw error;
+      if (companyError) throw companyError;
 
-      if (data) {
-        console.log("=== DEBUG 1: Raw Data from Supabase ===", data);
+      if (companyData) {
+        const uniqueCompanies = [...new Set(
+          companyData
+            .map(c => c.company_name?.trim())
+            .filter(Boolean)
+        )].sort();
+        console.log("=== DEBUG 1: Companies from companies table ===", uniqueCompanies);
+        setCompanies(uniqueCompanies);
+      }
 
-        const cleanedData = data
-          .filter(d => d.company_name && String(d.company_name).trim() !== "")
+      // 2. Fetch franchise IDs from the profiles table
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("franchise_id, company");
+
+      if (profileError) throw profileError;
+
+      if (profileData) {
+        console.log("=== DEBUG 2: Raw profiles data ===", profileData);
+
+        const cleanedData = profileData
+          .filter(d => d.company && String(d.company).trim() !== "")
           .map(d => ({
-            company_name: String(d.company_name).trim(),
+            company_name: String(d.company).trim(),
             franchise_id: d.franchise_id ? String(d.franchise_id).trim() : null
           }));
 
-        console.log("=== DEBUG 2: Cleaned allCompanyRecords ===", cleanedData);
+        console.log("=== DEBUG 3: Cleaned allCompanyRecords ===", cleanedData);
         setAllCompanyRecords(cleanedData);
-
-        const uniqueCompanies = [...new Set(cleanedData.map(d => d.company_name))].sort();
-        setCompanies(uniqueCompanies);
       }
     } catch (err) {
-      showToast("Failed to load companies: " + err.message, "error");
+      showToast("Failed to load data: " + err.message, "error");
     }
   };
 
