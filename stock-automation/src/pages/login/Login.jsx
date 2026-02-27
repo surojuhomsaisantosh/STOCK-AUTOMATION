@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { supabase, fetchWithRetry, isNetworkError, checkSupabaseConnection } from "../../supabase/supabaseClient";
+import { supabase, fetchWithRetry, isNetworkError } from "../../supabase/supabaseClient";
 import { Eye, EyeOff, Loader2, WifiOff } from "lucide-react";
 
 const PRIMARY = "#065f46";
@@ -101,15 +101,7 @@ function Login() {
         throw new Error("Email and Password are required.");
       }
 
-      // ── STEP 1: Check if we can reach Supabase at all ──
-      setStatusMsg("Checking connection...");
-      const connectionCheck = await checkSupabaseConnection();
-      if (!connectionCheck.ok) {
-        console.log("❌ [LOGIN DEBUG] Connection check failed:", connectionCheck.reason);
-        throw new Error(connectionCheck.reason);
-      }
-
-      // ── STEP 2: Authenticate with retry ──
+      // ── STEP 1: Authenticate with retry ──
       setStatusMsg("Verifying credentials...");
       console.log("⏳ [LOGIN DEBUG] Verifying credentials with Supabase Auth...");
 
