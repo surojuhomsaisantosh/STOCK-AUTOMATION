@@ -5,22 +5,26 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // ============ GLOBAL RESILIENT FETCH ============
 // Injected into BOTH Supabase clients so EVERY call in the entire app
-// automatically gets retry + timeout protection.
+// automatically gets timeout protection + 1 retry for server errors.
+// IMPORTANT: Kept lightweight to avoid saturating mobile browsers'
+// 6-connection-per-domain limit.
 
-const MAX_RETRIES = 3;
-const BASE_DELAY = 1000;     // 1s, then 2s, then 4s
-const REQUEST_TIMEOUT = 15000; // 15 seconds per attempt
+const MAX_RETRIES = 1;         // 1 retry = 2 total attempts (was 3 = 4 attempts)
+const BASE_DELAY = 1000;
+const REQUEST_TIMEOUT = 10000; // 10 seconds per attempt (was 15s)
 
 function isRetryableError(error) {
+  // Don't retry AbortErrors — they're from our own timeout,
+  // retrying a timed-out request just holds more connections on mobile.
+  if (error?.name === "AbortError") return false;
+
   const msg = (error?.message || "").toLowerCase();
   return (
     msg.includes("failed to fetch") ||
     msg.includes("networkerror") ||
     msg.includes("network request failed") ||
     msg.includes("load failed") ||              // Safari
-    msg.includes("the internet connection appears to be offline") ||
-    error?.name === "AbortError" ||
-    error?.name === "TypeError"                  // Most browsers throw TypeError for network failures
+    msg.includes("the internet connection appears to be offline")
   );
 }
 
@@ -31,7 +35,7 @@ async function resilientFetch(url, options = {}) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
-    // Merge our timeout signal with any existing signal
+    // Respect any existing signal from the caller
     const originalSignal = options.signal;
     if (originalSignal?.aborted) {
       clearTimeout(timeoutId);
@@ -45,7 +49,6 @@ async function resilientFetch(url, options = {}) {
       });
       clearTimeout(timeoutId);
 
-      // Don't retry server errors for auth endpoints (wrong password = 400, not retryable)
       // Only retry on 502/503/504 gateway errors
       if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < MAX_RETRIES) {
         const delay = BASE_DELAY * Math.pow(2, attempt);
@@ -62,7 +65,7 @@ async function resilientFetch(url, options = {}) {
       // If the caller explicitly aborted, don't retry
       if (originalSignal?.aborted) throw err;
 
-      // Only retry on network/timeout errors
+      // Only retry on genuine network errors (not our own timeouts)
       if (!isRetryableError(err) || attempt === MAX_RETRIES) {
         throw err;
       }
@@ -123,7 +126,7 @@ export function isNetworkError(error) {
  *     supabase.from('table').select('*')
  *   );
  */
-export async function fetchWithRetry(operation, maxRetries = 3, baseDelay = 1000) {
+export async function fetchWithRetry(operation, maxRetries = 1, baseDelay = 1000) {
   let lastError = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
