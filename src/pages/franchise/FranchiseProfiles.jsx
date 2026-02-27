@@ -6,8 +6,9 @@ import {
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "../../supabase/supabaseClient";
+import { BRAND_GREEN } from "../../utils/theme";
 
-const PRIMARY = "#065f46";
+const PRIMARY = BRAND_GREEN;
 const BORDER = "#e5e7eb";
 const BLACK = "#111827";
 

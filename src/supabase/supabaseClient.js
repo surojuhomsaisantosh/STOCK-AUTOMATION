@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { devLog } from "../utils/logger";
 
 const supabaseDirectUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -21,9 +22,12 @@ const SUPABASE_DOMAIN = 'vfhwuncpzbsjegmedvjr.supabase.co';
 
 export function getProxiedUrl(url) {
   if (typeof url !== 'string') return url;
-  if (url.includes(SUPABASE_DOMAIN)) {
+
+  // Edge Functions MUST NOT be proxied because the proxy strips or alters 
+  // the strict Authorization Bearer JWT headers required by Deno.
+  if (url.includes(SUPABASE_DOMAIN) && !url.includes('/functions/v1/')) {
     const proxied = url.replace(`https://${SUPABASE_DOMAIN}`, window.location.origin + '/sb-proxy');
-    console.log(`🔀 [PROXY] ${url.substring(0, 60)}... → ${proxied.substring(0, 60)}...`);
+    devLog(`🔀 [PROXY] ${url.substring(0, 60)}... → ${proxied.substring(0, 60)}...`);
     return proxied;
   }
   return url;
@@ -50,7 +54,7 @@ async function resilientFetch(url, options = {}) {
       // Only retry on gateway errors (502/503/504)
       if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < MAX_RETRIES) {
         const delay = BASE_DELAY * Math.pow(2, attempt);
-        console.log(`🔄 [NET] Server ${response.status} on attempt ${attempt + 1}. Retrying in ${delay}ms...`);
+        devLog(`🔄 [NET] Server ${response.status} on attempt ${attempt + 1}. Retrying in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
@@ -61,7 +65,7 @@ async function resilientFetch(url, options = {}) {
 
       // If fetch threw AbortError, strip the signal and retry once
       if (err?.name === "AbortError" && attempt < MAX_RETRIES) {
-        console.log(`🔄 [NET] Request aborted, retrying without signal...`);
+        devLog(`🔄 [NET] Request aborted, retrying without signal...`);
         const { signal, ...optsWithoutSignal } = options;
         try {
           const response = await Promise.race([
@@ -89,7 +93,7 @@ async function resilientFetch(url, options = {}) {
       }
 
       const delay = BASE_DELAY * Math.pow(2, attempt);
-      console.log(`🔄 [NET] Fetch failed on attempt ${attempt + 1} (${err.message}). Retrying in ${delay}ms...`);
+      devLog(`🔄 [NET] Fetch failed on attempt ${attempt + 1} (${err.message}). Retrying in ${delay}ms...`);
       await new Promise(r => setTimeout(r, delay));
     }
   }
@@ -99,17 +103,6 @@ async function resilientFetch(url, options = {}) {
 
 // 1. MAIN CLIENT: Handles standard app sessions, logins, and database sync.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  global: { fetch: resilientFetch }
-});
-
-// 2. ADMIN/SERVICE CLIENT: Handles signups and staff management.
-export const supabaseAdmin = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
-    storageKey: 'sb-admin-auth-token'  // Unique key to avoid GoTrueClient conflict
-  },
   global: { fetch: resilientFetch }
 });
 
@@ -165,7 +158,7 @@ export async function fetchWithRetry(operation, maxRetries = 1, baseDelay = 1000
       }
 
       const delay = baseDelay * Math.pow(2, attempt); // 1s, 2s, 4s
-      console.log(`🔄 [RETRY] Attempt ${attempt + 1}/${maxRetries} failed (network). Retrying in ${delay}ms...`);
+      devLog(`🔄 [RETRY] Attempt ${attempt + 1}/${maxRetries} failed (network). Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }

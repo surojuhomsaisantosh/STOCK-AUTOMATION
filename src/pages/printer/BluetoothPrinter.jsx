@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useRef, useState, useEffect } from "react";
+import { devLog } from '../../utils/logger';
 
 const PrinterContext = createContext();
 
@@ -29,7 +30,7 @@ export function PrinterProvider({ children }) {
   }, []);
 
   const handleDisconnect = () => {
-    console.log("🔌 Printer Disconnected");
+    devLog("🔌 Printer Disconnected");
     deviceRef.current = null;
     characteristicRef.current = null;
     setIsConnected(false);
@@ -69,7 +70,7 @@ export function PrinterProvider({ children }) {
     setIsConnecting(true);
 
     try {
-      console.log("🚀 Requesting Bluetooth Device...");
+      devLog("🚀 Requesting Bluetooth Device...");
 
       const device = await navigator.bluetooth.requestDevice({
         filters: [
@@ -83,30 +84,30 @@ export function PrinterProvider({ children }) {
         optionalServices: [PROFILES.GENERIC.service, PROFILES.STANDARD.service]
       });
 
-      console.log(`🔗 Device Selected: ${device.name}`);
-      console.log("📡 Connecting to GATT Server...");
+      devLog(`🔗 Device Selected: ${device.name}`);
+      devLog("📡 Connecting to GATT Server...");
       const server = await device.gatt.connect();
 
       device.addEventListener('gattserverdisconnected', handleDisconnect);
 
-      console.log("🔍 Looking for Services...");
+      devLog("🔍 Looking for Services...");
 
       let characteristic;
       try {
         const service = await server.getPrimaryService(PROFILES.GENERIC.service);
         characteristic = await service.getCharacteristic(PROFILES.GENERIC.char);
-        console.log("✅ Using Generic Profile characteristic");
+        devLog("✅ Using Generic Profile characteristic");
       } catch (e) {
-        console.log("⚠️ Generic profile not found, trying Standard profile...");
+        devLog("⚠️ Generic profile not found, trying Standard profile...");
         const service = await server.getPrimaryService(PROFILES.STANDARD.service);
         characteristic = await service.getCharacteristic(PROFILES.STANDARD.char);
-        console.log("✅ Using Standard Profile characteristic");
+        devLog("✅ Using Standard Profile characteristic");
       }
 
       deviceRef.current = device;
       characteristicRef.current = characteristic;
       setIsConnected(true);
-      console.log("🎊 CONNECTION SUCCESSFUL");
+      devLog("🎊 CONNECTION SUCCESSFUL");
 
     } catch (err) {
       console.error("❌ Connection failed:", err);
@@ -125,7 +126,7 @@ export function PrinterProvider({ children }) {
 
   const printReceipt = async (billData) => {
     console.group("🖨️ PRINT DEBUGGER");
-    console.log("1. RAW BILL DATA RECEIVED:", billData);
+    devLog("1. RAW BILL DATA RECEIVED:", billData);
 
     if (!billData) {
       console.error("❌ ABORT: No billData provided to printReceipt()");
@@ -204,11 +205,11 @@ export function PrinterProvider({ children }) {
       text += "\n" + center + (billData.thankYouMsg || "Thank You!, Visit Again.") + "\n";
       text += "\n\n\n\n"; // Final feed for easy tearing
 
-      console.log("6. FINAL FORMATTED TEXT:\n", text);
+      devLog("6. FINAL FORMATTED TEXT:\n", text);
       const data = encoder.encode(text);
 
-      console.log(`7. ENCODED BYTES: ${data.length} bytes`);
-      console.log("📤 Sending chunks to printer...");
+      devLog(`7. ENCODED BYTES: ${data.length} bytes`);
+      devLog("📤 Sending chunks to printer...");
 
       const CHUNK_SIZE = 20;
       for (let i = 0; i < data.length; i += CHUNK_SIZE) {
@@ -217,7 +218,7 @@ export function PrinterProvider({ children }) {
         await new Promise(r => setTimeout(r, 35));
       }
 
-      console.log("✅ PRINT TASK FINISHED");
+      devLog("✅ PRINT TASK FINISHED");
     } catch (err) {
       console.error("❌ PRINT HARDWARE ERROR:", err);
       disconnectPrinter();

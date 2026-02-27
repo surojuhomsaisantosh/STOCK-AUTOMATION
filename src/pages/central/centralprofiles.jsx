@@ -15,10 +15,11 @@ import {
   MapPin,
   User,
 } from "lucide-react";
+import { BRAND_GREEN } from "../../utils/theme";
 
 // Consistency with your existing brand colors
-const PRIMARY = "#065f46";
-const ACTION_GREEN = "rgb(0, 100, 55)";
+const PRIMARY = BRAND_GREEN;
+const ACTION_GREEN = BRAND_GREEN;
 const DANGER_RED = "#dc2626";
 const BORDER = "#e5e7eb";
 

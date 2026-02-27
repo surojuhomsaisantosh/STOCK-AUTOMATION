@@ -5,9 +5,10 @@ import {
 } from "lucide-react";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext"; // IMPORTED AUTH CONTEXT
+import { BRAND_GREEN } from "../../utils/theme";
 
 // --- THEME ---
-const BRAND_COLOR = "#065f46";
+const BRAND_COLOR = BRAND_GREEN;
 
 // --- UTILITY STYLES (Injected for Scrollbar Hiding) ---
 const CustomStyles = () => (

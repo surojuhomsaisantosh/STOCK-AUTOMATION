@@ -5,8 +5,9 @@ import {
   FiSearch, FiCalendar, FiPlus, FiSave, FiX, FiTrash2, FiEdit3
 } from "react-icons/fi";
 import { ArrowLeft } from "lucide-react";
+import { BRAND_GREEN } from "../../utils/theme";
 
-const PRIMARY = "#065f46";
+const PRIMARY = BRAND_GREEN;
 const BACKGROUND = "#f9fafb";
 const BORDER = "#e5e7eb";
 

@@ -49,6 +49,7 @@ import PackageBills from "./pages/central/PackageBills";
 import { AuthProvider } from "./context/AuthContext";
 import { PrinterProvider } from "./pages/printer/BluetoothPrinter";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 /**
  * Helper component to handle navigation logic for Settings.
@@ -96,319 +97,321 @@ function App() {
   }, []);
 
   return (
-    <AuthProvider>
-      <PrinterProvider>
-        <BrowserRouter>
-          <Routes>
+    <ErrorBoundary>
+      <AuthProvider>
+        <PrinterProvider>
+          <BrowserRouter>
+            <Routes>
 
-            {/* ================= PUBLIC ================= */}
-            <Route path="/" element={<Login />} />
+              {/* ================= PUBLIC ================= */}
+              <Route path="/" element={<Login />} />
 
-            {/* ================= STORE MODE ================= */}
-            <Route
-              path="/store"
-              element={
-                <ProtectedRoute storeOnly={true}>
-                  <Store />
-                </ProtectedRoute>
-              }
-            />
+              {/* ================= STORE MODE ================= */}
+              <Route
+                path="/store"
+                element={
+                  <ProtectedRoute storeOnly={true}>
+                    <Store />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/history"
-              element={
-                <ProtectedRoute storeOnly={true}>
-                  <BillingHistory />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/history"
+                element={
+                  <ProtectedRoute storeOnly={true}>
+                    <BillingHistory />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* ================= CENTRAL ADMIN ================= */}
-            <Route
-              path="/register"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <RegisterUser />
-                </ProtectedRoute>
-              }
-            />
+              {/* ================= CENTRAL ADMIN ================= */}
+              <Route
+                path="/register"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <RegisterUser />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/dashboard/central"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <CentralDashboard />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/dashboard/central"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <CentralDashboard />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/internal-order"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <StockOrder />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/internal-order"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <StockOrder />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/vendors"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <CentralVendors />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/vendors"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <CentralVendors />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/invoices"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <CentralInvoices />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/invoices"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <CentralInvoices />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/package-bills"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <PackageBills />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/package-bills"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <PackageBills />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/settings"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <CentralSettings />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/settings"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <CentralSettings />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/invoice-design"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <InvoiceDesign />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/invoice-design"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <InvoiceDesign />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/profiles"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <CentralProfiles />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/profiles"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <CentralProfiles />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/staff-profiles"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <CentralStaffProfiles />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/staff-profiles"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <CentralStaffProfiles />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/staff-logins"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <CentralStaffLogins />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/staff-logins"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <CentralStaffLogins />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/timings"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <CentralStaffLogins />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/timings"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <CentralStaffLogins />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/reports"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <Reports />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/reports"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <Reports />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/stock"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <CentralStockMaster />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/stock"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <CentralStockMaster />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/posmanagement"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <PosManagement />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/posmanagement"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <PosManagement />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/support"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <FranchiseReplies />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/support"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <FranchiseReplies />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/central/replies"
-              element={
-                <ProtectedRoute allowedRoles={["central"]}>
-                  <FranchiseReplies />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/central/replies"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <FranchiseReplies />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* ================= FRANCHISE ADMIN ================= */}
-            <Route
-              path="/dashboard/franchiseowner"
-              element={
-                <ProtectedRoute allowedRoles={["franchise"]}>
-                  <FranchiseOwnerDashboard />
-                </ProtectedRoute>
-              }
-            />
+              {/* ================= FRANCHISE ADMIN ================= */}
+              <Route
+                path="/dashboard/franchiseowner"
+                element={
+                  <ProtectedRoute allowedRoles={["franchise"]}>
+                    <FranchiseOwnerDashboard />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/stock-orders"
-              element={
-                <ProtectedRoute allowedRoles={["franchise"]}>
-                  <StockOrder />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/stock-orders"
+                element={
+                  <ProtectedRoute allowedRoles={["franchise"]}>
+                    <StockOrder />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/franchise/invoices"
-              element={
-                <ProtectedRoute allowedRoles={["franchise"]}>
-                  <FranchiseInvoices />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/franchise/invoices"
+                element={
+                  <ProtectedRoute allowedRoles={["franchise"]}>
+                    <FranchiseInvoices />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/franchise/analytics"
-              element={
-                <ProtectedRoute allowedRoles={["franchise"]}>
-                  <FranchiseAnalytics />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/franchise/analytics"
+                element={
+                  <ProtectedRoute allowedRoles={["franchise"]}>
+                    <FranchiseAnalytics />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/franchise/requestportal"
-              element={
-                <ProtectedRoute allowedRoles={["franchise"]}>
-                  <RequestPortal />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/franchise/requestportal"
+                element={
+                  <ProtectedRoute allowedRoles={["franchise"]}>
+                    <RequestPortal />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/franchise/menu"
-              element={
-                <ProtectedRoute allowedRoles={["franchise"]}>
-                  <FranchiseMenu />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/franchise/menu"
+                element={
+                  <ProtectedRoute allowedRoles={["franchise"]}>
+                    <FranchiseMenu />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/franchise/staff"
-              element={
-                <ProtectedRoute allowedRoles={["franchise"]}>
-                  <FranchiseProfiles />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/franchise/staff"
+                element={
+                  <ProtectedRoute allowedRoles={["franchise"]}>
+                    <FranchiseProfiles />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/franchise/timings"
-              element={
-                <ProtectedRoute allowedRoles={["franchise"]}>
-                  <LoginTimings />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/franchise/timings"
+                element={
+                  <ProtectedRoute allowedRoles={["franchise"]}>
+                    <LoginTimings />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/franchise/settings"
-              element={
-                <ProtectedRoute allowedRoles={["franchise"]}>
-                  <SettingsWrapper />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/franchise/settings"
+                element={
+                  <ProtectedRoute allowedRoles={["franchise"]}>
+                    <SettingsWrapper />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* ================= STOCK ADMIN ================= */}
-            <Route
-              path="/dashboard/stockmanager"
-              element={
-                <ProtectedRoute allowedRoles={["stock"]}>
-                  <StockManagerDashboard />
-                </ProtectedRoute>
-              }
-            />
+              {/* ================= STOCK ADMIN ================= */}
+              <Route
+                path="/dashboard/stockmanager"
+                element={
+                  <ProtectedRoute allowedRoles={["stock"]}>
+                    <StockManagerDashboard />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/stock"
-              element={
-                <ProtectedRoute allowedRoles={["stock"]}>
-                  <StockUpdate />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/stock"
+                element={
+                  <ProtectedRoute allowedRoles={["stock"]}>
+                    <StockUpdate />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/stock/orders"
-              element={
-                <ProtectedRoute allowedRoles={["stock"]}>
-                  <StockOrders />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/stock/orders"
+                element={
+                  <ProtectedRoute allowedRoles={["stock"]}>
+                    <StockOrders />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/stock/bills"
-              element={
-                <ProtectedRoute allowedRoles={["stock", "franchise"]}>
-                  <InvoicesBilling />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/stock/bills"
+                element={
+                  <ProtectedRoute allowedRoles={["stock", "franchise"]}>
+                    <InvoicesBilling />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/stock/settings"
-              element={
-                <ProtectedRoute allowedRoles={["stock"]}>
-                  <Settings />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/stock/settings"
+                element={
+                  <ProtectedRoute allowedRoles={["stock"]}>
+                    <Settings />
+                  </ProtectedRoute>
+                }
+              />
 
-          </Routes>
-        </BrowserRouter>
-      </PrinterProvider>
-    </AuthProvider>
+            </Routes>
+          </BrowserRouter>
+        </PrinterProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

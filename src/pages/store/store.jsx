@@ -11,8 +11,9 @@ import {
   Unplug
 } from "lucide-react";
 import { useBluetoothPrinter } from "../printer/BluetoothPrinter";
+import { BRAND_GREEN } from "../../utils/theme";
 
-const PRIMARY = "#065f46";
+const PRIMARY = BRAND_GREEN;
 const BORDER = "#e5e7eb";
 const DANGER = "#ef4444";
 const BLACK = "#000000";
@@ -220,12 +221,12 @@ function Store() {
       <div style={{ ...styles.topBar, padding: isMobile ? "10px 15px" : "15px 30px" }}>
         {/* Left Spacer for desktop centering balance */}
         {!isMobile && <div style={{ width: '100px' }}></div>}
-        
+
         <h1 style={{ ...styles.centerTitle, fontSize: isMobile ? "18px" : "22px" }}>STORE DASHBOARD</h1>
-        
+
         {/* Right ID Box */}
         <div style={styles.franchiseIdBox}>
-          <span style={styles.idLabel}>ID :</span> 
+          <span style={styles.idLabel}>ID :</span>
           <span style={styles.idValue}>{franchiseId || "..."}</span>
         </div>
       </div>
@@ -412,7 +413,7 @@ function Store() {
           <div style={{ ...styles.modalContent, width: isMobile ? '100%' : '90%', height: isMobile ? '100%' : 'auto', borderRadius: isMobile ? '0' : '24px' }}>
             <button style={styles.closeModalBtn} onClick={() => setShowPaymentModal(false)}><X size={24} color={BLACK} /></button>
             <div style={{ ...styles.modalBody, flexDirection: isMobile ? 'column' : 'row', height: isMobile ? '100%' : '500px' }}>
-              
+
               {/* LEFT SIDE: BILL SUMMARY */}
               <div style={{ ...styles.modalLeft, padding: isMobile ? '15px' : '30px', flex: isMobile ? '1' : '1.2', overflow: 'hidden', borderRight: isMobile ? 'none' : `1px solid ${BORDER}`, borderBottom: isMobile ? `1px solid ${BORDER}` : 'none' }}>
                 <h3 style={styles.modalSectionTitle}>BILL SUMMARY</h3>
@@ -444,7 +445,7 @@ function Store() {
               {/* RIGHT SIDE: DISCOUNT & PAYMENT */}
               <div style={{ ...styles.modalRight, padding: isMobile ? '10px' : '30px', flex: isMobile ? '0' : '0.8', background: isMobile ? '#fff' : 'transparent' }}>
                 <h3 style={styles.modalSectionTitle}>DISCOUNT</h3>
-                
+
                 <div style={{ ...styles.discountBox, padding: isMobile ? '10px' : '15px', marginBottom: isMobile ? '10px' : '20px' }}>
                   <div style={styles.discountToggleRow}>
                     <button style={{ ...styles.toggleSmall, background: discountType === 'fixed' ? PRIMARY : '#fff', color: discountType === 'fixed' ? '#fff' : BLACK }} onClick={() => setDiscountType('fixed')}>₹ Amt</button>
@@ -472,7 +473,7 @@ const styles = {
   page: { background: "#f9fafb", fontFamily: '"Inter", sans-serif', color: BLACK },
   topBar: { display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${BORDER}`, background: "#fff" },
   centerTitle: { fontWeight: "900", margin: 0, color: BLACK, letterSpacing: '-0.5px' },
-  
+
   franchiseIdBox: { display: 'flex', alignItems: 'center', background: "white", padding: "8px 14px", borderRadius: "10px", border: `1px solid ${BORDER}`, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
   idLabel: { fontSize: '12px', fontWeight: '600', color: '#64748b', marginRight: '6px' },
   idValue: { fontSize: '14px', fontWeight: '800', color: PRIMARY },
@@ -525,20 +526,20 @@ const styles = {
   modalSectionTitle: { fontSize: '16px', fontWeight: '900', marginBottom: '20px', color: BLACK },
   receiptScrollArea: { overflowY: 'auto', marginBottom: '15px' },
   receiptTable: { width: '100%', borderCollapse: 'collapse' },
-  
+
   // UPDATED: Added sticky positioning
-  receiptTh: { 
-    textAlign: 'left', 
-    paddingBottom: '10px', 
-    fontSize: '11px', 
-    fontWeight: '900', 
+  receiptTh: {
+    textAlign: 'left',
+    paddingBottom: '10px',
+    fontSize: '11px',
+    fontWeight: '900',
     color: BLACK,
     position: 'sticky', // Makes header sticky
     top: 0,             // Sticks to the top of the scroll area
     background: '#f8f9fa', // Background needed so text doesn't show behind it
     zIndex: 1
   },
-  
+
   receiptTd: { padding: '8px 0', fontSize: '13px', fontWeight: '700', color: BLACK },
   discountBox: { background: '#f3f4f6', padding: '15px', borderRadius: '15px', marginBottom: '20px' },
   discountToggleRow: { display: 'flex', gap: '6px', marginBottom: '10px' },

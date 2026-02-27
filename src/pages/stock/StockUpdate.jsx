@@ -311,8 +311,13 @@ function StockUpdate() {
 
     const deleteItem = async (id) => {
         if (!window.confirm("Delete item permanently?")) return;
-        await supabase.from("stocks").delete().eq("id", id);
-        fetchItems();
+        try {
+            const { error } = await supabase.from("stocks").delete().eq("id", id);
+            if (error) throw error;
+            fetchItems();
+        } catch (err) {
+            alert("Failed to delete item: " + (err.message || "Unknown error"));
+        }
     };
 
     const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });

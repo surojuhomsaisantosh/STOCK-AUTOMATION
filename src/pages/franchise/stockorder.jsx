@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { supabase } from "../../supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -10,33 +10,12 @@ import {
   FiMinus, FiPlus, FiTrash2, FiDownload, FiInfo,
   FiRefreshCw
 } from "react-icons/fi";
-
-// --- CONSOLE NOISE FILTER ---
-if (import.meta.env.DEV) {
-  const originalError = console.error;
-  const IGNORED_ERRORS = ['ERR_BLOCKED_BY_CLIENT', 'Sentry', 'PostHog', 'Sardine', 'Vercel Speed Insights'];
-
-  console.error = (...args) => {
-    const msg = args[0]?.toString() || "";
-    if (IGNORED_ERRORS.some(e => msg.includes(e))) return;
-    originalError(...args);
-  };
-}
+import { formatCurrency, amountToWords } from "../../utils/formatters";
 
 // --- CONSTANTS ---
 const BRAND_COLOR = "rgb(0, 100, 55)";
 const ITEMS_PER_INVOICE_PAGE = 15;
 const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID;
-
-// --- UTILS ---
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(amount);
-};
 
 const getSessionData = (key, defaultValue) => {
   const stored = sessionStorage.getItem(key);
@@ -96,25 +75,7 @@ const loadRazorpayScript = () => {
   });
 };
 
-const amountToWords = (price) => {
-  if (!price) return "";
-  const num = Math.round(price);
-  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
-  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  const inWords = (n) => {
-    if ((n = n.toString()).length > 9) return 'overflow';
-    let n_array = ('000000000' + n).slice(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
-    if (!n_array) return;
-    let str = '';
-    str += (n_array[1] != 0) ? (a[Number(n_array[1])] || b[n_array[1][0]] + ' ' + a[n_array[1][1]]) + 'Crore ' : '';
-    str += (n_array[2] != 0) ? (a[Number(n_array[2])] || b[n_array[2][0]] + ' ' + a[n_array[2][1]]) + 'Lakh ' : '';
-    str += (n_array[3] != 0) ? (a[Number(n_array[3])] || b[n_array[3][0]] + ' ' + a[n_array[3][1]]) + 'Thousand ' : '';
-    str += (n_array[4] != 0) ? (a[Number(n_array[4])] || b[n_array[4][0]] + ' ' + a[n_array[4][1]]) + 'Hundred ' : '';
-    str += (n_array[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n_array[5])] || b[n_array[5][0]] + ' ' + a[n_array[5][1]]) : '';
-    return str;
-  }
-  return inWords(num) + " Rupees Only";
-};
+
 
 const getEmailStyles = () => `
   <style>
@@ -357,13 +318,27 @@ function StockOrder() {
   useEffect(() => { localStorage.setItem("stockOrderCart", JSON.stringify(cart)); }, [cart]);
   useEffect(() => { localStorage.setItem("notifiedStockItems", JSON.stringify([...notifiedItems])); }, [notifiedItems]);
 
+  const toastTimeoutsRef = useRef(new Map());
+
+  // Cleanup all toast timeouts on unmount
+  useEffect(() => {
+    const timeouts = toastTimeoutsRef.current;
+    return () => { timeouts.forEach(id => clearTimeout(id)); timeouts.clear(); };
+  }, []);
+
   const addToast = useCallback((type, title, message, duration = 4000, customId = null) => {
     const id = customId || Date.now();
     setToasts(prev => {
       const others = prev.filter(t => t.id !== id);
       return [...others, { id, type, title, message }];
     });
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration);
+    // Clear any existing timeout for this toast ID
+    if (toastTimeoutsRef.current.has(id)) clearTimeout(toastTimeoutsRef.current.get(id));
+    const timeoutId = setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+      toastTimeoutsRef.current.delete(id);
+    }, duration);
+    toastTimeoutsRef.current.set(id, timeoutId);
   }, []);
 
   const removeToast = useCallback((id) => setToasts(prev => prev.filter(t => t.id !== id)), []);
@@ -404,11 +379,15 @@ function StockOrder() {
 
   useEffect(() => {
     fetchData();
-    const stockSubscription = supabase.channel('public:stocks').on('postgres_changes', { event: '*', schema: 'public', table: 'stocks' }, () => fetchData(true)).subscribe();
-    return () => { supabase.removeChannel(stockSubscription); };
+    let debounceTimer;
+    const stockSubscription = supabase.channel('public:stocks').on('postgres_changes', { event: '*', schema: 'public', table: 'stocks' }, () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchData(true), 300);
+    }).subscribe();
+    return () => { clearTimeout(debounceTimer); supabase.removeChannel(stockSubscription); };
   }, [fetchData]);
 
-  useEffect(() => { loadRazorpayScript(); }, []);
+
 
   useEffect(() => {
     if (stocks.length === 0) return;
@@ -661,32 +640,36 @@ function StockOrder() {
             tempDiv.style.cssText = "position: absolute; top: -10000px; left: -10000px; width: 794px; background: white; z-index: -100;";
             tempDiv.innerHTML = getEmailStyles() + invoiceHtmlRaw;
             document.body.appendChild(tempDiv);
-            await new Promise(resolve => setTimeout(resolve, 800));
-            const pdf = new jsPDF("p", "mm", "a4");
-            const pages = tempDiv.querySelectorAll('.a4-page');
-            for (let i = 0; i < pages.length; i++) {
-              const canvas = await html2canvas(pages[i], {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: "#ffffff",
-                width: 794,
-                height: 1122,
-                windowWidth: 794,
-                onclone: (documentClone) => {
-                  const element = documentClone.querySelectorAll('.a4-page')[i];
-                  element.style.margin = "0";
-                  element.style.boxShadow = "none";
-                  element.style.transform = "none";
-                }
-              });
-              const imgData = canvas.toDataURL("image/jpeg", 1.0);
-              if (i > 0) pdf.addPage();
-              const pdfWidth = pdf.internal.pageSize.getWidth();
-              const pdfHeight = pdf.internal.pageSize.getHeight();
-              pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+            let pdfBase64;
+            try {
+              await new Promise(resolve => setTimeout(resolve, 800));
+              const pdf = new jsPDF("p", "mm", "a4");
+              const pages = tempDiv.querySelectorAll('.a4-page');
+              for (let i = 0; i < pages.length; i++) {
+                const canvas = await html2canvas(pages[i], {
+                  scale: 2,
+                  useCORS: true,
+                  backgroundColor: "#ffffff",
+                  width: 794,
+                  height: 1122,
+                  windowWidth: 794,
+                  onclone: (documentClone) => {
+                    const element = documentClone.querySelectorAll('.a4-page')[i];
+                    element.style.margin = "0";
+                    element.style.boxShadow = "none";
+                    element.style.transform = "none";
+                  }
+                });
+                const imgData = canvas.toDataURL("image/jpeg", 1.0);
+                if (i > 0) pdf.addPage();
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+              }
+              pdfBase64 = pdf.output('datauristring').split(',')[1];
+            } finally {
+              document.body.removeChild(tempDiv);
             }
-            const pdfBase64 = pdf.output('datauristring').split(',')[1];
-            document.body.removeChild(tempDiv);
             try {
               const { data: { session } } = await supabase.auth.getSession();
               const simpleEmailHtml = `

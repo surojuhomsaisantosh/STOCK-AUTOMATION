@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { supabase, fetchWithRetry, isNetworkError, getProxiedUrl } from "../../supabase/supabaseClient";
 import { Eye, EyeOff, Loader2, WifiOff } from "lucide-react";
+import { BRAND_GREEN } from "../../utils/theme";
 
-const PRIMARY = "#065f46";
+const PRIMARY = BRAND_GREEN;
 const BORDER = "#e5e7eb";
 const BLACK = "#000000";
 

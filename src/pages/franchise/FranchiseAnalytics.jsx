@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import {
@@ -9,20 +9,29 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from "recharts";
+import { headerStyles } from "../../utils/headerStyles";
+import { BRAND_GREEN } from "../../utils/theme";
 
 // --- CONSTANTS ---
-const PRIMARY = "#065f46";
+const PRIMARY = BRAND_GREEN;
 const EXCEL_GREEN = "#107c41";
-const COLORS = ["#065f46", "#0ea5e9", "#f59e0b", "#be185d", "#8b5cf6", "#10b981", "#f43f5e", "#6366f1", "#d946ef", "#047857"];
+const COLORS = [BRAND_GREEN, "#0ea5e9", "#f59e0b", "#be185d", "#8b5cf6", "#10b981", "#f43f5e", "#6366f1", "#d946ef", "#047857"];
 
 // --- UTILITY: Safe Session Storage Setter ---
 // Prevents the app from crashing if browser storage limit is reached
+const ANALYTICS_STORAGE_PREFIX = "analytics_";
 const safeSetSessionStorage = (key, value) => {
   try {
     sessionStorage.setItem(key, value);
   } catch (e) {
-    console.warn("Session storage full. Clearing old cache...");
-    sessionStorage.clear(); // Clear cache to make room
+    console.warn("Session storage full. Clearing analytics cache...");
+    // Only clear our own analytics keys, not other features' data
+    const keysToRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith(ANALYTICS_STORAGE_PREFIX)) keysToRemove.push(k);
+    }
+    keysToRemove.forEach(k => sessionStorage.removeItem(k));
     try {
       sessionStorage.setItem(key, value); // Try saving again
     } catch (err) {
@@ -51,28 +60,8 @@ function FranchiseAnalytics() {
   const [oldestRecordDate, setOldestRecordDate] = useState(null);
   const [daysUntilDeletion, setDaysUntilDeletion] = useState(null);
 
-  // --- EFFECTS ---
-  useEffect(() => {
-    safeSetSessionStorage("analytics_activeTab", activeTab);
-    safeSetSessionStorage("analytics_dateRangeMode", dateRangeMode);
-    safeSetSessionStorage("analytics_startDate", startDate);
-    safeSetSessionStorage("analytics_endDate", endDate);
-  }, [activeTab, dateRangeMode, startDate, endDate]);
-
-  useEffect(() => {
-    if (!franchiseId) fetchFranchiseProfile();
-  }, [franchiseId]);
-
-  useEffect(() => {
-    if (franchiseId) fetchOldestRecord();
-  }, [franchiseId]);
-
-  useEffect(() => {
-    if (franchiseId) fetchData();
-  }, [activeTab, startDate, endDate, dateRangeMode, franchiseId]);
-
-  // --- DATA FETCHING ---
-  const fetchFranchiseProfile = async () => {
+  // --- DATA FETCHING (defined before effects that use them) ---
+  const fetchFranchiseProfile = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -83,9 +72,9 @@ function FranchiseAnalytics() {
         }
       }
     } catch (e) { console.error("Profile Fetch Error", e); }
-  };
+  }, []);
 
-  const fetchOldestRecord = async () => {
+  const fetchOldestRecord = useCallback(async () => {
     const cacheKey = `analytics_oldest_${franchiseId}`;
     const cachedData = sessionStorage.getItem(cacheKey);
 
@@ -124,9 +113,9 @@ function FranchiseAnalytics() {
       safeSetSessionStorage(cacheKey, JSON.stringify({ date: oDate, days: dUntil }));
 
     } catch (err) { console.error("Error fetching oldest record:", err); }
-  };
+  }, [franchiseId]);
 
-  const fetchData = async (forceRefresh = false) => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     const cacheKey = `analytics_data_${franchiseId}_${activeTab}_${dateRangeMode}_${startDate}_${endDate}`;
 
     // Check cache only if we are NOT forcing a refresh
@@ -178,15 +167,35 @@ function FranchiseAnalytics() {
 
     } catch (err) {
       console.error("Fetch Error:", err.message);
-      alert("Failed to load data. Please check your connection."); // Basic fallback for UI
+      alert("Failed to load data. Please check your connection.");
     }
     finally { setLoading(false); }
-  };
+  }, [franchiseId, activeTab, dateRangeMode, startDate, endDate]);
 
   // --- NEW: FORCE REFRESH FUNCTION ---
-  const handleRefresh = () => {
-    fetchData(true); // Passes true to bypass the cache
-  };
+  const handleRefresh = useCallback(() => {
+    fetchData(true);
+  }, [fetchData]);
+
+  // --- EFFECTS ---
+  useEffect(() => {
+    safeSetSessionStorage("analytics_activeTab", activeTab);
+    safeSetSessionStorage("analytics_dateRangeMode", dateRangeMode);
+    safeSetSessionStorage("analytics_startDate", startDate);
+    safeSetSessionStorage("analytics_endDate", endDate);
+  }, [activeTab, dateRangeMode, startDate, endDate]);
+
+  useEffect(() => {
+    if (!franchiseId) fetchFranchiseProfile();
+  }, [franchiseId, fetchFranchiseProfile]);
+
+  useEffect(() => {
+    if (franchiseId) fetchOldestRecord();
+  }, [franchiseId, fetchOldestRecord]);
+
+  useEffect(() => {
+    if (franchiseId) fetchData();
+  }, [activeTab, startDate, endDate, dateRangeMode, franchiseId, fetchData]);
 
   const processChartData = (data) => {
     const map = {};
@@ -624,12 +633,6 @@ function BillItems({ billId, type }) {
   );
 }
 
-const styles = {
-  header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
-  headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', boxSizing: 'border-box' },
-  backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
-  heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
-  idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 }
-};
+const styles = headerStyles;
 
 export default FranchiseAnalytics;

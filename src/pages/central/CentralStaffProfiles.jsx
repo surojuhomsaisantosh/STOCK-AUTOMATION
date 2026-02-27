@@ -4,11 +4,11 @@ import {
   ArrowLeft, Search, Plus, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight, User, Phone, ChevronDown, MapPin, Mail, ShieldCheck, Hash
 } from "lucide-react";
 
-import { supabase, supabaseAdmin } from "../../supabase/supabaseClient";
+import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
+import { BRAND_GREEN } from "../../utils/theme";
 
-const GREEN = "rgb(0,100,55)";
-const PRIMARY = "#065f46";
+const GREEN = BRAND_GREEN;
 const BORDER = "#e5e7eb";
 const BLACK = "#000000";
 
@@ -239,18 +239,27 @@ const CentralStaffProfiles = () => {
         }
         alert("✅ Updated Successfully");
       } else {
-        const { data: authData, error: authError } = await supabaseAdmin.auth.signUp({
-          email: formData.email.trim().toLowerCase(),
-          password: formData.password,
-          options: {
-            data: {
+        const { data: edgeData, error: edgeError } = await supabase.functions.invoke('register-user', {
+          body: {
+            email: formData.email.trim().toLowerCase(),
+            password: formData.password,
+            metadata: {
               name: formData.name,
-              role: 'staff'
+              role: 'staff',
+              franchise_id: activeFranchiseId,
+              staff_id: formData.staff_id,
+              phone: formData.phone,
+              address: formData.address,
             }
           }
         });
 
-        if (authError) throw authError;
+        if (edgeError || edgeData?.error) {
+          throw new Error(edgeError?.message || edgeData?.error || "Failed to create staff user");
+        }
+
+        // Edge function returns authData in `edgeData.user`
+        const authData = edgeData;
 
         const { error: dbError } = await supabase.from('staff_profiles').insert([{
           id: authData.user.id,
