@@ -6,5 +6,15 @@ export default defineConfig({
   base: '/',
   build: {
     outDir: 'dist'
+  },
+  server: {
+    proxy: {
+      '/sb-proxy': {
+        target: 'https://vfhwuncpzbsjegmedvjr.supabase.co',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/sb-proxy/, ''),
+        secure: true
+      }
+    }
   }
 })
