@@ -17,9 +17,14 @@ const BASE_DELAY = 1000;
 const REQUEST_TIMEOUT = 15000;
 
 // Rewrite supabase.co URLs to proxy (works in both dev and production)
+const SUPABASE_DOMAIN = 'vfhwuncpzbsjegmedvjr.supabase.co';
+
 export function getProxiedUrl(url) {
-  if (typeof url === 'string' && url.startsWith(supabaseDirectUrl)) {
-    return url.replace(supabaseDirectUrl, window.location.origin + '/sb-proxy');
+  if (typeof url !== 'string') return url;
+  if (url.includes(SUPABASE_DOMAIN)) {
+    const proxied = url.replace(`https://${SUPABASE_DOMAIN}`, window.location.origin + '/sb-proxy');
+    console.log(`🔀 [PROXY] ${url.substring(0, 60)}... → ${proxied.substring(0, 60)}...`);
+    return proxied;
   }
   return url;
 }
