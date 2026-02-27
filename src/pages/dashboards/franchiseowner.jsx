@@ -126,7 +126,10 @@ function FranchiseOwnerDashboard() {
               />
             </div>
 
-            <h1 className="header-title">Franchise Dashboard</h1>
+            <div className="title-wrapper">
+              <h1 className="header-title">Hi, {franchiseName || "Owner"} 👋</h1>
+              <span className="header-subtitle">Franchise Dashboard</span>
+            </div>
           </div>
 
           {/* RIGHT SIDE */}
@@ -263,18 +266,37 @@ function FranchiseOwnerDashboard() {
           gap: 8px;
         }
 
-        .header-left { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+        .header-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
         .header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
         .desktop-only { display: none; }
         @media (min-width: 1024px) { .desktop-only { display: block; } }
 
-        .header-title {
-          font-size: 15px; font-weight: 900; margin: 0;
-          letter-spacing: -0.3px; line-height: 1;
-          white-space: nowrap;
+        .title-wrapper {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
         }
-        @media (min-width: 768px) { .header-title { font-size: 28px; letter-spacing: -1px; } }
+
+        .header-title {
+          font-size: 18px; font-weight: 900; margin: 0;
+          letter-spacing: -0.5px; line-height: 1.2;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        
+        .header-subtitle {
+          font-size: 12px;
+          color: #6b7280;
+          font-weight: 500;
+          margin-top: 2px;
+        }
+
+        @media (min-width: 768px) { 
+          .header-title { font-size: 26px; letter-spacing: -1px; } 
+          .header-subtitle { font-size: 14px; }
+        }
 
         /* ID Badge */
         .id-badge {
@@ -282,13 +304,13 @@ function FranchiseOwnerDashboard() {
           background: white; border: 1px solid ${BORDER};
           padding: 6px 10px; border-radius: 10px;
           height: 36px; box-sizing: border-box;
-          white-space: nowrap;
+          max-width: 110px;
         }
         @media (min-width: 768px) {
-          .id-badge { padding: 8px 12px; height: 42px; border-radius: 12px; }
+          .id-badge { padding: 8px 12px; height: 42px; border-radius: 12px; max-width: 200px; }
         }
-        .id-label { font-size: 10px; font-weight: 800; color: #9ca3af; }
-        .id-value { font-size: 12px; font-weight: 800; color: #111827; }
+        .id-label { font-size: 10px; font-weight: 800; color: #9ca3af; flex-shrink: 0; }
+        .id-value { font-size: 12px; font-weight: 800; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* Notification Button */
         .notification-btn {
