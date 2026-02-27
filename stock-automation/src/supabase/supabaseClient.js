@@ -3,29 +3,35 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseDirectUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// In production, route through Vercel proxy to bypass carrier DNS blocking (e.g., Jio)
-// In dev, connect directly to Supabase
-const supabaseUrl = import.meta.env.DEV
-  ? supabaseDirectUrl
-  : window.location.origin + '/sb-proxy';
+// Client uses the REAL supabase URL (so WebSocket/realtime works normally).
+// HTTP requests are rewritten to go through the Vercel proxy inside resilientFetch.
+const supabaseUrl = supabaseDirectUrl;
 
 // ============ GLOBAL RESILIENT FETCH ============
 // A lightweight fetch wrapper with timeout + server error retry.
-// Uses Promise.race() for timeouts instead of AbortController
-// so we NEVER override supabase-js's internal signals.
+// In production, rewrites supabase.co HTTP URLs through the Vercel proxy
+// to bypass carrier DNS blocking (e.g., Jio in India).
 
 const MAX_RETRIES = 1;
 const BASE_DELAY = 1000;
-const REQUEST_TIMEOUT = 15000; // 15 seconds before we give up
+const REQUEST_TIMEOUT = 15000;
+
+// Rewrite supabase.co URLs to proxy (works in both dev and production)
+export function getProxiedUrl(url) {
+  if (typeof url === 'string' && url.startsWith(supabaseDirectUrl)) {
+    return url.replace(supabaseDirectUrl, window.location.origin + '/sb-proxy');
+  }
+  return url;
+}
 
 async function resilientFetch(url, options = {}) {
+  const proxiedUrl = getProxiedUrl(url);
   let lastError;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      // Race the fetch against a timeout — we do NOT touch options.signal
       const response = await Promise.race([
-        fetch(url, options),
+        fetch(proxiedUrl, options),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Request timed out")), REQUEST_TIMEOUT)
         )

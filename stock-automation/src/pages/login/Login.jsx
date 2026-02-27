@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { supabase, fetchWithRetry, isNetworkError } from "../../supabase/supabaseClient";
+import { supabase, fetchWithRetry, isNetworkError, getProxiedUrl } from "../../supabase/supabaseClient";
 import { Eye, EyeOff, Loader2, WifiOff } from "lucide-react";
 
 const PRIMARY = "#065f46";
@@ -45,21 +45,11 @@ function Login() {
 
     // Optimized Logo Fetch
     const fetchJkshLogo = async () => {
-      // Helper: rewrite supabase.co storage URLs to proxy in production
-      const proxyUrl = (url) => {
-        if (!url || import.meta.env.DEV) return url;
-        const supabaseDomain = import.meta.env.VITE_SUPABASE_URL;
-        if (url.startsWith(supabaseDomain)) {
-          return url.replace(supabaseDomain, window.location.origin + '/sb-proxy');
-        }
-        return url;
-      };
-
-      // Check localStorage — clear stale direct URLs from old cache
+      // Check localStorage
       const cachedLogo = localStorage.getItem("jksh_logo_url");
       if (cachedLogo) {
         console.log("⚡ [FETCH DEBUG] Using cached logo URL from localStorage.");
-        setDynamicLogo(proxyUrl(cachedLogo));
+        setDynamicLogo(getProxiedUrl(cachedLogo));
         return;
       }
 
@@ -75,7 +65,7 @@ function Login() {
 
         if (data?.logo_url) {
           console.log("✅ [FETCH DEBUG] Logo URL retrieved successfully.");
-          setDynamicLogo(proxyUrl(data.logo_url));
+          setDynamicLogo(getProxiedUrl(data.logo_url));
           localStorage.setItem("jksh_logo_url", data.logo_url);
         } else {
           console.log("⚠️ [FETCH DEBUG] No logo URL found in database.");
