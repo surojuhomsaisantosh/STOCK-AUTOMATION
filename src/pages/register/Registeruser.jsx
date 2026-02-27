@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase, supabaseAdmin } from "../../supabase/supabaseClient";
+import { supabase } from "../../supabase/supabaseClient";
 import {
   Eye, EyeOff, ArrowLeft, MapPin, Building2, User,
   Phone, Mail, KeyRound, Sparkles, Map, Loader2
 } from "lucide-react";
+import { BRAND_GREEN, BRAND_GREEN_LIGHT } from "../../utils/theme";
 
 // --- CONSTANTS ---
-const PRIMARY = "#065f46";
-const PRIMARY_LIGHT = "rgba(6, 95, 70, 0.08)";
+const PRIMARY = BRAND_GREEN;
+const PRIMARY_LIGHT = BRAND_GREEN_LIGHT;
 const BORDER = "#e2e8f0";
 const TEXT_MAIN = "#1e293b";
 const TEXT_MUTED = "#64748b";
@@ -158,18 +159,25 @@ function RegisterUser() {
       };
 
       // DEBUG: Verify the data is leaving React correctly
-      console.log("🚀 SENDING PAYLOAD TO SUPABASE:", metadataPayload);
+      console.log("🚀 SENDING PAYLOAD TO SUPABASE EDGE FUNCTION:", metadataPayload);
 
-      // 2. Fire the signup
-      const { data: authData, error: authError } = await supabaseAdmin.auth.signUp({
-        email: formData.email.trim().toLowerCase(),
-        password: formData.password,
-        options: {
-          data: metadataPayload
+      // 2. Call the secure Edge Function instead of exposing service role key in React
+      const { data, error } = await supabase.functions.invoke('register-user', {
+        body: {
+          email: formData.email.trim().toLowerCase(),
+          password: formData.password,
+          metadata: metadataPayload
         }
       });
 
-      if (authError) throw authError;
+      if (error) {
+        throw new Error(error.message || "Failed to communicate with Auth Edge Function.");
+      }
+
+      // Check if the edge function returned its own internal error
+      if (data?.error) {
+        throw new Error(data.error);
+      }
 
       alert(`✅ Franchise Created! A verification email has been sent to ${formData.email}.`);
       navigate(-1);

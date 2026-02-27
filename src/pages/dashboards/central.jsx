@@ -7,8 +7,9 @@ import {
   BarChart3, ChevronRight, Package, ShoppingBag,
   Headphones, Calendar, Truck, UserCheck, Printer, Receipt
 } from "lucide-react";
+import { BRAND_GREEN } from "../../utils/theme";
 
-const PRIMARY = "#065f46";
+const PRIMARY = BRAND_GREEN;
 const BACKGROUND = "#f9fafb";
 const BORDER = "#e5e7eb";
 
@@ -91,17 +92,16 @@ function CentralDashboard() {
         <header style={{
           ...styles.header,
           flexDirection: 'row',
-          alignItems: isMobile ? 'center' : 'flex-start'
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '12px',
+          flexWrap: 'nowrap'
         }}>
 
-          {/* LEFT SIDE */}
-          <div style={styles.headerLeft}>
+          {/* LEFT SIDE: Title, Greeting, and Date (on Mobile) */}
+          <div style={{ ...styles.headerLeft, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <h1 style={{
-                ...styles.mainTitle,
-                fontSize: isMobile ? '22px' : '48px',
-                marginLeft: isMobile ? '4px' : '0'
-              }}>
+              <h1 style={{ ...styles.mainTitle, fontSize: isMobile ? '20px' : '48px' }}>
                 Central <span style={{ color: PRIMARY }}>Dashboard</span>
               </h1>
             </div>
@@ -110,40 +110,46 @@ function CentralDashboard() {
               ...styles.greeting,
               fontSize: isMobile ? '14px' : '18px',
               marginTop: isMobile ? '4px' : '8px',
-              marginLeft: isMobile ? '4px' : '0'
+              marginBottom: isMobile ? '8px' : '0'
             }}>
               Welcome back, {profile.name}
             </p>
+
+            {/* DATE (Below Greeting on Mobile/Tab, Hidden on Desktop) */}
+            {isMobile && (
+              <div style={{ ...styles.dateRow, justifyContent: 'flex-start' }}>
+                <Calendar size={12} style={{ color: PRIMARY, opacity: 0.8 }} />
+                <span style={{ ...styles.dateText, fontSize: '11px', textAlign: 'left' }}>
+                  {formattedDate}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* RIGHT SIDE: Badge + Date */}
-          <div style={styles.headerRight}>
-            <div style={{
-              ...styles.franchiseBadge,
-              padding: isMobile ? "6px 10px" : "8px 16px"
-            }}>
+          {/* RIGHT SIDE: Badge (Always top right) & Date (Below Badge on Desktop) */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            justifyContent: 'flex-start',
+            gap: '8px',
+          }}>
+            <div style={{ ...styles.franchiseBadge, padding: isMobile ? "6px 10px" : "8px 16px" }}>
               <span style={{ opacity: 0.6, fontWeight: 600, fontSize: isMobile ? '10px' : '12px' }}>ID : </span>
-              <span style={{
-                marginLeft: '6px',
-                color: PRIMARY,
-                fontWeight: 900,
-                fontSize: isMobile ? '12px' : '13px'
-              }}>
+              <span style={{ marginLeft: '6px', color: PRIMARY, fontWeight: 900, fontSize: isMobile ? '12px' : '13px' }}>
                 {profile.franchise_id || 'CENTRAL-HQ'}
               </span>
             </div>
 
-            <div style={styles.dateRow}>
-              <Calendar size={isMobile ? 12 : 14} style={{ color: PRIMARY, opacity: 0.8 }} />
-              <span style={{
-                ...styles.dateText,
-                fontSize: isMobile ? '11px' : '13px',
-                textAlign: 'right'
-              }}>
-                {formattedDate}
-              </span>
-            </div>
-
+            {/* DATE (Below Badge on Desktop, Hidden on Mobile/Tab) */}
+            {!isMobile && (
+              <div style={{ ...styles.dateRow, justifyContent: 'flex-end' }}>
+                <Calendar size={14} style={{ color: PRIMARY, opacity: 0.8 }} />
+                <span style={{ ...styles.dateText, fontSize: '13px', textAlign: 'right' }}>
+                  {formattedDate}
+                </span>
+              </div>
+            )}
           </div>
         </header>
 
@@ -217,7 +223,6 @@ const styles = {
     width: '100%'
   },
   headerLeft: { display: 'flex', flexDirection: 'column', justifyContent: 'center' },
-  headerRight: { display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end', justifyContent: 'center' },
 
   mainTitle: { fontWeight: "800", letterSpacing: "-0.04em", margin: 0, lineHeight: 1.1, color: "#111827" },
   greeting: { fontWeight: "400", margin: '8px 0 0 0', color: "#4b5563" },

@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../../supabase/supabaseClient";
+import { devLog } from "../../utils/logger";
 import { ArrowLeft } from "lucide-react";
 
 const GREEN = "rgb(0,100,55)";
@@ -85,7 +86,7 @@ function PosManagement() {
             .map(c => c.company_name?.trim())
             .filter(Boolean)
         )].sort();
-        console.log("=== DEBUG 1: Companies from companies table ===", uniqueCompanies);
+        devLog("=== DEBUG 1: Companies from companies table ===", uniqueCompanies);
         setCompanies(uniqueCompanies);
       }
 
@@ -97,7 +98,7 @@ function PosManagement() {
       if (profileError) throw profileError;
 
       if (profileData) {
-        console.log("=== DEBUG 2: Raw profiles data ===", profileData);
+        devLog("=== DEBUG 2: Raw profiles data ===", profileData);
 
         const cleanedData = profileData
           .filter(d => d.company && String(d.company).trim() !== "")
@@ -106,7 +107,7 @@ function PosManagement() {
             franchise_id: d.franchise_id ? String(d.franchise_id).trim() : null
           }));
 
-        console.log("=== DEBUG 3: Cleaned allCompanyRecords ===", cleanedData);
+        devLog("=== DEBUG 3: Cleaned allCompanyRecords ===", cleanedData);
         setAllCompanyRecords(cleanedData);
       }
     } catch (err) {
@@ -116,11 +117,11 @@ function PosManagement() {
 
   // DEBUGGING ADDED TO THE MEMO FILTER
   const filteredFranchises = useMemo(() => {
-    console.log("=== DEBUG 3: Re-running filteredFranchises calculation ===");
-    console.log("Selected Company State:", `"${selectedCompany}"`);
+    devLog("=== DEBUG 3: Re-running filteredFranchises calculation ===");
+    devLog("Selected Company State:", `"${selectedCompany}"`);
 
     if (!selectedCompany) {
-      console.log("Result: No company selected, returning empty array.");
+      devLog("Result: No company selected, returning empty array.");
       return [];
     }
 
@@ -130,18 +131,18 @@ function PosManagement() {
 
       // If it has an ID but the name fails to match, let's log it to see why
       if (hasValidId && p.company_name.toLowerCase().includes(selectedCompany.toLowerCase().substring(0, 3))) {
-        console.log(`Checking record: DB Name="${p.company_name}", Selected="${selectedCompany}", Match=${nameMatches}`);
+        devLog(`Checking record: DB Name="${p.company_name}", Selected="${selectedCompany}", Match=${nameMatches}`);
       }
 
       return nameMatches && hasValidId;
     });
 
-    console.log("Filtered Records Matching Company:", filteredRecords);
+    devLog("Filtered Records Matching Company:", filteredRecords);
 
     const matchingIds = filteredRecords.map(p => p.franchise_id);
     const finalIds = [...new Set(matchingIds)].sort();
 
-    console.log("Final Unique IDs mapped to dropdown:", finalIds);
+    devLog("Final Unique IDs mapped to dropdown:", finalIds);
     return finalIds;
   }, [selectedCompany, allCompanyRecords]);
 
@@ -365,7 +366,7 @@ function PosManagement() {
                 style={styles.premiumSelect}
                 value={selectedCompany}
                 onChange={e => {
-                  console.log("=== DEBUG 0: Dropdown Change Triggered ===", `"${e.target.value}"`);
+                  devLog("=== DEBUG 0: Dropdown Change Triggered ===", `"${e.target.value}"`);
                   setSelectedCompany(e.target.value);
                   setViewFranchise("");
                   setMenus([]);

@@ -6,6 +6,7 @@ import {
   FiCheckCircle, FiClock, FiList, FiX, FiPackage, FiAlertCircle, FiChevronRight,
   FiPlus
 } from "react-icons/fi";
+import { headerStyles } from "../../utils/headerStyles";
 
 const BRAND_GREEN = "rgb(0, 100, 55)";
 
@@ -26,7 +27,7 @@ const RequestPortal = () => {
 
   // Date Filters
   const [isRange, setIsRange] = useState(false);
-  const [singleDate, setSingleDate] = useState(new Date().toISOString().split('T')[0]);
+  const [singleDate, setSingleDate] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }));
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
 
   const todayDisplay = new Intl.DateTimeFormat('en-GB', {
@@ -103,7 +104,7 @@ const RequestPortal = () => {
   const resetFilters = () => {
     setSearchTerm("");
     setIsRange(false);
-    setSingleDate(new Date().toISOString().split('T')[0]);
+    setSingleDate(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }));
     setDateRange({ start: "", end: "" });
     fetchMyRequests();
   };
@@ -130,7 +131,7 @@ const RequestPortal = () => {
   const filteredRequests = useMemo(() => {
     return groupedRequests.filter(req => {
       const matchesSearch = req.displayItems.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
-      const reqDate = new Date(req.created_at).toISOString().split('T')[0];
+      const reqDate = new Date(req.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
       let matchesDate = true;
       if (isRange) {
@@ -402,13 +403,6 @@ const RequestPortal = () => {
 };
 
 // --- STYLES ---
-const styles = {
-  // --- INTEGRATED HEADER STYLES ---
-  header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
-  headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', boxSizing: 'border-box' },
-  backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
-  heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
-  idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 }
-};
+const styles = headerStyles;
 
 export default RequestPortal;

@@ -7,11 +7,14 @@ import {
   Receipt,
   Settings,
   BarChart3,
-  Users
+  Users,
+  ChevronRight,
+  Calendar
 } from "lucide-react";
+import { BRAND_GREEN } from "../../utils/theme";
 
 // --- CONSTANTS ---
-const PRIMARY = "#065f46"; // Deep Emerald
+const PRIMARY = BRAND_GREEN;
 const BORDER = "#e5e7eb"; // Neutral Gray 200
 
 // --- UTILITY: Safe Session Storage Access ---
@@ -39,7 +42,7 @@ function StockManagerDashboard() {
   const { user } = useAuth();
 
   // 1. OPTIMIZATION: Initialize state from session storage to prevent "N/A" flicker
-  const [franchiseId, setFranchiseId] = useState(() => 
+  const [franchiseId, setFranchiseId] = useState(() =>
     getSessionItem("franchise_id", "N/A")
   );
 
@@ -56,7 +59,7 @@ function StockManagerDashboard() {
   // 3. PERFORMANCE: Debounced Resize Listener
   useEffect(() => {
     let timeoutId;
-    
+
     // Initial check
     const checkSize = () => {
       const width = window.innerWidth;
@@ -81,12 +84,12 @@ function StockManagerDashboard() {
 
   // --- NAVIGATION DATA ---
   const navItems = [
-    { title: "Orders", path: "/stock/orders", icon: <Home /> },
-    { title: "Stock Update", path: "/stock", icon: <Package /> },
-    { title: "Invoices", path: "/stock/bills", icon: <Receipt /> },
-    { title: "Settings", path: "/stock/settings", icon: <Settings /> },
-    { title: "Coming Soon", path: "#", icon: <BarChart3 />, disabled: true },
-    { title: "Coming Soon", path: "#", icon: <Users />, disabled: true },
+    { title: "Update Stock", path: "/stock", icon: <Package />, desc: "Manage inventory" },
+    { title: "Orders", path: "/stock/orders", icon: <Home />, desc: "View stock orders" },
+    { title: "Invoices & Billing", path: "/stock/bills", icon: <Receipt />, desc: "Billing records" },
+    { title: "Reports", path: "/stock/reports", icon: <BarChart3 />, desc: "Sales analytics", disabled: true },
+    { title: "Staff", path: "/stock/staff", icon: <Users />, desc: "Team management", disabled: true },
+    { title: "Settings", path: "/stock/settings", icon: <Settings />, desc: "Configuration", disabled: true },
   ];
 
   const today = new Date().toLocaleDateString('en-GB', {
@@ -98,12 +101,12 @@ function StockManagerDashboard() {
   // --- DYNAMIC STYLES HELPER ---
   const getGridStyles = () => {
     if (screenSize === 'mobile') {
-      return { template: "1fr", rowHeight: "100px", padding: "40px 20px" };
+      return { template: "1fr", padding: "40px 20px" };
     }
     if (screenSize === 'tablet') {
-      return { template: "repeat(2, 1fr)", rowHeight: "minmax(180px, 1fr)", padding: "60px 40px" };
+      return { template: "repeat(2, 1fr)", padding: "60px 40px" };
     }
-    return { template: "repeat(3, 1fr)", rowHeight: "minmax(180px, 1fr)", padding: "80px 50px" };
+    return { template: "repeat(3, 1fr)", padding: "80px 50px" };
   };
 
   const currentLayout = getGridStyles();
@@ -113,53 +116,80 @@ function StockManagerDashboard() {
       <div style={{ ...styles.container, padding: currentLayout.padding }}>
 
         {/* HEADER */}
-        <header style={styles.header}>
-          
-          {/* LEFT SIDE */}
-          <div style={styles.headerLeft}>
+        <header style={{
+          ...styles.header,
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '12px',
+          flexWrap: 'nowrap'
+        }}>
+
+          {/* LEFT SIDE: Title, Greeting, and Date (on Mobile) */}
+          <div style={{ ...styles.headerLeft, flex: 1 }}>
             <h1 style={{
               ...styles.title,
-              fontSize: screenSize === 'mobile' ? '24px' : '36px',
+              fontSize: screenSize === 'mobile' ? '20px' : '36px',
             }}>
               STOCK DASHBOARD
             </h1>
 
-            <div style={{ marginTop: screenSize === 'mobile' ? '8px' : '12px' }}>
-               <h2 style={{
-                 ...styles.greeting, 
-                 fontSize: screenSize === 'mobile' ? '16px' : '22px'
-               }}>
-                 Hello Manager
-               </h2>
-               <p style={{
-                 ...styles.dateText,
-                 fontSize: screenSize === 'mobile' ? '12px' : '14px'
-               }}>
-                 Today: {today}
-               </p>
+            <p style={{
+              ...styles.greeting,
+              fontSize: screenSize === 'mobile' ? '14px' : '22px',
+              marginTop: screenSize === 'mobile' ? '4px' : '12px',
+              marginBottom: screenSize === 'mobile' ? '8px' : '0'
+            }}>
+              Hello Manager
+            </p>
+
+            {/* DATE (Below Greeting on Mobile/Tab, Hidden on Desktop) */}
+            {screenSize === 'mobile' && (
+              <div style={{ ...styles.dateRow, justifyContent: 'flex-start' }}>
+                <Calendar size={12} style={{ color: PRIMARY, opacity: 0.8 }} />
+                <span style={{ ...styles.dateText, fontSize: '11px', textAlign: 'left' }}>
+                  {today}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT SIDE: Franchise ID (Top Right) & Date (Below ID on Desktop) */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            justifyContent: 'flex-start',
+            gap: '8px',
+          }}>
+            <div style={{
+              ...styles.franchiseBox,
+              padding: screenSize === 'mobile' ? '6px 10px' : '8px 16px',
+            }}>
+              <span style={{ opacity: 0.6, fontWeight: 600, fontSize: screenSize === 'mobile' ? '10px' : '12px' }}>ID : </span>
+              <span style={{ marginLeft: '6px', color: PRIMARY, fontWeight: 900, fontSize: screenSize === 'mobile' ? '12px' : '14px' }}>
+                {franchiseId}
+              </span>
             </div>
-          </div>
 
-          {/* RIGHT SIDE: Franchise ID (Rectangular Box) */}
-          <div style={styles.headerRight}>
-             <div style={{
-               ...styles.franchiseBox,
-               padding: screenSize === 'mobile' ? '8px 12px' : '10px 20px',
-               fontSize: screenSize === 'mobile' ? '12px' : '14px'
-             }}>
-                <span style={{ color: "#6b7280", fontWeight: "600", marginRight: "6px" }}>ID :</span>
-                <span style={{ color: "#111827", fontWeight: "800" }}>{franchiseId}</span>
-             </div>
+            {/* DATE (Below Badge on Desktop, Hidden on Mobile/Tab) */}
+            {screenSize !== 'mobile' && (
+              <div style={{ ...styles.dateRow, justifyContent: 'flex-end' }}>
+                <Calendar size={14} style={{ color: PRIMARY, opacity: 0.8 }} />
+                <span style={{ ...styles.dateText, fontSize: '13px', textAlign: 'right' }}>
+                  {today}
+                </span>
+              </div>
+            )}
           </div>
-
         </header>
 
         {/* NAVIGATION GRID */}
         <div style={{
           ...styles.grid,
           gridTemplateColumns: currentLayout.template,
-          gridAutoRows: currentLayout.rowHeight,
-          height: screenSize === 'mobile' ? 'auto' : '58vh'
+          gap: screenSize === 'mobile' ? '12px' : '24px',
+          paddingBottom: screenSize === 'mobile' ? '80px' : '40px'
         }}>
           {navItems.map((item, idx) => (
             <div
@@ -176,42 +206,47 @@ function StockManagerDashboard() {
               }}
               style={{
                 ...styles.card,
+                padding: screenSize === 'mobile' ? '16px 20px' : '24px 32px',
+                borderRadius: screenSize === 'mobile' ? '16px' : '28px',
                 opacity: item.disabled ? 0.6 : 1,
                 cursor: item.disabled ? "not-allowed" : "pointer"
               }}
               onMouseEnter={(e) => {
-                if(!item.disabled && screenSize !== 'mobile') {
-                    e.currentTarget.style.borderColor = PRIMARY;
-                    e.currentTarget.style.transform = "translateY(-6px)";
-                    e.currentTarget.style.boxShadow = "0 20px 40px rgba(6, 95, 70, 0.08)";
+                if (!item.disabled && screenSize !== 'mobile') {
+                  e.currentTarget.style.borderColor = `${PRIMARY}40`;
+                  e.currentTarget.style.transform = "translateY(-4px)";
+                  e.currentTarget.style.boxShadow = "0 12px 20px -5px rgba(0,0,0,0.05)";
                 }
               }}
               onMouseLeave={(e) => {
-                if(!item.disabled && screenSize !== 'mobile') {
-                    e.currentTarget.style.borderColor = BORDER;
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.02)";
+                if (!item.disabled && screenSize !== 'mobile') {
+                  e.currentTarget.style.borderColor = BORDER;
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0,0,0,0.02)";
                 }
               }}
             >
               <div style={{
                 ...styles.iconWrapper,
-                width: screenSize === 'mobile' ? '50px' : '70px',
-                height: screenSize === 'mobile' ? '50px' : '70px',
-                marginRight: screenSize === 'mobile' ? '15px' : '25px',
-                borderRadius: screenSize === 'mobile' ? '16px' : '22px'
+                width: screenSize === 'mobile' ? '48px' : '72px',
+                height: screenSize === 'mobile' ? '48px' : '72px',
+                borderRadius: screenSize === 'mobile' ? '14px' : '20px',
+                marginRight: screenSize === 'mobile' ? '16px' : '24px'
               }}>
-                {React.cloneElement(item.icon, { size: screenSize === 'mobile' ? 24 : 32 })}
+                {React.cloneElement(item.icon, { size: screenSize === 'mobile' ? 20 : 24 })}
               </div>
 
               <div style={styles.cardContent}>
                 <h2 style={{
                   ...styles.cardTitle,
-                  fontSize: screenSize === 'mobile' ? '17px' : '24px'
+                  fontSize: screenSize === 'mobile' ? '16px' : '22px'
                 }}>
                   {item.title}
                 </h2>
+                {screenSize !== 'mobile' && <span style={styles.cardSubtitle}>{item.desc}</span>}
               </div>
+
+              <ChevronRight size={screenSize === 'mobile' ? 18 : 20} style={{ opacity: 0.2, color: '#000' }} />
             </div>
           ))}
         </div>
@@ -265,10 +300,18 @@ const styles = {
     margin: 0,
     lineHeight: 1.3
   },
+  dateRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    marginTop: '4px'
+  },
   dateText: {
-    color: "#6b7280",
-    margin: "4px 0 0 0",
-    fontWeight: "500"
+    fontWeight: '500',
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: '0.02em',
+    margin: 0
   },
   franchiseBox: {
     background: "#f9fafb",
@@ -288,46 +331,48 @@ const styles = {
   },
   grid: {
     display: "grid",
-    gap: "20px",
     width: "100%",
-    paddingBottom: "40px"
+    alignContent: 'start'
   },
   card: {
     display: "flex",
     alignItems: "center",
     background: "#ffffff",
-    borderRadius: "24px",
-    borderWidth: "1.5px",
-    borderStyle: "solid",
-    borderColor: BORDER,
-    transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+    border: `1px solid ${BORDER}`,
+    transition: "all 0.2s ease-in-out",
     position: "relative",
-    padding: "0 25px",
     boxSizing: 'border-box',
-    boxShadow: "0 2px 5px rgba(0,0,0,0.02)",
+    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)",
     userSelect: "none",
     outline: "none"
   },
   iconWrapper: {
-    background: "rgba(6, 95, 70, 0.06)",
+    background: `linear-gradient(135deg, ${PRIMARY}0A, ${PRIMARY}1A)`,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     color: PRIMARY,
     flexShrink: 0,
+    border: `1px solid ${PRIMARY}10`
   },
   cardContent: {
     flex: 1,
     minWidth: 0
   },
   cardTitle: {
-    fontWeight: "800",
+    fontWeight: "700",
     margin: 0,
-    color: "#111827",
-    letterSpacing: "-0.5px",
+    color: "#1f2937",
+    letterSpacing: "-0.02em",
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis"
+  },
+  cardSubtitle: {
+    fontSize: '14px',
+    color: '#9ca3af',
+    marginTop: '4px',
+    display: 'block'
   }
 };
 

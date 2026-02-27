@@ -4,6 +4,8 @@ import { supabase } from "../../supabase/supabaseClient";
 import {
     ArrowLeft, Search, Printer, X, TrendingUp, ReceiptText, ChevronRight, Clock, Calendar
 } from "lucide-react";
+import { formatCurrency, amountToWords } from "../../utils/formatters";
+import { headerStyles } from "../../utils/headerStyles";
 
 const ITEMS_PER_INVOICE_PAGE = 15;
 
@@ -36,35 +38,7 @@ const formatTime = (dateStr) => {
     });
 };
 
-const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }).format(amount || 0);
-};
 
-// --- HELPER: Number to Words ---
-const amountToWords = (price) => {
-    if (!price) return "";
-    const num = Math.round(price);
-    const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
-    const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-    const inWords = (n) => {
-        if ((n = n.toString()).length > 9) return 'overflow';
-        let n_array = ('000000000' + n).slice(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
-        if (!n_array) return;
-        let str = '';
-        str += (n_array[1] != 0) ? (a[Number(n_array[1])] || b[n_array[1][0]] + ' ' + a[n_array[1][1]]) + 'Crore ' : '';
-        str += (n_array[2] != 0) ? (a[Number(n_array[2])] || b[n_array[2][0]] + ' ' + a[n_array[2][1]]) + 'Lakh ' : '';
-        str += (n_array[3] != 0) ? (a[Number(n_array[3])] || b[n_array[3][0]] + ' ' + a[n_array[3][1]]) + 'Thousand ' : '';
-        str += (n_array[4] != 0) ? (a[Number(n_array[4])] || b[n_array[4][0]] + ' ' + a[n_array[4][1]]) + 'Hundred ' : '';
-        str += (n_array[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n_array[5])] || b[n_array[5][0]] + ' ' + a[n_array[5][1]]) : '';
-        return str;
-    }
-    return inWords(num) + "Rupees Only";
-};
 
 
 // --- INVOICE PRINT COMPONENT ---
@@ -261,7 +235,7 @@ function FranchiseInvoices() {
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
-    const [currentFranchiseId, setCurrentFranchiseId] = useState("HQ-01");
+    const [currentFranchiseId, setCurrentFranchiseId] = useState(null);
     const [filterMode, setFilterMode] = useState("single");
     const [singleDate, setSingleDate] = useState(new Date().toISOString().split('T')[0]);
     const [customStart, setCustomStart] = useState("");
@@ -499,12 +473,6 @@ function FranchiseInvoices() {
     );
 }
 
-const styles = {
-    header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
-    headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', boxSizing: 'border-box' },
-    backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
-    heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
-    idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 }
-};
+const styles = headerStyles;
 
 export default FranchiseInvoices;

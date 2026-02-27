@@ -18,8 +18,9 @@ import {
 } from "lucide-react";
 
 import { useBluetoothPrinter } from "../printer/BluetoothPrinter";
+import { BRAND_GREEN } from "../../utils/theme";
 
-const PRIMARY = "#065f46";
+const PRIMARY = BRAND_GREEN;
 const BORDER = "#e5e7eb";
 const DANGER = "#ef4444";
 

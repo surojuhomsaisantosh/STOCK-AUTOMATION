@@ -17,8 +17,9 @@ import {
 } from "lucide-react";
 
 import MobileNav from "../../components/MobileNav";
+import { BRAND_GREEN } from "../../utils/theme";
 
-const PRIMARY = "#065f46";
+const PRIMARY = BRAND_GREEN;
 const BORDER = "#e5e7eb";
 
 function FranchiseOwnerDashboard() {
@@ -258,12 +259,20 @@ function FranchiseOwnerDashboard() {
         /* --- HEADER --- */
         .dashboard-header {
           display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 30px;
+          flex-direction: column;
+          gap: 12px;
+          margin-bottom: 24px;
           padding-top: 15px;
-          min-height: 50px;
-          gap: 8px;
+        }
+
+        @media (min-width: 768px) {
+          .dashboard-header {
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 30px;
+          }
         }
 
         .header-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -279,11 +288,9 @@ function FranchiseOwnerDashboard() {
         }
 
         .header-title {
-          font-size: 18px; font-weight: 900; margin: 0;
-          letter-spacing: -0.5px; line-height: 1.2;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          font-size: 20px; font-weight: 900; margin: 0;
+          letter-spacing: -0.5px; line-height: 1.3;
+          word-break: break-word;
         }
         
         .header-subtitle {
@@ -304,13 +311,12 @@ function FranchiseOwnerDashboard() {
           background: white; border: 1px solid ${BORDER};
           padding: 6px 10px; border-radius: 10px;
           height: 36px; box-sizing: border-box;
-          max-width: 110px;
         }
         @media (min-width: 768px) {
-          .id-badge { padding: 8px 12px; height: 42px; border-radius: 12px; max-width: 200px; }
+          .id-badge { padding: 8px 12px; height: 42px; border-radius: 12px; }
         }
         .id-label { font-size: 10px; font-weight: 800; color: #9ca3af; flex-shrink: 0; }
-        .id-value { font-size: 12px; font-weight: 800; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .id-value { font-size: 12px; font-weight: 800; color: #111827; }
 
         /* Notification Button */
         .notification-btn {
@@ -334,11 +340,11 @@ function FranchiseOwnerDashboard() {
         @media (min-width: 1024px) { .nav-grid { grid-template-columns: repeat(3, 1fr); gap: 24px; } }
 
         .nav-card {
-          display: flex; align-items: center; background: white; border-radius: 20px;
-          border: 1px solid ${BORDER}; padding: 20px; cursor: pointer; transition: all 0.2s ease;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+          display: flex; align-items: center; background: white; border-radius: 16px;
+          border: 1px solid ${BORDER}; padding: 16px 20px; cursor: pointer; transition: all 0.2s ease-in-out;
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
         }
-        .nav-card:hover { border-color: ${PRIMARY}; transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
+        .nav-card:hover { border-color: ${PRIMARY}40; transform: translateY(-4px); box-shadow: 0 12px 20px -5px rgba(0,0,0,0.05); }
         .nav-card:active { transform: scale(0.98); }
 
         .nav-card-disabled {
@@ -346,7 +352,7 @@ function FranchiseOwnerDashboard() {
           cursor: not-allowed !important;
           position: relative;
         }
-        .nav-card-disabled:hover { border-color: ${BORDER}; transform: none; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .nav-card-disabled:hover { border-color: ${BORDER}; transform: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
         .nav-card-disabled:active { transform: none; }
 
         .coming-soon-badge {
@@ -363,19 +369,19 @@ function FranchiseOwnerDashboard() {
         }
 
         .card-icon-wrapper {
-          width: 56px; height: 56px; background: rgba(6,95,70,0.08); border-radius: 14px;
+          width: 48px; height: 48px; background: linear-gradient(135deg, ${PRIMARY}0A, ${PRIMARY}1A); border-radius: 14px;
           display: flex; align-items: center; justify-content: center; margin-right: 16px;
-          color: ${PRIMARY}; flex-shrink: 0;
+          color: ${PRIMARY}; flex-shrink: 0; border: 1px solid ${PRIMARY}10;
         }
         @media (min-width: 1024px) {
-          .nav-card { padding: 30px; border-radius: 24px; }
-          .card-icon-wrapper { width: 64px; height: 64px; margin-right: 20px; }
+          .nav-card { padding: 24px 32px; border-radius: 28px; }
+          .card-icon-wrapper { width: 72px; height: 72px; margin-right: 24px; border-radius: 20px; }
         }
 
         .card-content { flex: 1; }
-        .card-title { font-weight: 800; margin: 0; font-size: 16px; color: #111827; }
-        .card-desc { margin: 4px 0 0 0; font-size: 12px; color: #6b7280; display: block; }
-        @media (min-width: 768px) { .card-title { font-size: 18px; } .card-desc { font-size: 13px; } }
+        .card-title { font-weight: 700; margin: 0; font-size: 16px; color: #1f2937; letter-spacing: -0.02em; }
+        .card-desc { margin: 4px 0 0 0; font-size: 14px; color: #9ca3af; display: none; }
+        @media (min-width: 768px) { .card-title { font-size: 22px; } .card-desc { display: block; } }
 
         /* --- NOTIFICATIONS --- */
         .notif-overlay {
