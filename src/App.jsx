@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { supabase } from "./supabase/supabaseClient";
 
@@ -45,7 +45,7 @@ import CentralStockMaster from "./pages/central/CentralStockMaster";
 import InvoiceDesign from "./pages/central/InvoiceDesign";
 import PackageBills from "./pages/central/PackageBills";
 
-/* CONTEXTS */
+/* CONTEXTS & COMPONENTS */
 import { AuthProvider } from "./context/AuthContext";
 import { PrinterProvider } from "./pages/printer/BluetoothPrinter";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -77,15 +77,15 @@ function App() {
         const faviconUrl = data?.logo_url;
 
         if (faviconUrl) {
-          const link = document.querySelector("link[rel~='icon']");
+          let link = document.querySelector("link[rel~='icon']");
           if (link) {
             link.href = faviconUrl;
           } else {
             // Create link tag if it doesn't exist
-            const newLink = document.createElement('link');
-            newLink.rel = 'icon';
-            newLink.href = faviconUrl;
-            document.getElementsByTagName('head')[0].appendChild(newLink);
+            link = document.createElement('link');
+            link.rel = 'icon';
+            link.href = faviconUrl;
+            document.getElementsByTagName('head')[0].appendChild(link);
           }
         }
       } catch (err) {
