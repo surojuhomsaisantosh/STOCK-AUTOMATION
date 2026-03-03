@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import {
   ArrowLeft, Calendar, ChevronRight, ChevronDown,
-  Hash, Clock, Download, AlertTriangle, AlertOctagon, CheckCircle2, RefreshCw
+  Hash, Clock, Download, AlertTriangle, AlertOctagon, CheckCircle2, RefreshCw,
+  ArrowUp, ArrowDown, ArrowUpDown
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -11,18 +12,35 @@ import {
 } from "recharts";
 
 // --- CONSTANTS ---
-const PRIMARY = "#065f46";
+const BRAND_GREEN = "rgb(0, 100, 55)";
+const PRIMARY = BRAND_GREEN;
+
+const headerStyles = {
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '15px 20px', background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 100 },
+  headerInner: { display: 'flex', width: '100%', maxWidth: '1200px', alignItems: 'center', justifyContent: 'space-between' },
+  backBtn: { display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', border: 'none', background: 'none', fontWeight: '600', color: '#64748b' },
+  heading: { margin: 0, fontSize: '18px', fontWeight: '800', color: '#0f172a' },
+  idBox: { background: '#f8fafc', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', color: BRAND_GREEN, border: '1px solid #e2e8f0' }
+};
+
 const EXCEL_GREEN = "#107c41";
-const COLORS = ["#065f46", "#0ea5e9", "#f59e0b", "#be185d", "#8b5cf6", "#10b981", "#f43f5e", "#6366f1", "#d946ef", "#047857"];
+const COLORS = [BRAND_GREEN, "#0ea5e9", "#f59e0b", "#be185d", "#8b5cf6", "#10b981", "#f43f5e", "#6366f1", "#d946ef", "#047857"];
 
 // --- UTILITY: Safe Session Storage Setter ---
 // Prevents the app from crashing if browser storage limit is reached
+const ANALYTICS_STORAGE_PREFIX = "analytics_";
 const safeSetSessionStorage = (key, value) => {
   try {
     sessionStorage.setItem(key, value);
   } catch (e) {
-    console.warn("Session storage full. Clearing old cache...");
-    sessionStorage.clear(); // Clear cache to make room
+    console.warn("Session storage full. Clearing analytics cache...");
+    // Only clear our own analytics keys, not other features' data
+    const keysToRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith(ANALYTICS_STORAGE_PREFIX)) keysToRemove.push(k);
+    }
+    keysToRemove.forEach(k => sessionStorage.removeItem(k));
     try {
       sessionStorage.setItem(key, value); // Try saving again
     } catch (err) {
@@ -45,34 +63,15 @@ function FranchiseAnalytics() {
   const [bills, setBills] = useState([]);
   const [expandedBill, setExpandedBill] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
 
   const [franchiseId, setFranchiseId] = useState(() => sessionStorage.getItem("analytics_franchiseId") || "");
 
   const [oldestRecordDate, setOldestRecordDate] = useState(null);
   const [daysUntilDeletion, setDaysUntilDeletion] = useState(null);
 
-  // --- EFFECTS ---
-  useEffect(() => {
-    safeSetSessionStorage("analytics_activeTab", activeTab);
-    safeSetSessionStorage("analytics_dateRangeMode", dateRangeMode);
-    safeSetSessionStorage("analytics_startDate", startDate);
-    safeSetSessionStorage("analytics_endDate", endDate);
-  }, [activeTab, dateRangeMode, startDate, endDate]);
-
-  useEffect(() => {
-    if (!franchiseId) fetchFranchiseProfile();
-  }, [franchiseId]);
-
-  useEffect(() => {
-    if (franchiseId) fetchOldestRecord();
-  }, [franchiseId]);
-
-  useEffect(() => {
-    if (franchiseId) fetchData();
-  }, [activeTab, startDate, endDate, dateRangeMode, franchiseId]);
-
-  // --- DATA FETCHING ---
-  const fetchFranchiseProfile = async () => {
+  // --- DATA FETCHING (defined before effects that use them) ---
+  const fetchFranchiseProfile = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -83,9 +82,9 @@ function FranchiseAnalytics() {
         }
       }
     } catch (e) { console.error("Profile Fetch Error", e); }
-  };
+  }, []);
 
-  const fetchOldestRecord = async () => {
+  const fetchOldestRecord = useCallback(async () => {
     const cacheKey = `analytics_oldest_${franchiseId}`;
     const cachedData = sessionStorage.getItem(cacheKey);
 
@@ -124,9 +123,9 @@ function FranchiseAnalytics() {
       safeSetSessionStorage(cacheKey, JSON.stringify({ date: oDate, days: dUntil }));
 
     } catch (err) { console.error("Error fetching oldest record:", err); }
-  };
+  }, [franchiseId]);
 
-  const fetchData = async (forceRefresh = false) => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     const cacheKey = `analytics_data_${franchiseId}_${activeTab}_${dateRangeMode}_${startDate}_${endDate}`;
 
     // Check cache only if we are NOT forcing a refresh
@@ -178,14 +177,79 @@ function FranchiseAnalytics() {
 
     } catch (err) {
       console.error("Fetch Error:", err.message);
-      alert("Failed to load data. Please check your connection."); // Basic fallback for UI
+      alert("Failed to load data. Please check your connection.");
     }
     finally { setLoading(false); }
-  };
+  }, [franchiseId, activeTab, dateRangeMode, startDate, endDate]);
 
   // --- NEW: FORCE REFRESH FUNCTION ---
-  const handleRefresh = () => {
-    fetchData(true); // Passes true to bypass the cache
+  const handleRefresh = useCallback(() => {
+    fetchData(true);
+  }, [fetchData]);
+
+  // --- EFFECTS ---
+  useEffect(() => {
+    safeSetSessionStorage("analytics_activeTab", activeTab);
+    safeSetSessionStorage("analytics_dateRangeMode", dateRangeMode);
+    safeSetSessionStorage("analytics_startDate", startDate);
+    safeSetSessionStorage("analytics_endDate", endDate);
+  }, [activeTab, dateRangeMode, startDate, endDate]);
+
+  useEffect(() => {
+    if (!franchiseId) fetchFranchiseProfile();
+  }, [franchiseId, fetchFranchiseProfile]);
+
+  useEffect(() => {
+    if (franchiseId) fetchOldestRecord();
+  }, [franchiseId, fetchOldestRecord]);
+
+  useEffect(() => {
+    if (franchiseId) fetchData();
+  }, [activeTab, startDate, endDate, dateRangeMode, franchiseId, fetchData]);
+
+  const stats = useMemo(() => {
+    const totalSales = bills.reduce((sum, b) => sum + Number(b.total ?? b.total_amount ?? 0), 0);
+    const upiSales = bills.reduce((sum, b) => (b.payment_mode === "UPI" ? sum + Number(b.total ?? b.total_amount ?? 0) : sum), 0);
+    const cashSales = bills.reduce((sum, b) => (b.payment_mode === "CASH" ? sum + Number(b.total ?? b.total_amount ?? 0) : sum), 0);
+    const totalDiscount = bills.reduce((sum, b) => sum + Number(b.discount ?? 0), 0);
+    const totalOrders = bills.length;
+    return { totalSales, upiSales, cashSales, totalDiscount, totalOrders };
+  }, [bills]);
+
+  const handleSort = useCallback((key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+    }));
+  }, []);
+
+  const sortedBills = useMemo(() => {
+    const sorted = [...bills];
+    sorted.sort((a, b) => {
+      let aVal, bVal;
+      if (sortConfig.key === 'created_at') {
+        aVal = new Date(a.created_at).getTime();
+        bVal = new Date(b.created_at).getTime();
+      } else if (sortConfig.key === 'amount') {
+        aVal = Number(a.total ?? a.total_amount ?? 0);
+        bVal = Number(b.total ?? b.total_amount ?? 0);
+      } else if (sortConfig.key === 'payment_mode') {
+        aVal = (a.payment_mode || '').toLowerCase();
+        bVal = (b.payment_mode || '').toLowerCase();
+      } else {
+        aVal = a[sortConfig.key];
+        bVal = b[sortConfig.key];
+      }
+      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [bills, sortConfig]);
+
+  const SortIcon = ({ columnKey }) => {
+    if (sortConfig.key !== columnKey) return <ArrowUpDown size={10} style={{ opacity: 0.4 }} />;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={10} color={PRIMARY} /> : <ArrowDown size={10} color={PRIMARY} />;
   };
 
   const processChartData = (data) => {
@@ -210,7 +274,7 @@ function FranchiseAnalytics() {
       agg[name] = (agg[name] || 0) + q;
     });
 
-    return Object.entries(agg).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
+    return Object.entries(agg).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
   };
 
   const handleExportExcel = () => {
@@ -218,25 +282,68 @@ function FranchiseAnalytics() {
       alert("No data available to export for the selected dates.");
       return;
     }
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "S.No,Transaction ID,Date,Time,Total Amount (INR)\n";
+    const isStore = activeTab === "store";
+    const dateLabel = dateRangeMode === "single" ? startDate : `${startDate}_to_${endDate}`;
 
-    bills.forEach((bill, index) => {
-      const dateObj = new Date(bill.created_at);
-      const dateStr = dateObj.toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' });
-      const timeStr = dateObj.toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', hour12: true });
-      const amount = Number(bill.total ?? bill.total_amount ?? 0).toFixed(2);
-      const transactionId = bill.profiles?.franchise_id || bill.franchise_id || bill.id;
-      // Added replacing of quotes in transaction ID to prevent CSV injection just in case
-      const safeId = String(transactionId).replace(/"/g, '""');
-      csvContent += `${index + 1},"${safeId}",${dateStr},${timeStr},${amount}\n`;
-    });
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += `${isStore ? "Store Sales" : "Orders"} Report - ${dateLabel}\n\n`;
+
+    // --- SUMMARY SECTION ---
+    csvContent += "=== SUMMARY ===\n";
+    csvContent += `Total ${isStore ? "Bills" : "Orders"},${bills.length}\n`;
+    csvContent += `Total Amount (INR),${stats.totalSales.toFixed(2)}\n`;
+    if (isStore) {
+      csvContent += `UPI Amount (INR),${stats.upiSales.toFixed(2)}\n`;
+      csvContent += `Cash Amount (INR),${stats.cashSales.toFixed(2)}\n`;
+      csvContent += `Total Discount (INR),${stats.totalDiscount.toFixed(2)}\n`;
+    }
+    csvContent += "\n";
+
+    // --- TOP ITEMS SECTION ---
+    if (topItems.length > 0) {
+      csvContent += "=== TOP SELLING ITEMS ===\n";
+      csvContent += "S.No,Item Name,Qty Sold\n";
+      topItems.forEach((item, idx) => {
+        const safeName = String(item.name).replace(/"/g, '""');
+        csvContent += `${idx + 1},"${safeName}",${item.value}\n`;
+      });
+      csvContent += "\n";
+    }
+
+    // --- DETAILED TRANSACTIONS ---
+    csvContent += `=== DETAILED ${isStore ? "TRANSACTIONS" : "ORDERS"} ===\n`;
+    if (isStore) {
+      csvContent += "S.No,Transaction ID,Date,Time,Payment Mode,Subtotal (INR),Discount (INR),Total Amount (INR)\n";
+      bills.forEach((bill, index) => {
+        const dateObj = new Date(bill.created_at);
+        const dateStr = dateObj.toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' });
+        const timeStr = dateObj.toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', hour12: true });
+        const amount = Number(bill.total ?? 0).toFixed(2);
+        const subtotal = Number(bill.subtotal ?? 0).toFixed(2);
+        const discount = Number(bill.discount ?? 0).toFixed(2);
+        const mode = bill.payment_mode || "N/A";
+        const transactionId = bill.franchise_id || bill.id;
+        const safeId = String(transactionId).replace(/"/g, '""');
+        csvContent += `${index + 1},"${safeId}",${dateStr},${timeStr},${mode},${subtotal},${discount},${amount}\n`;
+      });
+    } else {
+      csvContent += "S.No,Invoice ID,Date,Time,Customer,Status,Total Amount (INR)\n";
+      bills.forEach((bill, index) => {
+        const dateObj = new Date(bill.created_at);
+        const dateStr = dateObj.toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' });
+        const timeStr = dateObj.toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', hour12: true });
+        const amount = Number(bill.total_amount ?? 0).toFixed(2);
+        const customer = bill.customer_name || "N/A";
+        const status = bill.status || "N/A";
+        const invoiceId = String(bill.id).slice(-8).toUpperCase();
+        csvContent += `${index + 1},"${invoiceId}",${dateStr},${timeStr},"${customer}",${status},${amount}\n`;
+      });
+    }
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    const dateLabel = dateRangeMode === "single" ? startDate : `${startDate}_to_${endDate}`;
-    link.setAttribute("download", `Franchise_Sales_${dateLabel}.csv`);
+    link.setAttribute("download", `Franchise_${isStore ? "Sales" : "Orders"}_${dateLabel}.csv`);
 
     document.body.appendChild(link);
     link.click();
@@ -386,14 +493,15 @@ function FranchiseAnalytics() {
 
             <div className="card chart-card pie-area">
               <div className="card-header">
-                <h3>Top Items</h3>
+                <h3>Top 10 Items</h3>
+                <span className="count-badge">{topItems.length} Items</span>
               </div>
               <div className="pie-content">
                 <div className="pie-wrapper">
                   {topItems.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={topItems} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={5}>
+                        <Pie data={topItems} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={3}>
                           {topItems.map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
                         </Pie>
                         <Tooltip />
@@ -403,16 +511,52 @@ function FranchiseAnalytics() {
                     <div className="no-data small">No Items</div>
                   )}
                 </div>
-                <div className="legend-list">
-                  {topItems.map((item, index) => (
-                    <div key={index} className="legend-item">
-                      <div className="dot" style={{ background: COLORS[index % COLORS.length] }}></div>
-                      <span className="l-name">{item.name}</span>
-                      <span className="l-val">{item.value}</span>
-                    </div>
-                  ))}
+                <div className="top-items-table">
+                  <div className="ti-header">
+                    <span className="ti-sno">#</span>
+                    <span className="ti-name">Item Name</span>
+                    <span className="ti-qty">Qty Sold</span>
+                  </div>
+                  <div className="ti-body">
+                    {topItems.length === 0 && <div className="no-data small">No items found</div>}
+                    {topItems.map((item, index) => (
+                      <div key={index} className="ti-row">
+                        <span className="ti-sno">
+                          <span className="ti-rank" style={{ background: COLORS[index % COLORS.length], color: '#fff' }}>{index + 1}</span>
+                        </span>
+                        <span className="ti-name">
+                          <span className="ti-color-dot" style={{ background: COLORS[index % COLORS.length] }}></span>
+                          {item.name}
+                        </span>
+                        <span className="ti-qty"><strong>{item.value}</strong></span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
+            </div>
+
+            <div className="stats-row">
+              <div className="stat-card">
+                <span className="sc-label">TOTAL {activeTab === "store" ? "SALES" : "AMOUNT"}</span>
+                <span className="sc-value">₹{stats.totalSales.toLocaleString('en-IN')}</span>
+              </div>
+              <div className="stat-card">
+                <span className="sc-label">TOTAL {activeTab === "store" ? "BILLS" : "ORDERS"}</span>
+                <span className="sc-value" style={{ color: '#6366f1' }}>{stats.totalOrders}</span>
+              </div>
+              {activeTab === "store" && (
+                <>
+                  <div className="stat-card">
+                    <span className="sc-label">UPI</span>
+                    <span className="sc-value" style={{ color: '#2563eb' }}>₹{stats.upiSales.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="stat-card">
+                    <span className="sc-label">CASH</span>
+                    <span className="sc-value" style={{ color: '#059669' }}>₹{stats.cashSales.toLocaleString('en-IN')}</span>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="card list-area">
@@ -424,14 +568,15 @@ function FranchiseAnalytics() {
               <div className="table-header-row">
                 <span className="th-sno">#</span>
                 <span className="th-id">ID</span>
-                <span className="th-date">Date & Time</span>
-                <span className="th-amt">Amount</span>
+                <span className="th-date th-sortable" onClick={() => handleSort('created_at')}>Date & Time <SortIcon columnKey="created_at" /></span>
+                {activeTab === "store" && <span className="th-mode th-sortable" onClick={() => handleSort('payment_mode')}>Mode <SortIcon columnKey="payment_mode" /></span>}
+                <span className="th-amt th-sortable" onClick={() => handleSort('amount')}>Amount <SortIcon columnKey="amount" /></span>
                 <span className="th-icon"></span>
               </div>
 
               <div className="list-scroll">
-                {bills.length === 0 && <div className="no-data">No records found.</div>}
-                {bills.map((bill, index) => (
+                {sortedBills.length === 0 && <div className="no-data">No records found.</div>}
+                {sortedBills.map((bill, index) => (
                   <div key={bill.id} className={`list-item ${expandedBill === bill.id ? 'expanded' : ''}`}>
                     <div className="item-summary" onClick={() => setExpandedBill(expandedBill === bill.id ? null : bill.id)}>
                       <div className="col sno-col">{index + 1}</div>
@@ -443,6 +588,11 @@ function FranchiseAnalytics() {
                         <span className="d-date">{new Date(bill.created_at).toLocaleDateString("en-IN", { day: '2-digit', month: 'short' })}</span>
                         <span className="d-time"><Clock size={10} /> {new Date(bill.created_at).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
                       </div>
+                      {activeTab === "store" && (
+                        <div className="col mode-col">
+                          <span className={`mode-badge ${(bill.payment_mode || '').toLowerCase()}`}>{bill.payment_mode || 'N/A'}</span>
+                        </div>
+                      )}
                       <div className="col amt-col">₹{Number(bill.total ?? bill.total_amount ?? 0).toLocaleString('en-IN')}</div>
                       <div className="col arrow-col">{expandedBill === bill.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</div>
                     </div>
@@ -515,18 +665,34 @@ function FranchiseAnalytics() {
         .chart-wrapper { height: 250px; padding: 10px; }
         .pie-content { display: flex; flex-direction: column; padding: 16px; }
         .pie-wrapper { height: 180px; width: 100%; }
-        .legend-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-        .legend-item { display: flex; align-items: center; font-size: 12px; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
-        .l-name { flex: 1; color: var(--text-sub); font-weight: 500; }
-        .l-val { font-weight: 700; color: var(--text-main); }
+        .top-items-table { margin-top: 12px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .ti-header { display: flex; padding: 8px 12px; background: #f8fafc; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; }
+        .ti-header span { font-size: 10px; font-weight: 800; color: var(--text-sub); text-transform: uppercase; }
+        .ti-sno { width: 36px; text-align: center; display: flex; align-items: center; justify-content: center; }
+        .ti-name { flex: 1; display: flex; align-items: center; gap: 6px; }
+        .ti-qty { width: 60px; text-align: right; }
+        .ti-body { max-height: 300px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+        .ti-body::-webkit-scrollbar { width: 6px; }
+        .ti-body::-webkit-scrollbar-track { background: transparent; }
+        .ti-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .ti-body::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .ti-row { display: flex; padding: 8px 12px; border-bottom: 1px solid #f1f5f9; align-items: center; transition: background 0.15s; }
+        .ti-row:last-child { border-bottom: none; }
+        .ti-row:hover { background: #f8fafc; }
+        .ti-row .ti-name { font-size: 12px; font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 6px; }
+        .ti-row .ti-qty { font-size: 12px; color: var(--primary); }
+        .ti-rank { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; font-size: 10px; font-weight: 800; }
+        .ti-color-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .list-area { display: flex; flex-direction: column; height: 100%; min-height: 400px; }
         .table-header-row { display: flex; padding: 10px 16px; background: #f8fafc; border-bottom: 1px solid var(--border); }
         .table-header-row span { font-size: 10px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; }
+        .th-sortable { cursor: pointer; display: flex; align-items: center; gap: 4px; user-select: none; transition: color 0.15s; }
+        .th-sortable:hover { color: var(--text-main); }
         .th-sno { width: 30px; text-align: center; }
         .th-id { width: 60px; }
-        .th-date { flex: 1; text-align: center; }
-        .th-amt { width: 80px; text-align: right; }
+        .th-date { flex: 1; justify-content: center; }
+        .th-mode { width: 60px; text-align: center; justify-content: center; }
+        .th-amt { width: 80px; text-align: right; justify-content: flex-end; }
         .th-icon { width: 24px; }
         .list-scroll { overflow-y: auto; max-height: 600px; }
         .list-item { border-bottom: 1px solid var(--border); transition: background 0.2s; }
@@ -540,24 +706,42 @@ function FranchiseAnalytics() {
         .date-col { flex: 1; flex-direction: column; align-items: center; justify-content: center; }
         .d-date { font-size: 12px; font-weight: 600; color: var(--text-main); }
         .d-time { font-size: 10px; color: var(--text-sub); display: flex; align-items: center; gap: 3px; }
+        .mode-col { width: 60px; justify-content: center; }
+        .mode-badge { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; }
+        .mode-badge.upi { background: #eff6ff; color: #2563eb; }
+        .mode-badge.cash { background: #f0fdf4; color: #059669; }
         .amt-col { width: 80px; justify-content: flex-end; font-size: 13px; font-weight: 700; color: var(--primary); }
         .arrow-col { width: 24px; justify-content: flex-end; color: #cbd5e1; }
         .item-details { background: #f8fafc; padding: 12px 16px; border-top: 1px solid var(--border); }
         .no-data { text-align: center; padding: 20px; font-size: 12px; color: var(--text-sub); font-style: italic; }
         .loader-container { padding: 40px; text-align: center; color: var(--text-sub); font-weight: 500; font-size: 14px; }
+        
+        .stats-row { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .stat-card { background: var(--card-bg); border: 1px solid var(--border); padding: 16px; border-radius: 12px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02); margin-top: 4px; }
+        .sc-label { font-size: 11px; font-weight: 800; color: var(--text-sub); margin-bottom: 4px; }
+        .sc-value { font-size: 20px; font-weight: 900; color: var(--text-main); }
+        @media (max-width: 767px) {
+          .stats-row { flex-direction: column; gap: 12px; }
+          .stat-card { flex-direction: row; justify-content: space-between; padding: 12px 16px; margin-top: 0; }
+          .sc-label { margin-bottom: 0; }
+          .sc-value { font-size: 16px; }
+        }
+
         .spinner { width: 24px; height: 24px; border: 3px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; margin: 0 auto 10px; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @media (min-width: 768px) {
           .controls-wrapper { flex-direction: row; justify-content: space-between; align-items: center; }
           .right-controls { flex-direction: row; align-items: center; }
           .tab-group, .date-group { width: auto; }
-          .dashboard-grid { grid-template-columns: 2fr 1fr; grid-template-rows: auto auto; }
-          .revenue-area { grid-column: 1 / 2; }
-          .pie-area { grid-column: 2 / 3; }
-          .list-area { grid-column: 1 / -1; }
+          .dashboard-grid { grid-template-columns: 2fr 1fr; grid-template-rows: auto auto auto; }
+          .revenue-area { grid-column: 1 / 2; grid-row: 1 / 2; }
+          .stats-row { grid-column: 1 / 2; grid-row: 2 / 3; }
+          .pie-area { grid-column: 2 / 3; grid-row: 1 / 3; }
+          .list-area { grid-column: 1 / -1; grid-row: 3 / 4; }
           .icon-box { display: flex; align-items: center; justify-content: center; background: #e0f2fe; color: #0284c7; width: 24px; height: 24px; border-radius: 6px; }
           .th-sno, .sno-col { width: 50px; font-size: 12px; }
           .id-col { width: 120px; }
+          .th-mode, .mode-col { width: 80px; }
           .date-col { flex-direction: row; gap: 10px; }
         }
         @media (min-width: 1024px) {
@@ -624,12 +808,6 @@ function BillItems({ billId, type }) {
   );
 }
 
-const styles = {
-  header: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'relative', zIndex: 30, width: '100%', marginBottom: '24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
-  headerInner: { padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', boxSizing: 'border-box' },
-  backBtn: { background: "none", border: "none", color: "#000", fontSize: "14px", fontWeight: "700", cursor: "pointer", padding: 0, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
-  heading: { fontWeight: "900", color: "#000", textTransform: 'uppercase', letterSpacing: "-0.5px", margin: 0, fontSize: '20px', textAlign: 'center', flex: 1, lineHeight: 1.2 },
-  idBox: { background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', color: '#334155', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0 }
-};
+const styles = headerStyles;
 
 export default FranchiseAnalytics;
