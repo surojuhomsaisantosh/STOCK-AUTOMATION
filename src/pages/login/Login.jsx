@@ -90,7 +90,7 @@ function Login() {
       }
 
       // ── STEP 1: Authenticate with retry ──
-      setStatusMsg("Verifying credentials...");
+      //setStatusMsg("Verifying credentials...");
 
       let authData;
       try {
