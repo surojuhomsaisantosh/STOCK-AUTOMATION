@@ -253,11 +253,6 @@ function FranchiseInvoices() {
         setLoading(false);
     }, []);
 
-    useEffect(() => {
-        fetchProfile();
-        fetchData();
-    }, [fetchData]);
-
     const fetchProfile = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
@@ -265,6 +260,11 @@ function FranchiseInvoices() {
             if (data) setCurrentFranchiseId(data.franchise_id);
         }
     };
+
+    useEffect(() => {
+        fetchProfile();
+        fetchData();
+    }, [fetchData]);
 
     const filteredInvoices = useMemo(() => {
         return invoices.filter(inv => {

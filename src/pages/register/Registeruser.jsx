@@ -177,7 +177,7 @@ function RegisterUser() {
             const body = await error.context.json();
             if (body?.error) msg = body.error;
           }
-        } catch (_) { }
+        } catch { /* ignore */ }
         throw new Error(msg);
       }
 

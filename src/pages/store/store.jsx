@@ -20,7 +20,7 @@ const BLACK = "#000000";
 
 function Store() {
   const navigate = useNavigate();
-  const { user, role, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { connectPrinter, disconnectPrinter, printReceipt, isConnected, isConnecting } = useBluetoothPrinter();
 
   // DATA STATES

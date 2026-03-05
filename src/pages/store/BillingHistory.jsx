@@ -273,7 +273,7 @@ function BillingHistory() {
         items: bill.bills_items_generated.map(i => ({ name: i.item_name, qty: i.qty, subtotal: i.total.toFixed(2) })),
         billId: bill.id.toString().slice(-6).toUpperCase()
       });
-    } catch (err) { alert("Reprint failed."); }
+    } catch { alert("Reprint failed."); }
   };
 
   const confirmDelete = async () => {
@@ -282,7 +282,7 @@ function BillingHistory() {
       setHistory(prev => prev.filter(b => b.id !== billToDelete));
       setBillToDelete(null);
       setSelectedBill(null);
-    } catch (err) { alert("Error deleting."); }
+    } catch { alert("Error deleting."); }
   };
 
   const confirmCheckoutAction = async () => {

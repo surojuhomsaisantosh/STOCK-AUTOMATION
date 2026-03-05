@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { supabase, checkSupabaseConnection, isNetworkError } from "../../supabase/supabaseClient";
+import { supabase, isNetworkError } from "../../supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { renderToStaticMarkup } from "react-dom/server";
 import jsPDF from "jspdf";
@@ -22,7 +22,7 @@ const getSessionData = (key, defaultValue) => {
   if (stored === null) return defaultValue;
   try {
     return JSON.parse(stored);
-  } catch (e) {
+  } catch {
     return defaultValue;
   }
 };
@@ -294,14 +294,14 @@ function StockOrder() {
     try {
       const savedCart = localStorage.getItem("stockOrderCart");
       return savedCart ? JSON.parse(savedCart) : [];
-    } catch (e) { return []; }
+    } catch { return []; }
   });
 
   const [notifiedItems, setNotifiedItems] = useState(() => {
     try {
       const saved = localStorage.getItem("notifiedStockItems");
       return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch (e) { return new Set(); }
+    } catch { return new Set(); }
   });
 
   useEffect(() => { sessionStorage.setItem("stock_search", JSON.stringify(search)); }, [search]);
@@ -375,7 +375,7 @@ function StockOrder() {
 
       const { data: stockData } = await supabase.from("stocks").select("*").eq('online_store', true).order("item_name");
       setStocks(stockData || []);
-    } catch (err) {
+    } catch {
       addToast('error', 'Sync Failed', 'Could not refresh inventory.');
     } finally { setLoadingStocks(false); }
   }, [addToast]);
@@ -681,7 +681,7 @@ function StockOrder() {
           const formattedTime = successTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 
           // Fix 5: Persist payment ID immediately for crash recovery
-          try { localStorage.setItem('pendingPaymentId', paymentId); } catch (e) { /* storage full, non-critical */ }
+          try { localStorage.setItem('pendingPaymentId', paymentId); } catch { /* storage full, non-critical */ }
 
           // Fix 2: Retry the DB call with exponential backoff
           const MAX_DB_RETRIES = 3;
@@ -761,7 +761,7 @@ function StockOrder() {
           }
 
           // Fix 5: DB succeeded — clear pending payment
-          try { localStorage.removeItem('pendingPaymentId'); } catch (e) { /* non-critical */ }
+          try { localStorage.removeItem('pendingPaymentId'); } catch { /* non-critical */ }
 
           // --- Invoice PDF generation (unchanged) ---
           const currentPrintChunks = [];

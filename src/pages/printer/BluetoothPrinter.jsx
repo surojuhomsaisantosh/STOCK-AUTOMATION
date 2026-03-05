@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useRef, useState, useEffect } from "react";
 import { devLog } from '../../utils/logger';
 
@@ -97,7 +98,7 @@ export function PrinterProvider({ children }) {
         const service = await server.getPrimaryService(PROFILES.GENERIC.service);
         characteristic = await service.getCharacteristic(PROFILES.GENERIC.char);
         devLog("✅ Using Generic Profile characteristic");
-      } catch (e) {
+      } catch {
         devLog("⚠️ Generic profile not found, trying Standard profile...");
         const service = await server.getPrimaryService(PROFILES.STANDARD.service);
         characteristic = await service.getCharacteristic(PROFILES.STANDARD.char);
@@ -165,13 +166,6 @@ export function PrinterProvider({ children }) {
       text += "--------------------------------\n" + left;
 
       // 3. Metadata: Date and 12-Hour Format Time
-      const now = new Date();
-      const dateStr = now.toLocaleDateString('en-GB');
-      const timeStr = now.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      });
 
       text += "\n"; // One line space
       if (billData.billId) {

@@ -302,7 +302,7 @@ function StockUpdate() {
                 await fetchItems();
                 // alert("Saved Successfully!");
             }
-        } catch (err) {
+        } catch {
             alert("An unexpected error occurred.");
         } finally {
             setLoading(false);

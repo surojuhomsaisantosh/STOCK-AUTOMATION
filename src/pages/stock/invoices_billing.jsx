@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
@@ -14,11 +15,11 @@ const getSessionItem = (key) => {
     try {
         const item = sessionStorage.getItem(key);
         return item ? JSON.parse(item) : null;
-    } catch (e) { return null; }
+    } catch { return null; }
 };
 
 const setSessionItem = (key, value) => {
-    try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (e) { }
+    try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { }
 };
 
 // --- INVOICE PRINT COMPONENT ---

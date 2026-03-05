@@ -35,7 +35,7 @@ function Login() {
     window.addEventListener('resize', handleResize);
 
     // Auth Listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
       if (event === "PASSWORD_RECOVERY") {
         setIsRecoveryMode(true);
       }
@@ -62,7 +62,7 @@ function Login() {
           setDynamicLogo(getProxiedUrl(data.logo_url));
           localStorage.setItem("jksh_logo_url", data.logo_url);
         }
-      } catch (err) {
+      } catch {
         // Silently fail on fetch error in production, will just show text fallback
       }
     };

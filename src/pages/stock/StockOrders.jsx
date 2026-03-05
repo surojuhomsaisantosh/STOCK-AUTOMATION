@@ -214,10 +214,11 @@ function StockOrders() {
   const [orders, setOrders] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  /* eslint-disable-next-line no-unused-vars */
   const [loading, setLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState(() => {
-    try { return sessionStorage.getItem("stock_active_tab") || "all"; } catch (e) { return "all"; }
+    try { return sessionStorage.getItem("stock_active_tab") || "all"; } catch { return "all"; }
   });
 
   const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
@@ -248,10 +249,11 @@ function StockOrders() {
       return () => { supabase.removeChannel(subscription); };
     }
     return () => window.removeEventListener('resize', handleResize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, authLoading]);
 
   useEffect(() => {
-    try { sessionStorage.setItem("stock_active_tab", activeTab); } catch (e) { }
+    try { sessionStorage.setItem("stock_active_tab", activeTab); } catch { /* ignore */ }
   }, [activeTab]);
 
   useEffect(() => {
@@ -291,13 +293,13 @@ function StockOrders() {
         setCompanies(JSON.parse(cachedCompanies));
         return;
       }
-    } catch (e) { sessionStorage.removeItem("cached_companies"); }
+    } catch { sessionStorage.removeItem("cached_companies"); }
 
     try {
       const { data, error } = await supabase.from("companies").select("*");
       if (error) throw error;
       setCompanies(data || []);
-      try { sessionStorage.setItem("cached_companies", JSON.stringify(data)); } catch (e) { }
+      try { sessionStorage.setItem("cached_companies", JSON.stringify(data)); } catch { /* ignore */ }
     } catch (err) {
       console.error("Error fetching companies:", err);
     }
