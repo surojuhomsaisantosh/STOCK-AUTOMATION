@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase, checkSupabaseConnection, isNetworkError } from "../../supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { renderToStaticMarkup } from "react-dom/server";
 import jsPDF from "jspdf";
@@ -273,6 +273,9 @@ function StockOrder() {
   const [processingOrder, setProcessingOrder] = useState(false);
   const [toasts, setToasts] = useState([]);
 
+  // Fix 3: Double-submission guard — ref is synchronous, unlike state
+  const isSubmittingRef = useRef(false);
+
   const [search, setSearch] = useState(() => getSessionData("stock_search", ""));
   const [selectedCategory, setSelectedCategory] = useState(() => getSessionData("stock_category", "All"));
   const [showOnlyAvailable, setShowOnlyAvailable] = useState(() => getSessionData("stock_available", false));
@@ -386,6 +389,32 @@ function StockOrder() {
     }).subscribe();
     return () => { clearTimeout(debounceTimer); supabase.removeChannel(stockSubscription); };
   }, [fetchData]);
+
+  // Fix 8: Online/offline listener — warn user during checkout
+  useEffect(() => {
+    const handleOffline = () => {
+      addToast('error', 'Offline', 'You appear to be offline. Please check your connection before placing an order.', 8000, 'network-status');
+    };
+    const handleOnline = () => {
+      addToast('success', 'Back Online', 'Connection restored.', 3000, 'network-status');
+    };
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [addToast]);
+
+  // Fix 5: Check for pending payment on mount (recovery from tab close/crash)
+  useEffect(() => {
+    const pendingPaymentId = localStorage.getItem('pendingPaymentId');
+    if (pendingPaymentId) {
+      addToast('success', 'Payment Received', `Your payment (${pendingPaymentId}) was received. If you don't see your order, it will be processed automatically. Contact support if needed.`, 12000);
+      // Clear it — the webhook will handle recovery
+      localStorage.removeItem('pendingPaymentId');
+    }
+  }, [addToast]);
 
 
 
@@ -570,10 +599,21 @@ function StockOrder() {
 
   const handlePlaceOrder = async () => {
     if (cart.length === 0) return;
+
+    // Fix 3: Synchronous double-submission guard
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setProcessingOrder(true);
+
     try {
+      // Fix 4: Pre-flight network check
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error("You appear to be offline. Please check your internet connection and try again.");
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !profile) throw new Error("Authentication failed.");
+      if (!user || !profile) throw new Error("Authentication failed. Please log in again.");
+
       const orderItems = calculations.items.map(i => ({
         stock_id: i.id,
         item_name: i.item_name,
@@ -582,140 +622,285 @@ function StockOrder() {
         price: i.effectivePrice,
         gst_rate: i.gst_rate
       }));
+
+      // Fix 9: Stale stock guard — re-fetch live quantities before payment
+      const cartStockIds = cart.map(c => c.id);
+      const { data: freshStocks, error: freshError } = await supabase
+        .from('stocks')
+        .select('id, quantity, item_name, unit')
+        .in('id', cartStockIds);
+
+      if (freshError) throw new Error("Could not verify stock availability. Please try again.");
+
+      const stockIssues = [];
+      for (const cartItem of cart) {
+        const fresh = freshStocks?.find(s => s.id === cartItem.id);
+        if (!fresh) {
+          stockIssues.push(`${cartItem.item_name} is no longer available.`);
+          continue;
+        }
+        const factor = getPriceMultiplier(fresh.unit, cartItem.cartUnit);
+        const neededBaseQty = cartItem.qty * factor;
+        if (neededBaseQty > Number(fresh.quantity)) {
+          stockIssues.push(`${cartItem.item_name}: only ${fresh.quantity} ${fresh.unit} left (you need ${neededBaseQty} ${fresh.unit}).`);
+        }
+      }
+
+      if (stockIssues.length > 0) {
+        // Update stocks state so UI reflects reality
+        if (freshStocks) setStocks(prev => prev.map(s => {
+          const updated = freshStocks.find(f => f.id === s.id);
+          return updated ? { ...s, quantity: updated.quantity } : s;
+        }));
+        throw new Error(`Stock changed: ${stockIssues[0]}`);
+      }
+
       const isScriptLoaded = await loadRazorpayScript();
-      if (!isScriptLoaded) throw new Error("Gateway error.");
+      if (!isScriptLoaded) throw new Error("Payment gateway could not be loaded. Please refresh and try again.");
+
+      // Fix 1: Build Razorpay notes for webhook recovery
+      const razorpayNotes = {
+        user_id: user.id,
+        customer_name: profile.name,
+        customer_email: profile.email,
+        customer_phone: profile.phone || "",
+        customer_address: profile.address || "",
+        franchise_id: profile.franchise_id || "N/A",
+        items: JSON.stringify(orderItems)
+      };
+
       const options = {
         key: RAZORPAY_KEY_ID,
         amount: Math.round(calculations.roundedBill * 100),
         currency: "INR",
         name: companyDetails?.company_name || "Tvanamm",
+        notes: razorpayNotes, // Fix 1: Enable webhook recovery
         handler: async (response) => {
+          const paymentId = response.razorpay_payment_id;
           const successTime = new Date();
           const formattedTime = successTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-          try {
-            const { data: result, error: rpcError } = await supabase.rpc('place_stock_order', {
-              p_created_by: user.id,
-              p_customer_name: profile.name,
-              p_customer_email: profile.email,
-              p_customer_phone: profile.phone,
-              p_customer_address: profile.address,
-              p_branch_location: profile.branch_location || "",
-              p_franchise_id: profile.franchise_id,
-              p_payment_id: response.razorpay_payment_id,
-              p_items: orderItems,
-              p_subtotal: calculations.subtotal,
-              p_tax_amount: calculations.totalGst,
-              p_round_off: calculations.roundOff,
-              p_total_amount: calculations.roundedBill,
-              p_order_time: formattedTime,
-              p_snapshot_company_name: companyDetails?.company_name || "",
-              p_snapshot_company_address: companyDetails?.company_address || "",
-              p_snapshot_company_gst: companyDetails?.company_gst || "",
-              p_snapshot_bank_details: {
-                bank_name: companyDetails?.bank_name || "",
-                bank_acc_no: companyDetails?.bank_acc_no || "",
-                bank_ifsc: companyDetails?.bank_ifsc || ""
-              },
-              p_snapshot_terms: companyDetails?.terms || ""
-            });
-            if (rpcError) throw rpcError;
-            const currentPrintChunks = [];
-            for (let i = 0; i < calculations.items.length; i += ITEMS_PER_INVOICE_PAGE) {
-              currentPrintChunks.push(calculations.items.slice(i, i + ITEMS_PER_INVOICE_PAGE));
-            }
-            const invoiceHtmlRaw = currentPrintChunks.map((chunk, index) => {
-              return renderToStaticMarkup(
-                <FullPageInvoice
-                  data={{ ...calculations, roundedBill: result.real_amount }}
-                  profile={profile}
-                  orderId={result.order_id}
-                  companyDetails={companyDetails}
-                  itemsChunk={chunk}
-                  pageIndex={index}
-                  totalPages={currentPrintChunks.length}
-                />
-              );
-            }).join("");
-            const tempDiv = document.createElement("div");
-            tempDiv.style.cssText = "position: absolute; top: -10000px; left: -10000px; width: 794px; background: white; z-index: -100;";
-            tempDiv.innerHTML = getEmailStyles() + invoiceHtmlRaw;
-            document.body.appendChild(tempDiv);
-            let pdfBase64;
+
+          // Fix 5: Persist payment ID immediately for crash recovery
+          try { localStorage.setItem('pendingPaymentId', paymentId); } catch (e) { /* storage full, non-critical */ }
+
+          // Fix 2: Retry the DB call with exponential backoff
+          const MAX_DB_RETRIES = 3;
+          let result = null;
+          let lastDbError = null;
+
+          for (let attempt = 0; attempt < MAX_DB_RETRIES; attempt++) {
             try {
-              await new Promise(resolve => setTimeout(resolve, 800));
-              const pdf = new jsPDF("p", "mm", "a4");
-              const pages = tempDiv.querySelectorAll('.a4-page');
-              for (let i = 0; i < pages.length; i++) {
-                const canvas = await html2canvas(pages[i], {
-                  scale: 2,
-                  useCORS: true,
-                  backgroundColor: "#ffffff",
-                  width: 794,
-                  height: 1122,
-                  windowWidth: 794,
-                  onclone: (documentClone) => {
-                    const element = documentClone.querySelectorAll('.a4-page')[i];
-                    element.style.margin = "0";
-                    element.style.boxShadow = "none";
-                    element.style.transform = "none";
-                  }
-                });
-                const imgData = canvas.toDataURL("image/jpeg", 1.0);
-                if (i > 0) pdf.addPage();
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = pdf.internal.pageSize.getHeight();
-                pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
-              }
-              pdfBase64 = pdf.output('datauristring').split(',')[1];
-            } finally {
-              document.body.removeChild(tempDiv);
-            }
-            try {
-              const { data: { session } } = await supabase.auth.getSession();
-              const simpleEmailHtml = `
-                <div style="font-family: sans-serif; padding: 20px; color: #333;">
-                  <h2 style="color: #006437;">Order Confirmation #${result.order_id}</h2>
-                  <p>Hi ${profile.name},</p>
-                  <p>Thank you for your order. Please find your detailed tax invoice attached as a PDF.</p>
-                  <p><strong>Total Amount: ${formatCurrency(calculations.roundedBill)}</strong></p>
-                  <br/>
-                  <p>Best regards,<br/>${companyDetails?.company_name || 'Tvanamm'}</p>
-                </div>
-              `;
-              await supabase.functions.invoke('send-invoice-email', {
-                body: {
-                  orderId: result.order_id,
-                  userEmail: profile.email,
-                  customerName: profile.name,
-                  htmlBody: simpleEmailHtml,
-                  pdfAttachment: pdfBase64
+              const { data, error: rpcError } = await supabase.rpc('place_stock_order', {
+                p_created_by: user.id,
+                p_customer_name: profile.name,
+                p_customer_email: profile.email,
+                p_customer_phone: profile.phone,
+                p_customer_address: profile.address,
+                p_branch_location: profile.branch_location || "",
+                p_franchise_id: profile.franchise_id,
+                p_payment_id: paymentId,
+                p_items: orderItems,
+                p_subtotal: calculations.subtotal,
+                p_tax_amount: calculations.totalGst,
+                p_round_off: calculations.roundOff,
+                p_total_amount: calculations.roundedBill,
+                p_order_time: formattedTime,
+                p_snapshot_company_name: companyDetails?.company_name || "",
+                p_snapshot_company_address: companyDetails?.company_address || "",
+                p_snapshot_company_gst: companyDetails?.company_gst || "",
+                p_snapshot_bank_details: {
+                  bank_name: companyDetails?.bank_name || "",
+                  bank_acc_no: companyDetails?.bank_acc_no || "",
+                  bank_ifsc: companyDetails?.bank_ifsc || ""
                 },
-                headers: { Authorization: `Bearer ${session?.access_token}` }
+                p_snapshot_terms: companyDetails?.terms || ""
               });
-            } catch (efErr) {
-              console.error("Email sending failed:", efErr);
+
+              if (rpcError) {
+                // If it's a network error, retry; if it's a business logic error, fail immediately
+                if (isNetworkError(rpcError) && attempt < MAX_DB_RETRIES - 1) {
+                  lastDbError = rpcError;
+                  const delay = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s
+                  console.warn(`[Order] DB attempt ${attempt + 1} failed (network). Retrying in ${delay}ms...`);
+                  await new Promise(r => setTimeout(r, delay));
+                  continue;
+                }
+                throw rpcError;
+              }
+
+              result = data;
+              break; // Success!
+            } catch (retryErr) {
+              lastDbError = retryErr;
+              if (isNetworkError(retryErr) && attempt < MAX_DB_RETRIES - 1) {
+                const delay = 1000 * Math.pow(2, attempt);
+                console.warn(`[Order] DB attempt ${attempt + 1} threw (network). Retrying in ${delay}ms...`);
+                await new Promise(r => setTimeout(r, delay));
+                continue;
+              }
+              // Non-network error or last attempt — break out
+              break;
             }
-            setLastOrderId(result.order_id);
-            setPrintData({ ...calculations, roundedBill: result.real_amount, orderTime: formattedTime });
-            setOrderSuccess(true);
+          }
+
+          // Fix 2: If all retries failed, show calming message (webhook will recover)
+          if (!result) {
+            console.error('[Order] All DB retries exhausted. Payment ID:', paymentId, 'Error:', lastDbError);
+            addToast('success', 'Payment Received!',
+              'Your payment was successful. Your order is being processed and will appear shortly. If it doesn\'t appear within 10 minutes, please contact support with payment ID: ' + paymentId,
+              15000
+            );
             setProcessingOrder(false);
-            fetchData();
+            isSubmittingRef.current = false;
+            // Fix 5: Keep pendingPaymentId in localStorage for next page load recovery
             setCart([]);
             setQtyInput({});
             setIsCartOpen(false);
-          } catch (dbErr) {
-            addToast('error', 'Database Error', dbErr.message);
-            setProcessingOrder(false);
+            fetchData();
+            return;
           }
+
+          // Fix 5: DB succeeded — clear pending payment
+          try { localStorage.removeItem('pendingPaymentId'); } catch (e) { /* non-critical */ }
+
+          // --- Invoice PDF generation (unchanged) ---
+          const currentPrintChunks = [];
+          for (let i = 0; i < calculations.items.length; i += ITEMS_PER_INVOICE_PAGE) {
+            currentPrintChunks.push(calculations.items.slice(i, i + ITEMS_PER_INVOICE_PAGE));
+          }
+          const invoiceHtmlRaw = currentPrintChunks.map((chunk, index) => {
+            return renderToStaticMarkup(
+              <FullPageInvoice
+                data={{ ...calculations, roundedBill: result.real_amount }}
+                profile={profile}
+                orderId={result.order_id}
+                companyDetails={companyDetails}
+                itemsChunk={chunk}
+                pageIndex={index}
+                totalPages={currentPrintChunks.length}
+              />
+            );
+          }).join("");
+          const tempDiv = document.createElement("div");
+          tempDiv.style.cssText = "position: absolute; top: -10000px; left: -10000px; width: 794px; background: white; z-index: -100;";
+          tempDiv.innerHTML = getEmailStyles() + invoiceHtmlRaw;
+          document.body.appendChild(tempDiv);
+          let pdfBase64;
+          try {
+            await new Promise(resolve => setTimeout(resolve, 800));
+            const pdf = new jsPDF("p", "mm", "a4");
+            const pages = tempDiv.querySelectorAll('.a4-page');
+            for (let i = 0; i < pages.length; i++) {
+              const canvas = await html2canvas(pages[i], {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: "#ffffff",
+                width: 794,
+                height: 1122,
+                windowWidth: 794,
+                onclone: (documentClone) => {
+                  const element = documentClone.querySelectorAll('.a4-page')[i];
+                  element.style.margin = "0";
+                  element.style.boxShadow = "none";
+                  element.style.transform = "none";
+                }
+              });
+              const imgData = canvas.toDataURL("image/jpeg", 1.0);
+              if (i > 0) pdf.addPage();
+              const pdfWidth = pdf.internal.pageSize.getWidth();
+              const pdfHeight = pdf.internal.pageSize.getHeight();
+              pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+            }
+            pdfBase64 = pdf.output('datauristring').split(',')[1];
+          } finally {
+            document.body.removeChild(tempDiv);
+          }
+
+          // Fix 7: Email — proper error checking (matching Registeruser.jsx pattern)
+          try {
+            const simpleEmailHtml = `
+              <div style="font-family: sans-serif; padding: 20px; color: #333;">
+                <h2 style="color: #006437;">Order Confirmation #${result.order_id}</h2>
+                <p>Hi ${profile.name},</p>
+                <p>Thank you for your order. Please find your detailed tax invoice attached as a PDF.</p>
+                <p><strong>Total Amount: ${formatCurrency(calculations.roundedBill)}</strong></p>
+                <br/>
+                <p>Best regards,<br/>${companyDetails?.company_name || 'Tvanamm'}</p>
+              </div>
+            `;
+
+            // Force-refresh session to get a fresh JWT (Razorpay payment flow may take minutes, staling the token)
+            const { data: { session: freshSession } } = await supabase.auth.refreshSession();
+
+            const { data: emailData, error: emailError } = await supabase.functions.invoke('send-invoice-email', {
+              body: {
+                orderId: result.order_id,
+                userEmail: profile.email,
+                customerName: profile.name,
+                htmlBody: simpleEmailHtml,
+                pdfAttachment: pdfBase64
+              },
+              headers: freshSession?.access_token ? { Authorization: `Bearer ${freshSession.access_token}` } : {},
+            });
+
+            // Check for network/auth-level error from supabase.functions.invoke
+            if (emailError) {
+              console.error("Full emailError object:", JSON.stringify(emailError, null, 2));
+              console.error("emailError.context:", emailError.context);
+              let msg = emailError.message || "Failed to call email function.";
+              try {
+                if (emailError.context && typeof emailError.context.json === 'function') {
+                  const body = await emailError.context.json();
+                  console.error("Edge function response body:", body);
+                  if (body?.error) msg = body.error;
+                } else if (emailError.context && typeof emailError.context === 'object') {
+                  console.error("Edge function context (object):", emailError.context);
+                  if (emailError.context.error) msg = emailError.context.error;
+                }
+              } catch (parseErr) {
+                console.error("Could not parse error context:", parseErr);
+              }
+              console.error("Edge Function invoke error:", msg);
+              throw new Error(msg);
+            }
+
+            // Check for application-level error from the edge function response
+            if (emailData?.error) {
+              console.error("Resend API error:", emailData.error);
+              throw new Error(emailData.error);
+            }
+
+            console.log("✅ Invoice email sent successfully:", emailData);
+          } catch (efErr) {
+            console.error("Email sending failed:", efErr);
+            addToast('error', 'Email Failed', `Invoice email could not be sent: ${efErr.message || 'Unknown error'}. You can download the invoice from the success screen.`, 8000);
+          }
+
+          setLastOrderId(result.order_id);
+          setPrintData({ ...calculations, roundedBill: result.real_amount, orderTime: formattedTime });
+          setOrderSuccess(true);
+          setProcessingOrder(false);
+          isSubmittingRef.current = false;
+          fetchData();
+          setCart([]);
+          setQtyInput({});
+          setIsCartOpen(false);
         },
         prefill: { name: profile.name, email: profile.email, contact: profile.phone },
         theme: { color: BRAND_COLOR },
-        modal: { ondismiss: () => setProcessingOrder(false) }
+        // Fix 6: Robust ondismiss cleanup including ref
+        modal: {
+          ondismiss: () => {
+            setProcessingOrder(false);
+            isSubmittingRef.current = false;
+          }
+        }
       };
       new window.Razorpay(options).open();
     } catch (error) {
       addToast('error', 'Order Error', error.message);
       setProcessingOrder(false);
+      isSubmittingRef.current = false;
     }
   };
 

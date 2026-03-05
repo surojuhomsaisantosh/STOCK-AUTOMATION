@@ -28,7 +28,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        from: 'onboarding@resend.dev', // Note: Update this to your actual domain when moving out of Resend testing mode
+        from: 'JKSH United <noreply@jkshunited.com>',
         to: userEmail,
         subject: `Invoice for Order #${orderId}`,
         // Use the friendly HTML we generated in the frontend, or fallback to simple text
@@ -51,8 +51,9 @@ serve(async (req) => {
     })
 
   } catch (error) {
-    console.error("CRITICAL FUNCTION ERROR:", error.message)
-    return new Response(JSON.stringify({ error: error.message }), {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error("CRITICAL FUNCTION ERROR:", message)
+    return new Response(JSON.stringify({ error: message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     })
