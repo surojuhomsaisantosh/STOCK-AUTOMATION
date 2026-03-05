@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import {
-    ArrowLeft, Search, X, Plus, Minus, CheckCircle, Package, Building2, User, Printer
+    ArrowLeft, Search, X, Plus, Minus, CheckCircle, Package, Building2, User, Printer, FileText, Trash2
 } from "lucide-react";
 
 const PRIMARY = "rgb(0, 100, 55)";
@@ -37,7 +37,7 @@ const amountToWords = (price) => {
 };
 
 // --- PRINT COMPONENT ---
-const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsChunk }) => {
+const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsChunk, docTitle = "TAX INVOICE" }) => {
     if (!order) return null;
     const companyName = companyDetails?.company_name || "";
     const invDate = new Date(order.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata' });
@@ -61,7 +61,7 @@ const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsCh
             <div className="w-full border-2 border-black flex flex-col relative flex-1">
                 <div className="p-3 border-b-2 border-black relative">
                     <div className="absolute top-2 left-0 w-full text-center pointer-events-none">
-                        <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4 text-black">TAX INVOICE</h1>
+                        <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4 text-black">{docTitle}</h1>
                     </div>
                     <div className="flex justify-between items-center mt-5 pt-3">
                         <div className="text-left z-10 w-[55%]">
@@ -225,6 +225,17 @@ function PackageBills() {
     const [printOrder, setPrintOrder] = useState(null);
     const [printCompanyDetails, setPrintCompanyDetails] = useState(null);
     const [printItems, setPrintItems] = useState([]);
+    const [printDocTitle, setPrintDocTitle] = useState("TAX INVOICE");
+
+    // Quote States
+    const [showQuoteModal, setShowQuoteModal] = useState(false);
+    const [quoteMode, setQuoteMode] = useState("specific"); // "specific" | "nonspecific"
+    const [quoteClient, setQuoteClient] = useState({ name: "", phone: "", address: "" });
+    const [quoteCompanyId, setQuoteCompanyId] = useState("");
+    const [quoteSpecificItems, setQuoteSpecificItems] = useState([]);
+    const [quoteCustomItems, setQuoteCustomItems] = useState([]);
+    const [quoteStockSearch, setQuoteStockSearch] = useState("");
+    const [quoteCategory, setQuoteCategory] = useState("All");
 
     const fetchData = async () => {
         if (!user) return;
@@ -354,12 +365,149 @@ function PackageBills() {
         setShowModal(false);
         fetchData();
 
+        setPrintDocTitle("TAX INVOICE");
         setPrintOrder(invData);
         setPrintCompanyDetails(company);
         setPrintItems(mappedItems.map(mItem => ({ ...mItem, stocks: stocks.find(s => s.id === mItem.stock_id) })));
 
         setTimeout(() => { window.print(); }, 500);
     };
+
+    // --- QUOTE LOGIC ---
+    const openQuoteModal = () => {
+        setQuoteClient({ name: "", phone: "", address: "" });
+        setQuoteCompanyId(companies.length === 1 ? companies[0].id : "");
+        setQuoteMode("specific");
+        setQuoteSpecificItems([]);
+        setQuoteCustomItems([]);
+        setQuoteStockSearch("");
+        setQuoteCategory("All");
+        setShowQuoteModal(true);
+    };
+
+    const handleQuoteSpecificQty = (stock, newQty) => {
+        const qty = Math.max(0, parseInt(newQty) || 0);
+        if (qty === 0) {
+            setQuoteSpecificItems(prev => prev.filter(i => i.stock_id !== stock.id));
+        } else {
+            setQuoteSpecificItems(prev => {
+                const existing = prev.find(i => i.stock_id === stock.id);
+                if (existing) return prev.map(i => i.stock_id === stock.id ? { ...i, quantity: qty } : i);
+                return [...prev, { stock_id: stock.id, quantity: qty, stockDetails: stock }];
+            });
+        }
+    };
+
+    const addCustomRow = () => {
+        setQuoteCustomItems(prev => [...prev, { item_name: "", price: 0, gst_rate: "", showQty: false, quantity: 1, showUnit: false, unit: "" }]);
+    };
+
+    const updateCustomRow = (idx, field, value) => {
+        setQuoteCustomItems(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+    };
+
+    const removeCustomRow = (idx) => {
+        setQuoteCustomItems(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const handleGenerateQuote = async () => {
+        if (!quoteClient.name.trim()) return alert("Please enter the client name.");
+        if (!quoteCompanyId) return alert("Please select a billing company.");
+
+        let quoteItems = [];
+
+        if (quoteMode === "specific") {
+            if (quoteSpecificItems.length === 0) return alert("Please add at least one item.");
+            for (const pItem of quoteSpecificItems) {
+                const stock = stocks.find(s => s.id === pItem.stock_id);
+                if (!stock) continue;
+                const qty = Number(pItem.quantity);
+                const price = Number(stock.price);
+                const gstRate = Number(stock.gst_rate) || 0;
+                const lineSubtotal = qty * price;
+                const lineGst = lineSubtotal * (gstRate / 100);
+                const lineTotal = lineSubtotal + lineGst;
+                quoteItems.push({
+                    item_name: stock.item_name, quantity: qty, unit: stock.unit,
+                    price, total: lineTotal, gst_rate: gstRate,
+                    stocks: stock, hsn_code: stock.hsn_code
+                });
+            }
+        } else {
+            const valid = quoteCustomItems.filter(r => r.item_name.trim());
+            if (valid.length === 0) return alert("Please add at least one item.");
+            for (const row of valid) {
+                const qty = row.showQty ? (Number(row.quantity) || 1) : 1;
+                const price = Number(row.price) || 0;
+                const gstRate = Number(row.gst_rate) || 0;
+                const lineSubtotal = qty * price;
+                const lineGst = lineSubtotal * (gstRate / 100);
+                const lineTotal = lineSubtotal + lineGst;
+                const unitVal = row.showUnit && row.unit?.trim() ? row.unit.trim() : "Pcs";
+                quoteItems.push({
+                    item_name: row.item_name, quantity: qty, unit: unitVal,
+                    price, total: lineTotal, gst_rate: gstRate,
+                    stocks: null, hsn_code: null
+                });
+            }
+        }
+
+        const subtotal = quoteItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity)), 0);
+        const tax_amount = quoteItems.reduce((s, i) => s + ((Number(i.price) * Number(i.quantity)) * (Number(i.gst_rate) / 100)), 0);
+        const total_amount = subtotal + tax_amount;
+
+        const company = companies.find(c => c.id === quoteCompanyId);
+
+        // Save to quotations table
+        const { data: savedQuote, error: quoteError } = await supabase.from('quotations').insert({
+            created_by: user.id,
+            company_id: quoteCompanyId,
+            customer_name: quoteClient.name,
+            customer_phone: quoteClient.phone || null,
+            customer_address: quoteClient.address || null,
+            quote_mode: quoteMode,
+            items: quoteItems.map(i => ({ item_name: i.item_name, quantity: i.quantity, unit: i.unit, price: i.price, gst_rate: i.gst_rate, total: i.total })),
+            subtotal,
+            tax_amount,
+            total_amount,
+            snapshot_company_name: company.company_name,
+        }).select().single();
+
+        if (quoteError) {
+            console.error("Quote save error:", quoteError);
+            // Still allow printing even if save fails
+        }
+
+        const quoteId = savedQuote?.id ? savedQuote.id.substring(0, 8).toUpperCase() : "QT-" + Date.now().toString(36).toUpperCase();
+
+        const fakeOrder = {
+            id: quoteId,
+            created_at: new Date().toISOString(),
+            customer_name: quoteClient.name,
+            customer_phone: quoteClient.phone,
+            customer_address: quoteClient.address,
+            franchise_id: "",
+            subtotal, tax_amount, total_amount,
+            round_off: 0,
+        };
+
+        setPrintDocTitle("QUOTATION");
+        setPrintOrder(fakeOrder);
+        setPrintCompanyDetails(company);
+        setPrintItems(quoteItems);
+        setShowQuoteModal(false);
+
+        setTimeout(() => { window.print(); }, 500);
+    };
+
+    const quoteFilteredStocks = useMemo(() => {
+        return stocks.filter(stock => {
+            const cat = stock.category || "Uncategorized";
+            const matchesSearch = !quoteStockSearch || stock.item_name.toLowerCase().includes(quoteStockSearch.toLowerCase()) || stock.item_code?.toLowerCase().includes(quoteStockSearch.toLowerCase());
+            const matchesCategory = quoteCategory === "All" || cat === quoteCategory;
+            return matchesSearch && matchesCategory;
+        });
+    }, [stocks, quoteStockSearch, quoteCategory]);
 
     const modalCategories = useMemo(() => {
         const cats = Array.from(new Set(stocks.map(s => s.category || "Uncategorized"))).sort();
@@ -406,6 +554,7 @@ function PackageBills() {
                         <FullPageInvoice
                             key={index} order={printOrder} companyDetails={printCompanyDetails}
                             pageIndex={index} totalPages={pages.length} itemsChunk={chunk}
+                            docTitle={printDocTitle}
                         />
                     ));
                 })()}
@@ -449,6 +598,14 @@ function PackageBills() {
 
                             <button onClick={openBillModal} className="w-full lg:w-auto text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all flex-shrink-0" style={{ backgroundColor: PRIMARY }}>
                                 <Plus size={18} /> Create New Bill
+                            </button>
+
+                            <button onClick={openQuoteModal} className="w-full lg:w-auto px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all flex-shrink-0 border-2 border-[rgb(0,100,55)] text-[rgb(0,100,55)] bg-white hover:bg-[rgb(0,100,55)]/5">
+                                <FileText size={18} /> Quote a Person
+                            </button>
+
+                            <button onClick={() => navigate("/central/quotations")} className="w-full lg:w-auto px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all flex-shrink-0 border-2 border-slate-300 text-slate-600 bg-white hover:bg-slate-50">
+                                <FileText size={18} /> Old Quotations
                             </button>
                         </div>
                     </div>
@@ -521,6 +678,176 @@ function PackageBills() {
                                 <button onClick={() => setShowModal(false)} className="flex-1 py-3.5 rounded-xl border-2 border-slate-200 font-black text-[11px] uppercase tracking-widest text-slate-600">Cancel</button>
                                 <button onClick={handleGenerateBill} disabled={isGenerating} className="flex-[2] py-3.5 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg shadow-[rgb(0,100,55)]/20 active:scale-95 flex justify-center items-center gap-2" style={{ backgroundColor: PRIMARY }}>
                                     {isGenerating ? "Processing..." : <><Printer size={16} /> Generate & Print Bill</>}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ========== QUOTE MODAL ========== */}
+                {showQuoteModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                        <div className="bg-white w-full max-w-4xl max-h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+                            {/* Header */}
+                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                                <h2 className="text-lg font-black uppercase tracking-widest text-black flex items-center gap-2"><FileText size={20} className="text-[rgb(0,100,55)]" /> Generate Quotation</h2>
+                                <button onClick={() => setShowQuoteModal(false)} className="p-2 bg-white rounded-full text-black hover:bg-red-50 hover:text-red-500 transition border border-slate-200"><X size={20} /></button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                                {/* Company Selector */}
+                                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
+                                    <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-500">Billing Company</h3>
+                                    <div className="relative">
+                                        <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                                        <select value={quoteCompanyId} onChange={e => setQuoteCompanyId(e.target.value)} className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-[rgb(0,100,55)] font-bold text-sm cursor-pointer">
+                                            <option value="" disabled>Select Company</option>
+                                            {companies.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Client Info */}
+                                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
+                                    <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-500">Client Details</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <input value={quoteClient.name} onChange={e => setQuoteClient(p => ({ ...p, name: e.target.value }))} placeholder="Client Name *" className="px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none text-sm font-bold focus:border-[rgb(0,100,55)] transition" />
+                                        <input value={quoteClient.phone} onChange={e => setQuoteClient(p => ({ ...p, phone: e.target.value }))} placeholder="Phone (optional)" className="px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none text-sm font-bold focus:border-[rgb(0,100,55)] transition" />
+                                        <input value={quoteClient.address} onChange={e => setQuoteClient(p => ({ ...p, address: e.target.value }))} placeholder="Address (optional)" className="px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none text-sm font-bold focus:border-[rgb(0,100,55)] transition" />
+                                    </div>
+                                </div>
+
+                                {/* Mode Toggle */}
+                                <div className="flex gap-2">
+                                    <button onClick={() => setQuoteMode("specific")} className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-[11px] border-2 transition-all ${quoteMode === "specific" ? "bg-[rgb(0,100,55)] text-white border-[rgb(0,100,55)]" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"}`}>
+                                        Specific (From Stock)
+                                    </button>
+                                    <button onClick={() => setQuoteMode("nonspecific")} className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-[11px] border-2 transition-all ${quoteMode === "nonspecific" ? "bg-[rgb(0,100,55)] text-white border-[rgb(0,100,55)]" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"}`}>
+                                        Non-Specific (Custom)
+                                    </button>
+                                </div>
+
+                                {/* Specific Mode — Same item picker as bills */}
+                                {quoteMode === "specific" && (
+                                    <div className="space-y-4">
+                                        <div className="relative">
+                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                            <input value={quoteStockSearch} onChange={e => setQuoteStockSearch(e.target.value)} placeholder="Search items..." className="w-full pl-10 pr-4 py-3 bg-white border-2 border-slate-200 rounded-xl outline-none text-sm font-semibold focus:border-[rgb(0,100,55)] transition-all" />
+                                        </div>
+                                        <div className="flex gap-2 overflow-x-auto pb-2 pt-1 items-center category-scroll">
+                                            {modalCategories.map(cat => (
+                                                <button key={cat} onClick={() => setQuoteCategory(cat)} className={`whitespace-nowrap px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${quoteCategory === cat ? 'bg-[rgb(0,100,55)] text-white border-[rgb(0,100,55)] shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-black'}`}>{cat}</button>
+                                            ))}
+                                        </div>
+                                        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100 shadow-sm max-h-[40vh] overflow-y-auto">
+                                            {quoteFilteredStocks.length === 0 ? (
+                                                <div className="py-12 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">No items match.</div>
+                                            ) : quoteFilteredStocks.map(stock => {
+                                                const inQ = quoteSpecificItems.find(i => i.stock_id === stock.id);
+                                                const qty = inQ ? inQ.quantity : 0;
+                                                return (
+                                                    <div key={stock.id} className={`p-4 md:px-6 flex flex-col md:flex-row md:items-center justify-between gap-3 transition-colors ${qty > 0 ? 'bg-emerald-50/40' : 'hover:bg-slate-50'}`}>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <p className="text-sm font-black text-slate-800 truncate">{stock.item_name}</p>
+                                                                {stock.item_code && <span className="text-[9px] font-mono bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">{stock.item_code}</span>}
+                                                            </div>
+                                                            <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wide">
+                                                                <span className="text-[rgb(0,100,55)]">₹{stock.price} / {stock.unit}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-3 shrink-0">
+                                                            <div className="flex items-center bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm h-10">
+                                                                <button onClick={() => handleQuoteSpecificQty(stock, qty - 1)} className="w-10 h-full flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors"><Minus size={16} /></button>
+                                                                <input type="number" min="0" value={qty} onChange={e => handleQuoteSpecificQty(stock, e.target.value)} className="w-12 h-full text-center bg-slate-50 border-x border-slate-200 outline-none font-black text-sm text-[rgb(0,100,55)]" />
+                                                                <button onClick={() => handleQuoteSpecificQty(stock, qty + 1)} className="w-10 h-full flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors"><Plus size={16} /></button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        {quoteSpecificItems.length > 0 && (
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-[rgb(0,100,55)] bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-200 text-center">
+                                                {quoteSpecificItems.length} item(s) selected
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Non-Specific Mode — Custom rows */}
+                                {quoteMode === "nonspecific" && (
+                                    <div className="space-y-3">
+                                        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                                            {/* Table Header */}
+                                            <div className="grid grid-cols-[28px_1fr_90px_80px_80px_60px_80px_32px] gap-1.5 px-3 py-2 bg-slate-100 text-[9px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-200 items-center">
+                                                <span className="text-center">#</span>
+                                                <span>Description</span>
+                                                <span className="text-center">Qty</span>
+                                                <span className="text-center">Unit</span>
+                                                <span className="text-right">Rate (₹)</span>
+                                                <span className="text-center">GST%</span>
+                                                <span className="text-right">Amount</span>
+                                                <span></span>
+                                            </div>
+                                            {quoteCustomItems.length === 0 ? (
+                                                <div className="py-10 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">No items yet — click "Add Row" below</div>
+                                            ) : quoteCustomItems.map((row, idx) => {
+                                                const rowPrice = Number(row.price) || 0;
+                                                const rowQty = row.showQty ? (Number(row.quantity) || 1) : 1;
+                                                const rowGst = Number(row.gst_rate) || 0;
+                                                const rowAmount = (rowPrice * rowQty) + ((rowPrice * rowQty) * (rowGst / 100));
+                                                return (
+                                                    <div key={idx} className="grid grid-cols-[28px_1fr_90px_80px_80px_60px_80px_32px] gap-1.5 px-3 py-2 border-b border-slate-100 items-center overflow-hidden">
+                                                        <span className="text-center text-[10px] font-bold text-slate-400">{idx + 1}</span>
+                                                        <input value={row.item_name} onChange={e => updateCustomRow(idx, "item_name", e.target.value)} placeholder="Item description" className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold outline-none focus:border-[rgb(0,100,55)] transition min-w-0" />
+                                                        
+                                                        {/* Qty toggle */}
+                                                        <div className="flex items-center gap-1 justify-center">
+                                                            <button 
+                                                                onClick={() => { updateCustomRow(idx, "showQty", !row.showQty); if(row.showQty) updateCustomRow(idx, "quantity", 1); }}
+                                                                className={`px-1.5 py-1 rounded text-[8px] font-black uppercase tracking-wider transition-all ${row.showQty ? 'bg-[rgb(0,100,55)] text-white' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
+                                                            >
+                                                                {row.showQty ? 'ON' : 'OFF'}
+                                                            </button>
+                                                            {row.showQty && (
+                                                                <input type="number" min="1" value={row.quantity} onChange={e => updateCustomRow(idx, "quantity", e.target.value)} className="w-10 bg-slate-50 border border-slate-200 rounded px-0.5 py-1 text-xs font-bold text-center outline-none focus:border-[rgb(0,100,55)] transition" />
+                                                            )}
+                                                        </div>
+
+                                                        {/* Unit toggle */}
+                                                        <div className="flex items-center gap-1 justify-center">
+                                                            <button 
+                                                                onClick={() => updateCustomRow(idx, "showUnit", !row.showUnit)}
+                                                                className={`px-1.5 py-1 rounded text-[8px] font-black uppercase tracking-wider transition-all ${row.showUnit ? 'bg-[rgb(0,100,55)] text-white' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
+                                                            >
+                                                                {row.showUnit ? 'ON' : 'OFF'}
+                                                            </button>
+                                                            {row.showUnit && (
+                                                                <input value={row.unit || ""} onChange={e => updateCustomRow(idx, "unit", e.target.value)} placeholder="Kg" className="w-10 bg-slate-50 border border-slate-200 rounded px-0.5 py-1 text-xs font-bold text-center outline-none focus:border-[rgb(0,100,55)] transition" />
+                                                            )}
+                                                        </div>
+
+                                                        <input type="number" min="0" value={row.price} onChange={e => updateCustomRow(idx, "price", e.target.value)} placeholder="0" className="bg-slate-50 border border-slate-200 rounded-lg px-1 py-1.5 text-xs font-bold text-right outline-none focus:border-[rgb(0,100,55)] transition min-w-0" />
+                                                        <input type="number" min="0" value={row.gst_rate} onChange={e => updateCustomRow(idx, "gst_rate", e.target.value)} placeholder="--" className="bg-slate-50 border border-slate-200 rounded-lg px-1 py-1.5 text-xs font-bold text-center outline-none focus:border-[rgb(0,100,55)] transition min-w-0" />
+                                                        <span className="text-right text-xs font-black text-slate-700 truncate">{formatCurrency(rowAmount)}</span>
+                                                        <button onClick={() => removeCustomRow(idx)} className="p-0.5 rounded text-red-400 hover:bg-red-50 hover:text-red-600 transition justify-self-center"><Trash2 size={14} /></button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <button onClick={addCustomRow} className="w-full py-3 rounded-xl border-2 border-dashed border-slate-300 text-slate-500 font-black uppercase tracking-widest text-[11px] hover:bg-slate-50 hover:border-[rgb(0,100,55)] hover:text-[rgb(0,100,55)] transition-all flex items-center justify-center gap-2">
+                                            <Plus size={16} /> Add Row
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer */}
+                            <div className="p-5 border-t border-slate-100 bg-white flex gap-3 shrink-0 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+                                <button onClick={() => setShowQuoteModal(false)} className="flex-1 py-3.5 rounded-xl border-2 border-slate-200 font-black text-[11px] uppercase tracking-widest text-slate-600">Cancel</button>
+                                <button onClick={handleGenerateQuote} className="flex-[2] py-3.5 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg shadow-[rgb(0,100,55)]/20 active:scale-95 flex justify-center items-center gap-2" style={{ backgroundColor: PRIMARY }}>
+                                    <Printer size={16} /> Generate & Print Quote
                                 </button>
                             </div>
                         </div>

@@ -44,6 +44,7 @@ import FranchiseReplies from "./pages/central/FranchiseReplies";
 import CentralStockMaster from "./pages/central/CentralStockMaster";
 import InvoiceDesign from "./pages/central/InvoiceDesign";
 import PackageBills from "./pages/central/PackageBills";
+import OldQuotations from "./pages/central/OldQuotations";
 
 /* CONTEXTS & COMPONENTS */
 import { AuthProvider } from "./context/AuthContext";
@@ -176,6 +177,15 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["central"]}>
                     <PackageBills />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/central/quotations"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <OldQuotations />
                   </ProtectedRoute>
                 }
               />

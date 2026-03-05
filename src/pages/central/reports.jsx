@@ -1,22 +1,42 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import {
     ArrowLeft, Search, Calendar, Download,
     RotateCcw, Building2, Layers,
-    X, TrendingUp, MapPin, ShoppingBag, ChevronRight, ChevronDown,
-    ListFilter
+    X, TrendingUp, MapPin, ShoppingBag, ChevronDown, ChevronUp,
+    AlertTriangle, AlertOctagon, CheckCircle2
 } from "lucide-react";
 
 // --- CONFIGURATION ---
 const PRIMARY = "rgb(0, 100, 55)";
 const PRIMARY_LIGHT = "rgba(0, 100, 55, 0.1)";
 const CACHE_KEY = "reports_data_cache";
+const CACHE_COMPANIES_KEY = "reports_companies_cache";
 const CACHE_DURATION = 5 * 60 * 1000; // 5 Minutes
+
+// --- SAFE SESSIONSTORAGE HELPERS ---
+const safeGetCache = (key) => {
+    try {
+        const raw = sessionStorage.getItem(key);
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch {
+        return null;
+    }
+};
+
+const safeSetCache = (key, value) => {
+    try {
+        sessionStorage.setItem(key, JSON.stringify(value));
+    } catch {
+        // Quota exceeded or storage unavailable — silently ignore
+    }
+};
 
 const COLORS = [
     PRIMARY, "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6",
@@ -34,6 +54,9 @@ function Reports() {
     const [currentBillItems, setCurrentBillItems] = useState([]);
     const [modalLoading, setModalLoading] = useState(false);
 
+    // --- BILL ITEMS CACHE (in-memory + sessionStorage) ---
+    const billItemsCache = useRef({});
+
     // --- DB CASCADING FILTERS ---
     const [dbCompanyList, setDbCompanyList] = useState([]);
     const [dbFranchiseList, setDbFranchiseList] = useState([]);
@@ -47,13 +70,34 @@ function Reports() {
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
 
-    // --- DB DROPDOWN FETCHING ---
+    // --- DATA DELETION COUNTDOWN ---
+    const [oldestRecordDate, setOldestRecordDate] = useState(null);
+    const [daysUntilDeletion, setDaysUntilDeletion] = useState(null);
+
+    // --- SORT STATE ---
+    const [sortKey, setSortKey] = useState(null); // null | 'company' | 'owner' | 'date' | 'mode' | 'amount'
+    const [sortDir, setSortDir] = useState("asc"); // 'asc' | 'desc'
+
+    // --- DB DROPDOWN FETCHING (with sessionStorage cache) ---
     useEffect(() => {
         const fetchCompanies = async () => {
-            const { data } = await supabase.from('companies').select('company_name');
-            if (data) {
-                const unique = [...new Set(data.map(c => c.company_name).filter(Boolean))].sort();
-                setDbCompanyList(unique);
+            try {
+                // Try cache first
+                const cached = safeGetCache(CACHE_COMPANIES_KEY);
+                if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+                    setDbCompanyList(cached.data);
+                    return;
+                }
+
+                const { data, error } = await supabase.from('companies').select('company_name');
+                if (error) throw error;
+                if (data) {
+                    const unique = [...new Set(data.map(c => c.company_name).filter(Boolean))].sort();
+                    setDbCompanyList(unique);
+                    safeSetCache(CACHE_COMPANIES_KEY, { data: unique, timestamp: Date.now() });
+                }
+            } catch (e) {
+                console.error("Error fetching companies:", e);
             }
         };
         fetchCompanies();
@@ -65,15 +109,29 @@ function Reports() {
                 setDbFranchiseList([]);
                 return;
             }
-            const { data } = await supabase
-                .from('profiles')
-                .select('franchise_id')
-                .eq('company', selectedCompany)
-                .neq('franchise_id', null);
+            try {
+                // Try cache first
+                const cacheKey = `reports_franchises_${selectedCompany}`;
+                const cached = safeGetCache(cacheKey);
+                if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+                    setDbFranchiseList(cached.data);
+                    return;
+                }
 
-            if (data) {
-                const unique = [...new Set(data.map(p => p.franchise_id).filter(Boolean))].sort();
-                setDbFranchiseList(unique);
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('franchise_id')
+                    .eq('company', selectedCompany)
+                    .neq('franchise_id', null);
+
+                if (error) throw error;
+                if (data) {
+                    const unique = [...new Set(data.map(p => p.franchise_id).filter(Boolean))].sort();
+                    setDbFranchiseList(unique);
+                    safeSetCache(cacheKey, { data: unique, timestamp: Date.now() });
+                }
+            } catch (e) {
+                console.error("Error fetching franchises:", e);
             }
         };
         fetchFranchisesForCompany();
@@ -90,37 +148,31 @@ function Reports() {
         setLoading(true);
         try {
             if (!forceRefresh) {
-                const cachedData = sessionStorage.getItem(CACHE_KEY);
-                if (cachedData) {
-                    const parsed = JSON.parse(cachedData);
-                    if (Date.now() - parsed.timestamp < CACHE_DURATION) {
-                        console.log("⚡ Loading Reports from Cache");
-                        setRawData(parsed.data);
-                        const { data: { user } } = await supabase.auth.getUser();
-                        if (user) {
-                            const { data } = await supabase.from("profiles").select("franchise_id").eq("id", user.id).single();
-                            setProfile(data);
-                        }
-                        setLoading(false);
-                        return;
-                    }
+                const cached = safeGetCache(CACHE_KEY);
+                if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+                    setRawData(cached.data);
+                    if (cached.profile) setProfile(cached.profile);
+                    setLoading(false);
+                    return;
                 }
             }
 
-            console.log("🔄 Fetching from Supabase...");
+            // Fetch user profile once
+            let userProfile = null;
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 const { data } = await supabase.from("profiles").select("franchise_id").eq("id", user.id).single();
+                userProfile = data;
                 setProfile(data);
             }
 
-            // Fetch Data in Parallel (Added 'company' to profiles query)
+            // Fetch Data in Parallel
             const [billsReq, bItemsReq, invReq, iItemsReq, profilesReq] = await Promise.all([
                 supabase.from("bills_generated").select("*").order("created_at", { ascending: false }),
                 supabase.from("bills_items_generated").select("bill_id, item_name, qty, price"),
                 supabase.from("invoices").select("*").order("created_at", { ascending: false }),
                 supabase.from("invoice_items").select("invoice_id, item_name, quantity, price"),
-                supabase.from("profiles").select("franchise_id, branch_location, address, company")
+                supabase.from("profiles").select("franchise_id, branch_location, address, company, name")
             ]);
 
             // Create Profile Map
@@ -135,6 +187,7 @@ function Reports() {
             const enrichedBills = (billsReq.data || []).map(bill => ({
                 ...bill,
                 company: profileMap[bill.franchise_id]?.company || "Unknown Company",
+                owner_name: profileMap[bill.franchise_id]?.name || "",
                 mapped_location: profileMap[bill.franchise_id]?.branch_location || "",
                 mapped_address: profileMap[bill.franchise_id]?.address || "Location not updated"
             }));
@@ -144,6 +197,7 @@ function Reports() {
                 return {
                     ...inv,
                     company: profileMap[fid]?.company || "Unknown Company",
+                    owner_name: profileMap[fid]?.name || "",
                     mapped_location: profileMap[fid]?.branch_location || "",
                     mapped_address: profileMap[fid]?.address || "Location not updated"
                 };
@@ -157,7 +211,7 @@ function Reports() {
             };
 
             setRawData(finalData);
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: finalData, timestamp: Date.now() }));
+            safeSetCache(CACHE_KEY, { data: finalData, profile: userProfile, timestamp: Date.now() });
 
         } catch (e) {
             console.error("Error fetching data", e);
@@ -168,9 +222,75 @@ function Reports() {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    // --- Fetch oldest record for selected franchise (deletion countdown) ---
+    useEffect(() => {
+        if (!selectedFranchise || selectedFranchise === "all") {
+            setOldestRecordDate(null);
+            setDaysUntilDeletion(null);
+            return;
+        }
+
+        const fetchOldestForFranchise = async () => {
+            const cacheKey = `reports_oldest_${selectedFranchise}`;
+            const cached = safeGetCache(cacheKey);
+            if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+                setOldestRecordDate(cached.date ? new Date(cached.date) : null);
+                setDaysUntilDeletion(cached.days);
+                return;
+            }
+
+            try {
+                const { data: oldestData } = await supabase
+                    .from("bills_generated")
+                    .select("created_at")
+                    .eq("franchise_id", selectedFranchise)
+                    .order("created_at", { ascending: true })
+                    .limit(1);
+
+                let oDate = null;
+                let dUntil = 45;
+
+                if (oldestData && oldestData.length > 0) {
+                    oDate = new Date(oldestData[0].created_at);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const oldestDay = new Date(oDate);
+                    oldestDay.setHours(0, 0, 0, 0);
+                    const ageInDays = Math.floor((today.getTime() - oldestDay.getTime()) / (1000 * 60 * 60 * 24));
+                    dUntil = 45 - ageInDays;
+                }
+
+                setOldestRecordDate(oDate);
+                setDaysUntilDeletion(dUntil);
+                safeSetCache(cacheKey, { date: oDate, days: dUntil, timestamp: Date.now() });
+            } catch (err) {
+                console.error("Error fetching oldest record:", err);
+            }
+        };
+
+        fetchOldestForFranchise();
+    }, [selectedFranchise]);
+
     const handleRefresh = () => {
         setSearch(""); setStartDate(""); setEndDate(""); setSelectedCompany("all"); setSelectedFranchise("all"); setDateMode("single");
+        setSortKey(null); setSortDir("asc");
         fetchData(true);
+    };
+
+    const handleSort = (key) => {
+        if (sortKey === key) {
+            if (sortDir === "asc") setSortDir("desc");
+            else { setSortKey(null); setSortDir("asc"); } // third click resets
+        } else {
+            setSortKey(key); setSortDir("asc");
+        }
+    };
+
+    const SortIcon = ({ columnKey }) => {
+        if (sortKey !== columnKey) return <ChevronDown size={12} className="opacity-20 ml-1 inline" />;
+        return sortDir === "asc"
+            ? <ChevronUp size={12} className="ml-1 inline" style={{ color: PRIMARY }} />
+            : <ChevronDown size={12} className="ml-1 inline" style={{ color: PRIMARY }} />;
     };
 
     const handleDateModeChange = (mode) => {
@@ -179,7 +299,36 @@ function Reports() {
 
     const handleDownload = () => {
         if (!filteredData.length) return alert("No data to export!");
-        const headers = ["S.No", "Company", "Bill/Invoice ID", "Franchise ID", "Branch Name", "Date", "Time", "Total Amount (INR)"];
+        const isStore = activeTab === "store";
+        
+        // Calculate stats for export summary
+        const eTotalSales = filteredData.reduce((sum, b) => sum + Number(b.total ?? b.total_amount ?? 0), 0);
+        const eUpiSales = filteredData.reduce((sum, b) => ((b.payment_mode || "").toUpperCase() === "UPI" ? sum + Number(b.total ?? b.total_amount ?? 0) : sum), 0);
+        const eCashSales = filteredData.reduce((sum, b) => ((b.payment_mode || "").toUpperCase() === "CASH" ? sum + Number(b.total ?? b.total_amount ?? 0) : sum), 0);
+        const eTotalDiscount = filteredData.reduce((sum, b) => sum + Number(b.discount ?? 0), 0);
+        const eTotalOrders = filteredData.length;
+
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += `${isStore ? "Store Sales" : "Supply Invoices"} Report\n\n`;
+
+        csvContent += "=== SUMMARY ===\n";
+        csvContent += `Total ${isStore ? "Bills" : "Invoices"},${eTotalOrders}\n`;
+        csvContent += `Total Amount (INR),${eTotalSales.toFixed(2)}\n`;
+        if (isStore) {
+            csvContent += `UPI Amount (INR),${eUpiSales.toFixed(2)}\n`;
+            csvContent += `Cash Amount (INR),${eCashSales.toFixed(2)}\n`;
+            csvContent += `Total Discount (INR),${eTotalDiscount.toFixed(2)}\n`;
+        }
+        csvContent += "\n";
+
+        csvContent += `=== DETAILED TRANSACTIONS ===\n`;
+        let headers = [];
+        if (isStore) {
+            headers = ["S.No", "Company", "Bill/Invoice ID", "Franchise ID", "Branch Name", "Date", "Time", "Payment Mode", "Discount (INR)", "Total Amount (INR)"];
+        } else {
+            headers = ["S.No", "Company", "Bill/Invoice ID", "Franchise ID", "Branch Name", "Date", "Time", "Total Amount (INR)"];
+        }
+
         const rows = filteredData.map((item, index) => {
             const id = item.id;
             const fid = item.franchise_id || "Head Office";
@@ -187,9 +336,17 @@ function Reports() {
             const name = (item.mapped_location || item.customer_name || "Standard Sale").replace(/,/g, " ");
             const dateObj = new Date(item.created_at);
             const amount = item.total || item.total_amount || 0;
-            return [index + 1, company, id, fid, name, dateObj.toLocaleDateString('en-IN'), dateObj.toLocaleTimeString('en-IN'), amount].join(",");
+            
+            if (isStore) {
+                const mode = item.payment_mode || "N/A";
+                const discount = item.discount || 0;
+                return [index + 1, company, id, fid, name, dateObj.toLocaleDateString('en-IN'), dateObj.toLocaleTimeString('en-US'), mode, discount, amount].join(",");
+            } else {
+                return [index + 1, company, id, fid, name, dateObj.toLocaleDateString('en-IN'), dateObj.toLocaleTimeString('en-US'), amount].join(",");
+            }
         });
-        const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+
+        csvContent += headers.join(",") + "\n" + rows.join("\n");
         const link = document.createElement("a");
         link.setAttribute("href", encodeURI(csvContent));
         link.setAttribute("download", `Sales_Report_${activeTab}_${new Date().toISOString().slice(0, 10)}.csv`);
@@ -200,14 +357,41 @@ function Reports() {
 
     const openDetails = async (bill) => {
         setSelectedBill(bill);
-        setModalLoading(true);
         const isStore = activeTab === "store";
-        const { data } = await supabase
-            .from(isStore ? "bills_items_generated" : "invoice_items")
-            .select("*")
-            .eq(isStore ? "bill_id" : "invoice_id", bill.id);
-        setCurrentBillItems(data || []);
-        setModalLoading(false);
+        const cacheKey = `${isStore ? "bill" : "inv"}_${bill.id}`;
+
+        // Check in-memory cache first
+        if (billItemsCache.current[cacheKey]) {
+            setCurrentBillItems(billItemsCache.current[cacheKey]);
+            return;
+        }
+
+        // Check sessionStorage cache
+        const sessionCached = safeGetCache(`reports_items_${cacheKey}`);
+        if (sessionCached) {
+            billItemsCache.current[cacheKey] = sessionCached;
+            setCurrentBillItems(sessionCached);
+            return;
+        }
+
+        // Network fetch as last resort
+        setModalLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from(isStore ? "bills_items_generated" : "invoice_items")
+                .select("*")
+                .eq(isStore ? "bill_id" : "invoice_id", bill.id);
+            if (error) throw error;
+            const items = data || [];
+            billItemsCache.current[cacheKey] = items;
+            safeSetCache(`reports_items_${cacheKey}`, items);
+            setCurrentBillItems(items);
+        } catch (e) {
+            console.error("Error fetching bill items:", e);
+            setCurrentBillItems([]);
+        } finally {
+            setModalLoading(false);
+        }
     };
 
     // --- DATA FILTERING LOGIC ---
@@ -242,6 +426,35 @@ function Reports() {
         });
     }, [activeTab, rawData, search, selectedCompany, selectedFranchise, startDate, endDate, dateMode]);
 
+    // --- SORTED DATA ---
+    const sortedData = useMemo(() => {
+        if (!sortKey) return filteredData;
+        const sorted = [...filteredData].sort((a, b) => {
+            let valA, valB;
+            switch (sortKey) {
+                case 'company':
+                    valA = (a.company || '').toLowerCase();
+                    valB = (b.company || '').toLowerCase();
+                    return valA.localeCompare(valB);
+                case 'owner':
+                    valA = (a.owner_name || a.mapped_location || '').toLowerCase();
+                    valB = (b.owner_name || b.mapped_location || '').toLowerCase();
+                    return valA.localeCompare(valB);
+                case 'date':
+                    return new Date(a.created_at) - new Date(b.created_at);
+                case 'mode':
+                    valA = (a.payment_mode || '').toLowerCase();
+                    valB = (b.payment_mode || '').toLowerCase();
+                    return valA.localeCompare(valB);
+                case 'amount':
+                    return (Number(a.total ?? a.total_amount ?? 0)) - (Number(b.total ?? b.total_amount ?? 0));
+                default:
+                    return 0;
+            }
+        });
+        return sortDir === 'desc' ? sorted.reverse() : sorted;
+    }, [filteredData, sortKey, sortDir]);
+
     const itemPieData = useMemo(() => {
         const validIds = new Set(filteredData.map(b => b.id));
         const itemsToProcess = activeTab === "store" ? rawData.billItems : rawData.invoiceItems;
@@ -265,7 +478,73 @@ function Reports() {
         return Object.entries(daily).map(([name, revenue]) => ({ name, revenue }));
     }, [filteredData]);
 
-    const totalMoney = filteredData.reduce((acc, curr) => acc + Number(curr.total || curr.total_amount || 0), 0);
+    const chartYDomain = useMemo(() => {
+        if (!chartData.length) return [0, 1000];
+        const maxVal = Math.max(...chartData.map(d => d.revenue));
+        return [0, Math.ceil(maxVal * 1.1)]; // 10% headroom
+    }, [chartData]);
+
+    const stats = useMemo(() => {
+        const totalSales = filteredData.reduce((sum, b) => sum + Number(b.total ?? b.total_amount ?? 0), 0);
+        const upiSales = filteredData.reduce((sum, b) => ((b.payment_mode || "").toUpperCase() === "UPI" ? sum + Number(b.total ?? b.total_amount ?? 0) : sum), 0);
+        const cashSales = filteredData.reduce((sum, b) => ((b.payment_mode || "").toUpperCase() === "CASH" ? sum + Number(b.total ?? b.total_amount ?? 0) : sum), 0);
+        const totalDiscount = filteredData.reduce((sum, b) => sum + Number(b.discount ?? 0), 0);
+        const totalOrders = filteredData.length;
+        return { totalSales, upiSales, cashSales, totalDiscount, totalOrders };
+    }, [filteredData]);
+
+    // --- DATA DELETION COUNTDOWN BANNER ---
+    const renderDeletionBanner = () => {
+        if (activeTab !== "store") return null;
+        if (!selectedFranchise || selectedFranchise === "all") return null;
+
+        if (!oldestRecordDate && !loading) {
+            return (
+                <div className="deletion-banner deletion-banner-success">
+                    <div className="deletion-banner-icon"><CheckCircle2 size={20} /></div>
+                    <div className="deletion-banner-text">
+                        <strong>🎉 Day 1!</strong> Franchise <strong>{selectedFranchise}</strong> has no bills yet. The system is perfectly clean. You have <strong>45 days to go</strong> before any old data is deleted!
+                    </div>
+                </div>
+            );
+        }
+
+        if (oldestRecordDate && daysUntilDeletion !== null) {
+            const formattedDate = oldestRecordDate.toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' });
+
+            if (daysUntilDeletion <= 0) {
+                return (
+                    <div className="deletion-banner deletion-banner-urgent">
+                        <div className="deletion-banner-icon"><AlertOctagon size={20} /></div>
+                        <div className="deletion-banner-text">
+                            <strong>🚨 ACTION NEEDED:</strong> Franchise <strong>{selectedFranchise}</strong> — oldest bills from <span className="deletion-date-highlight">{formattedDate}</span> are 45 days old. They will be deleted <strong>TONIGHT</strong>. Click 'Download CSV' to save them right now!
+                        </div>
+                    </div>
+                );
+            }
+
+            if (daysUntilDeletion <= 5) {
+                return (
+                    <div className="deletion-banner deletion-banner-warning">
+                        <div className="deletion-banner-icon"><AlertTriangle size={20} /></div>
+                        <div className="deletion-banner-text">
+                            <strong>⚠️ Heads Up:</strong> Franchise <strong>{selectedFranchise}</strong> — oldest bill is from <span className="deletion-date-highlight">{formattedDate}</span>. It will be deleted in exactly <strong>{daysUntilDeletion} days</strong>. Click 'Download CSV' to save a copy.
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="deletion-banner deletion-banner-success">
+                    <div className="deletion-banner-icon"><CheckCircle2 size={20} /></div>
+                    <div className="deletion-banner-text">
+                        <strong>✅ Safe Zone:</strong> Franchise <strong>{selectedFranchise}</strong> — oldest bill is from <span className="deletion-date-highlight">{formattedDate}</span>. You still have <strong>{daysUntilDeletion} days to go</strong> before it gets deleted.
+                    </div>
+                </div>
+            );
+        }
+        return null;
+    };
 
     if (loading) return <div className="flex h-screen items-center justify-center font-black text-xl uppercase tracking-widest text-black">Loading Reports...</div>;
 
@@ -296,6 +575,9 @@ function Reports() {
             </div>
 
             <div className="max-w-[1400px] mx-auto px-4 md:px-8 mt-6 md:mt-8">
+
+                {/* Data Deletion Countdown Banner */}
+                {renderDeletionBanner()}
 
                 {/* Tabs & Download (CENTERED TABS FIX) */}
                 <div className="flex flex-col md:flex-row items-center w-full mb-6 gap-4">
@@ -441,62 +723,97 @@ function Reports() {
                 </div>
 
                 {/* Charts - Stacked on Mobile */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 items-start">
-                    <div className="bg-white p-6 rounded-[2.5rem] border border-black/10 shadow-sm lg:col-span-2 min-w-0">
-                        <div className="flex items-center gap-2 mb-6">
-                            <div className="p-2 rounded-xl text-black" style={{ backgroundColor: PRIMARY_LIGHT }}><TrendingUp size={18} /></div>
-                            <span className="text-xs font-black uppercase text-black/40 tracking-widest">Earnings Trend</span>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6 items-stretch">
+                    <div className="flex flex-col gap-3 lg:col-span-2 min-w-0 h-full">
+                        <div className="bg-white p-5 md:p-6 rounded-[2.5rem] border border-black/10 shadow-sm flex-1">
+                            <div className="flex items-center gap-2 mb-4">
+                                <div className="p-2 rounded-xl text-black" style={{ backgroundColor: PRIMARY_LIGHT }}><TrendingUp size={18} /></div>
+                                <span className="text-xs font-black uppercase text-black/40 tracking-widest">Earnings Trend</span>
+                            </div>
+                            <div className="overflow-x-auto custom-scrollbar" style={{ width: '100%' }}>
+                                <div style={{ minWidth: Math.max(500, chartData.length * 55) + 'px', height: '210px' }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={chartData}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#000000' }} dy={10} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#000000' }} tickFormatter={(v) => `₹${v}`} width={50} domain={chartYDomain} />
+                                            <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+                                            <Area type="monotone" dataKey="revenue" stroke={PRIMARY} strokeWidth={3} fill={PRIMARY} fillOpacity={0.05} />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
                         </div>
-                        <div style={{ width: '100%', height: '250px' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#000000' }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#000000' }} tickFormatter={(v) => `₹${v}`} width={50} />
-                                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
-                                    <Area type="monotone" dataKey="revenue" stroke={PRIMARY} strokeWidth={3} fill={PRIMARY} fillOpacity={0.05} />
-                                </AreaChart>
-                            </ResponsiveContainer>
+
+                        {/* Stats Cards Row */}
+                        <div className="grid grid-cols-2 gap-3 shrink-0">
+                            <div className="bg-white p-5 rounded-2xl border border-black/10 shadow-sm flex flex-col items-center justify-center text-center">
+                                <span className="text-[10px] font-black text-black/40 uppercase tracking-widest mb-1">TOTAL {activeTab === "store" ? "SALES" : "AMOUNT"}</span>
+                                <span className="text-xl md:text-2xl font-black text-black">₹{stats.totalSales.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                            </div>
+                            
+                            <div className="bg-white p-5 rounded-2xl border border-black/10 shadow-sm flex flex-col items-center justify-center text-center">
+                                <span className="text-[10px] font-black text-black/40 uppercase tracking-widest mb-1">TOTAL {activeTab === "store" ? "BILLS" : "ORDERS"}</span>
+                                <span className="text-xl md:text-2xl font-black text-indigo-500">{stats.totalOrders}</span>
+                            </div>
+
+                            {activeTab === "store" && (
+                                <>
+                                    <div className="bg-white p-5 rounded-2xl border border-black/10 shadow-sm flex flex-col items-center justify-center text-center">
+                                        <span className="text-[10px] font-black text-black/40 uppercase tracking-widest mb-1">UPI SALES</span>
+                                        <span className="text-xl md:text-2xl font-black text-blue-600">₹{stats.upiSales.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                                    </div>
+
+                                    <div className="bg-white p-5 rounded-2xl border border-black/10 shadow-sm flex flex-col items-center justify-center text-center">
+                                        <span className="text-[10px] font-black text-black/40 uppercase tracking-widest mb-1">CASH SALES</span>
+                                        <span className="text-xl md:text-2xl font-black text-emerald-600">₹{stats.cashSales.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
 
-                    <div className="bg-white p-6 rounded-[2.5rem] border border-black/10 shadow-sm min-w-0">
-                        <div className="flex items-center gap-2 mb-4">
+                    <div className="bg-white p-5 md:p-6 rounded-[2.5rem] border border-black/10 shadow-sm min-w-0 flex flex-col shrink-0" style={{ maxHeight: '520px' }}>
+                        <div className="flex items-center gap-2 mb-3 shrink-0">
                             <div className="p-2 rounded-xl text-black" style={{ backgroundColor: PRIMARY_LIGHT }}><ShoppingBag size={18} /></div>
                             <span className="text-xs font-black uppercase text-black/40 tracking-widest">Top 10 Selling</span>
                         </div>
-                        <div style={{ width: '100%', height: '200px', marginBottom: '20px' }}>
+                        <div style={{ width: '100%', height: '160px', marginBottom: '10px' }} className="shrink-0">
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
-                                    <Pie data={itemPieData} innerRadius={40} outerRadius={60} paddingAngle={5} dataKey="value">
+                                    <Pie data={itemPieData} innerRadius={38} outerRadius={58} paddingAngle={5} dataKey="value">
                                         {itemPieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                                     </Pie>
                                     <Tooltip />
                                 </PieChart>
                             </ResponsiveContainer>
                         </div>
-                        <div className="flex-1 space-y-3 pr-2">
+                        
+                        <div className="flex text-[9px] font-black text-black/40 uppercase tracking-widest border-b border-black/10 pb-2 mb-2 shrink-0">
+                            <div className="w-10 text-center">#</div>
+                            <div className="flex-1 text-left pl-1">Item Name</div>
+                            <div className="w-16 text-right">Qty</div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 -mr-2">
+                            {itemPieData.length === 0 && <div className="text-center text-xs text-black/40 uppercase font-bold py-4">No Data Available</div>}
                             {itemPieData.map((item, i) => (
-                                <div key={i} className="flex justify-between items-center text-xs border-b border-black/5 pb-2 last:border-0">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
-                                        <span className="font-bold text-black truncate max-w-[140px]">{item.name}</span>
+                                <div key={i} className="flex justify-between items-center text-xs border-b border-black/5 py-2.5 last:border-0 hover:bg-black/5 transition-colors">
+                                    <div className="flex items-center gap-3 flex-1 min-w-0 pr-3">
+                                        <div 
+                                            className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-white text-[10px] font-black mx-1" 
+                                            style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                                        >
+                                            {i + 1}
+                                        </div>
+                                        <span className="font-bold text-black truncate">{item.name}</span>
                                     </div>
-                                    <span className="font-black text-black">{item.value}</span>
+                                    <div className="flex items-center shrink-0 w-16 justify-end">
+                                        <span className="font-black text-black">{item.value}</span>
+                                    </div>
                                 </div>
                             ))}
                         </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-white p-6 md:p-8 rounded-[2.5rem] shadow-lg mb-8" style={{ backgroundColor: PRIMARY }}>
-                    <div>
-                        <p className="text-[10px] font-black uppercase text-white tracking-widest mb-1">Total Earnings (Filtered)</p>
-                        <h2 className="text-3xl font-black">₹ {totalMoney.toLocaleString('en-IN')}</h2>
-                    </div>
-                    <div className="md:text-right">
-                        <p className="text-[10px] font-black uppercase text-white tracking-widest mb-1">Total Transactions</p>
-                        <h2 className="text-3xl font-black">{filteredData.length}</h2>
                     </div>
                 </div>
 
@@ -513,16 +830,17 @@ function Reports() {
                                 <tr>
                                     <th className="p-5 tracking-widest bg-white w-20">S.No.</th>
                                     <th className="p-5 tracking-widest bg-white">ID (Ref)</th>
-                                    <th className="p-5 tracking-widest bg-white">Company</th>
-                                    <th className="p-5 tracking-widest bg-white">Branch / Customer</th>
-                                    <th className="p-5 tracking-widest bg-white">Date</th>
-                                    <th className="p-5 tracking-widest text-right bg-white">Amount</th>
+                                    <th className="p-5 tracking-widest bg-white cursor-pointer select-none hover:text-black/70 transition-colors" onClick={() => handleSort('company')}>Company<SortIcon columnKey="company" /></th>
+                                    <th className="p-5 tracking-widest bg-white cursor-pointer select-none hover:text-black/70 transition-colors" onClick={() => handleSort('owner')}>Owner Name<SortIcon columnKey="owner" /></th>
+                                    <th className="p-5 tracking-widest bg-white cursor-pointer select-none hover:text-black/70 transition-colors" onClick={() => handleSort('date')}>Date<SortIcon columnKey="date" /></th>
+                                    {activeTab === "store" && <th className="p-5 tracking-widest bg-white text-center cursor-pointer select-none hover:text-black/70 transition-colors" onClick={() => handleSort('mode')}>Mode<SortIcon columnKey="mode" /></th>}
+                                    <th className="p-5 tracking-widest text-right bg-white cursor-pointer select-none hover:text-black/70 transition-colors" onClick={() => handleSort('amount')}>Amount<SortIcon columnKey="amount" /></th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-black/5 text-sm font-bold text-black">
-                                {filteredData.length === 0 ? (
-                                    <tr><td colSpan="6" className="p-10 text-center text-black/40">No records found.</td></tr>
-                                ) : filteredData.map((item, index) => (
+                                {sortedData.length === 0 ? (
+                                    <tr><td colSpan="7" className="p-10 text-center text-black/40">No records found.</td></tr>
+                                ) : sortedData.map((item, index) => (
                                     <tr key={item.id} onClick={() => openDetails(item)} className="hover:bg-black/5 cursor-pointer transition-colors">
                                         <td className="p-5 text-black/40">{index + 1}</td>
                                         <td className="p-5">
@@ -530,8 +848,15 @@ function Reports() {
                                             <div className="text-[10px] text-black/40 mt-1">{item.franchise_id}</div>
                                         </td>
                                         <td className="p-5 text-xs text-black/60 uppercase">{item.company || "Unknown"}</td>
-                                        <td className="p-5 text-xs uppercase">{item.mapped_location || item.customer_name || "Standard Sale"}</td>
+                                        <td className="p-5 text-xs uppercase">{item.owner_name || item.mapped_location || "N/A"}</td>
                                         <td className="p-5 text-black/60 text-[11px] font-bold uppercase">{new Date(item.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                                        {activeTab === "store" && (
+                                            <td className="p-5 text-center">
+                                                <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase inline-block ${(item.payment_mode || '').toUpperCase() === 'UPI' ? 'bg-blue-50 text-blue-600' : (item.payment_mode || '').toUpperCase() === 'CASH' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-600'}`}>
+                                                    {item.payment_mode || 'N/A'}
+                                                </span>
+                                            </td>
+                                        )}
                                         <td className="p-5 text-right font-black" style={{ color: PRIMARY }}>₹{(item.total || item.total_amount || 0).toFixed(2)}</td>
                                     </tr>
                                 ))}
@@ -550,8 +875,15 @@ function Reports() {
                                             <span className="text-[10px] font-black text-black/30">#{index + 1}</span>
                                             <span className="bg-black/5 text-black/60 px-2 py-1 rounded-md text-[10px] font-black uppercase inline-block">#{item.id.toString().slice(-8)}</span>
                                         </div>
-                                        <h3 className="text-sm font-black text-black uppercase">{item.mapped_location || item.customer_name || "Standard Sale"}</h3>
+                                        <h3 className="text-sm font-black text-black uppercase">{item.owner_name || item.mapped_location || "N/A"}</h3>
                                         <p className="text-[10px] text-black/50 uppercase mt-1 flex items-center gap-1"><Building2 size={10} /> {item.company || "Unknown"} • {item.franchise_id}</p>
+                                        {activeTab === "store" && (
+                                            <div className="mt-2 text-left">
+                                                <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase inline-block ${(item.payment_mode || '').toUpperCase() === 'UPI' ? 'bg-blue-50 text-blue-600' : (item.payment_mode || '').toUpperCase() === 'CASH' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-600'}`}>
+                                                    {item.payment_mode || 'N/A'}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                     <p className="text-lg font-black" style={{ color: PRIMARY }}>₹{(item.total || item.total_amount || 0).toFixed(2)}</p>
                                 </div>
@@ -583,19 +915,25 @@ function Reports() {
                         <div className="flex-1 overflow-y-auto p-6">
                             <div className="grid grid-cols-2 gap-4 mb-6">
                                 <div className="bg-white p-4 rounded-2xl border border-black/10">
-                                    <label className="text-[9px] font-black text-black/40 uppercase block mb-1">Customer / Branch</label>
-                                    <p className="text-xs font-bold text-black">{selectedBill.customer_name || selectedBill.mapped_location || "Standard Sale"}</p>
+                                    <label className="text-[9px] font-black text-black/40 uppercase block mb-1">Owner</label>
+                                    <p className="text-xs font-bold text-black">{selectedBill.owner_name || "N/A"}</p>
+                                    <label className="text-[9px] font-black text-black/40 uppercase block mb-1 mt-3">Location</label>
+                                    <p className="text-xs font-bold text-black">{selectedBill.mapped_location || "Branch not set"}</p>
                                 </div>
                                 <div className="bg-white p-4 rounded-2xl border border-black/10">
-                                    <label className="text-[9px] font-black text-black/40 uppercase block mb-1">Company / ID</label>
+                                    <label className="text-[9px] font-black text-black/40 uppercase block mb-1">Company</label>
                                     <p className="text-xs font-bold text-black">{selectedBill.company || "Unknown"}</p>
-                                    <p className="text-[10px] font-bold text-black/50 mt-1">{selectedBill.franchise_id || "N/A"}</p>
+                                    <label className="text-[9px] font-black text-black/40 uppercase block mb-1 mt-3">Franchise ID</label>
+                                    <p className="text-xs font-bold text-black">{selectedBill.franchise_id || "N/A"}</p>
                                 </div>
                             </div>
 
-                            <div className="flex items-start gap-3 p-4 bg-white rounded-2xl border border-black/10 mb-6">
-                                <MapPin size={16} className="text-black shrink-0 mt-0.5" />
-                                <p className="text-xs text-black font-medium">{selectedBill.customer_address || selectedBill.mapped_address || "Location not provided"}</p>
+                            <div className="p-4 bg-white rounded-2xl border border-black/10 mb-6">
+                                <label className="text-[9px] font-black text-black/40 uppercase block mb-2">Branch Location</label>
+                                <div className="flex items-start gap-3">
+                                    <MapPin size={16} className="text-black shrink-0 mt-0.5" />
+                                    <p className="text-xs text-black font-medium">{selectedBill.customer_address || selectedBill.mapped_address || "Location not provided"}</p>
+                                </div>
                             </div>
 
                             <div className="border border-black/10 rounded-2xl overflow-hidden">
@@ -633,8 +971,33 @@ function Reports() {
             )}
 
             <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 10px; }
+
+        /* --- Data Deletion Countdown Banner --- */
+        .deletion-banner { padding: 14px 18px; border-radius: 16px; display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; border: 1px solid; border-left: 4px solid; transition: all 0.3s ease; }
+        .deletion-banner-text { font-size: 12px; line-height: 1.6; font-weight: 600; }
+        .deletion-banner-text strong { font-weight: 900; }
+        .deletion-date-highlight { font-weight: 800; padding: 2px 6px; border-radius: 4px; }
+
+        .deletion-banner-success { background: #ecfdf5; border-color: #a7f3d0; border-left-color: #10b981; }
+        .deletion-banner-success .deletion-banner-icon { color: #059669; margin-top: 2px; }
+        .deletion-banner-success .deletion-banner-text { color: #065f46; }
+        .deletion-banner-success .deletion-banner-text strong { color: #064e3b; }
+        .deletion-banner-success .deletion-date-highlight { background: #d1fae5; }
+
+        .deletion-banner-warning { background: #fffbeb; border-color: #fde68a; border-left-color: #f59e0b; }
+        .deletion-banner-warning .deletion-banner-icon { color: #d97706; margin-top: 2px; }
+        .deletion-banner-warning .deletion-banner-text { color: #92400e; }
+        .deletion-banner-warning .deletion-banner-text strong { color: #b45309; }
+        .deletion-banner-warning .deletion-date-highlight { background: #fef3c7; }
+
+        .deletion-banner-urgent { background: #fef2f2; border-color: #fecaca; border-left-color: #ef4444; }
+        .deletion-banner-urgent .deletion-banner-icon { color: #dc2626; margin-top: 2px; }
+        .deletion-banner-urgent .deletion-banner-text { color: #991b1b; }
+        .deletion-banner-urgent .deletion-banner-text strong { color: #7f1d1d; }
+        .deletion-banner-urgent .deletion-date-highlight { background: #fee2e2; }
       `}</style>
         </div>
     );
