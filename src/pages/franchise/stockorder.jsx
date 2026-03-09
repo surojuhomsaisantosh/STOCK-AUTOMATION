@@ -148,7 +148,7 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
           </div>
           <div className="w-[40%] flex flex-col items-end text-right justify-center">
             {currentLogo ? (
-              <img src={currentLogo} alt="Logo" crossOrigin="anonymous" className="h-12 w-auto object-contain mb-1" />
+              <img loading="lazy"  src={currentLogo} alt="Logo" crossOrigin="anonymous" className="h-12 w-auto object-contain mb-1" />
             ) : (
               <div className="h-10 w-24 border border-dashed border-gray-400 flex items-center justify-center text-[9px] mb-1">NO LOGO</div>
             )}

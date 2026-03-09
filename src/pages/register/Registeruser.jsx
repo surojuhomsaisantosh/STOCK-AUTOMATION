@@ -204,7 +204,7 @@ function RegisterUser() {
           <span style={{ marginLeft: "8px" }}>Back</span>
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {jkshLogo && <img src={jkshLogo} alt="Logo" style={{ height: '30px', borderRadius: '4px' }} />}
+          {jkshLogo && <img loading="lazy"  src={jkshLogo} alt="Logo" style={{ height: '30px', borderRadius: '4px' }} />}
           <h1 style={{ ...styles.title, fontSize: isMobile ? "17px" : "20px" }}>New Franchise</h1>
         </div>
         <div style={styles.idBoxWrapper}>

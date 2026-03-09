@@ -109,7 +109,6 @@ function CentralStockMaster() {
 
     // --- STATE ---
     const [items, setItems] = useState([]);
-    const [filteredItems, setFilteredItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -212,7 +211,7 @@ function CentralStockMaster() {
     }, [user]);
 
     // --- FILTER & SORT ---
-    useEffect(() => {
+    const filteredItems = useMemo(() => {
         const term = searchTerm.toLowerCase();
         let results = [...items];
 
@@ -251,8 +250,13 @@ function CentralStockMaster() {
                 return 0;
             });
         }
-        setFilteredItems(results);
+        return results;
     }, [searchTerm, selectedCategory, selectedCompanies, items, showLowStock, showAvailableOnly, showOnlineOnly, showOfflineOnly, sortConfig]);
+
+    const [visibleCount, setVisibleCount] = useState(50);
+    useEffect(() => {
+        setVisibleCount(50);
+    }, [filteredItems]);
 
     const requestSort = (key) => {
         let direction = 'ascending';
@@ -519,7 +523,7 @@ function CentralStockMaster() {
 
                     {/* MOBILE CARD VIEW */}
                     <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {filteredItems.map((item) => {
+                        {filteredItems.slice(0, visibleCount).map((item) => {
                             const isLowStock = (Number(item.quantity) || 0) <= (Number(item.threshold) || 0);
                             return (
                                 <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-3">
@@ -561,7 +565,7 @@ function CentralStockMaster() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {filteredItems.map((item, index) => {
+                                {filteredItems.slice(0, visibleCount).map((item, index) => {
                                     const isLowStock = (Number(item.quantity) || 0) <= (Number(item.threshold) || 0);
                                     return (
                                         <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
@@ -580,6 +584,18 @@ function CentralStockMaster() {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* LOAD MORE BUTTON */}
+                    {visibleCount < filteredItems.length && (
+                        <div className="flex justify-center p-6">
+                            <button
+                                onClick={() => setVisibleCount(v => v + 50)}
+                                className="px-6 py-2.5 bg-slate-200 text-slate-700 hover:bg-slate-300 transition-colors rounded-xl font-bold text-xs uppercase tracking-wider"
+                            >
+                                Load More Items ({filteredItems.length - visibleCount} remaining)
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
