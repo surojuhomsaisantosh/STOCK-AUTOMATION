@@ -23,8 +23,11 @@ function Login() {
   const [statusMsg, setStatusMsg] = useState(""); // Kept intact for the button!
 
   // UI States
-  const [dynamicLogo, setDynamicLogo] = useState(null);
-  const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const [dynamicLogo, setDynamicLogo] = useState(() => {
+    const cached = localStorage.getItem("jksh_logo_url");
+    return cached ? getProxiedUrl(cached) : "/logo.jpg";
+  });
+  const [isImageLoaded, setIsImageLoaded] = useState(true);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -43,12 +46,6 @@ function Login() {
 
     // Optimized Logo Fetch
     const fetchJkshLogo = async () => {
-      const cachedLogo = localStorage.getItem("jksh_logo_url");
-      if (cachedLogo) {
-        setDynamicLogo(getProxiedUrl(cachedLogo));
-        return;
-      }
-
       try {
         const { data, error } = await supabase
           .from('companies')
@@ -59,11 +56,12 @@ function Login() {
         if (error) throw error;
 
         if (data?.logo_url) {
-          setDynamicLogo(getProxiedUrl(data.logo_url));
+          const proxiedUrl = getProxiedUrl(data.logo_url);
+          setDynamicLogo(proxiedUrl);
           localStorage.setItem("jksh_logo_url", data.logo_url);
         }
-      } catch {
-        // Silently fail on fetch error in production, will just show text fallback
+      } catch (e) {
+        console.error("Failed to update logo:", e);
       }
     };
 
@@ -224,24 +222,16 @@ function Login() {
       <div style={{ ...styles.card, width: isMobile ? "90%" : "420px", padding: isMobile ? "30px 20px" : "40px" }}>
 
         <div style={styles.logoContainer}>
-          {dynamicLogo && (
             <img
               src={dynamicLogo}
               alt="JKSH Logo"
-              onLoad={() => setIsImageLoaded(true)}
+              fetchpriority="high"
               style={{
                 ...styles.logo,
                 width: isMobile ? "110px" : "140px",
-                display: isImageLoaded ? "block" : "none"
+                display: "block" // Unconditionally block for fastest LCP
               }}
             />
-          )}
-
-          {(!dynamicLogo || !isImageLoaded) && (
-            <div style={{ ...styles.logo, width: isMobile ? "110px" : "140px", height: "60px", display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Loader2 className="animate-spin text-slate-200" size={24} />
-            </div>
-          )}
         </div>
 
         <h1 style={{ ...styles.title, fontSize: isMobile ? "18px" : "22px", marginBottom: "8px" }}>JKSH United Pvt.Ltd</h1>
