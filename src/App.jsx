@@ -1,50 +1,50 @@
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { supabase } from "./supabase/supabaseClient";
 
 /* AUTH */
-import Login from "./pages/login/Login";
-import RegisterUser from "./pages/register/Registeruser";
+const Login = lazy(() => import("./pages/login/Login"));
+const RegisterUser = lazy(() => import("./pages/register/Registeruser"));
 
 /* STORE */
-import Store from "./pages/store/store";
-import BillingHistory from "./pages/store/BillingHistory";
+const Store = lazy(() => import("./pages/store/store"));
+const BillingHistory = lazy(() => import("./pages/store/BillingHistory"));
 
 /* DASHBOARDS */
-import StockManagerDashboard from "./pages/dashboards/stockmanager";
-import CentralDashboard from "./pages/dashboards/central";
-import FranchiseOwnerDashboard from "./pages/dashboards/franchiseowner";
+const StockManagerDashboard = lazy(() => import("./pages/dashboards/stockmanager"));
+const CentralDashboard = lazy(() => import("./pages/dashboards/central"));
+const FranchiseOwnerDashboard = lazy(() => import("./pages/dashboards/franchiseowner"));
 
 /* STOCK */
-import StockUpdate from "./pages/stock/StockUpdate";
-import StockOrders from "./pages/stock/StockOrders";
-import InvoicesBilling from "./pages/stock/invoices_billing";
-import Settings from "./pages/stock/settings";
+const StockUpdate = lazy(() => import("./pages/stock/StockUpdate"));
+const StockOrders = lazy(() => import("./pages/stock/StockOrders"));
+const InvoicesBilling = lazy(() => import("./pages/stock/invoices_billing"));
+const Settings = lazy(() => import("./pages/stock/settings"));
 
 /* FRANCHISE */
-import StockOrder from "./pages/franchise/stockorder";
-import FranchiseInvoices from "./pages/franchise/franchiseinvoices";
-import FranchiseAnalytics from "./pages/franchise/FranchiseAnalytics";
-import RequestPortal from "./pages/franchise/RequestPortal";
-import FranchiseMenu from "./pages/franchise/FranchiseMenu";
-import FranchiseSettingsCard from "./pages/franchise/FranchiseSettingsCard";
-import FranchiseProfiles from "./pages/franchise/FranchiseProfiles";
-import LoginTimings from "./pages/franchise/LoginTimings";
+const StockOrder = lazy(() => import("./pages/franchise/stockorder"));
+const FranchiseInvoices = lazy(() => import("./pages/franchise/franchiseinvoices"));
+const FranchiseAnalytics = lazy(() => import("./pages/franchise/FranchiseAnalytics"));
+const RequestPortal = lazy(() => import("./pages/franchise/RequestPortal"));
+const FranchiseMenu = lazy(() => import("./pages/franchise/FranchiseMenu"));
+const FranchiseSettingsCard = lazy(() => import("./pages/franchise/FranchiseSettingsCard"));
+const FranchiseProfiles = lazy(() => import("./pages/franchise/FranchiseProfiles"));
+const LoginTimings = lazy(() => import("./pages/franchise/LoginTimings"));
 
 /* CENTRAL */
-import CentralInvoices from "./pages/central/centralinvoices";
-import CentralSettings from "./pages/central/centralsettings";
-import CentralProfiles from "./pages/central/centralprofiles";
-import CentralStaffProfiles from "./pages/central/CentralStaffProfiles";
-import CentralStaffLogins from "./pages/central/CentralStaffLogins";
-import CentralVendors from "./pages/central/CentralVendors";
-import PosManagement from "./pages/central/posmanagement";
-import Reports from "./pages/central/reports";
-import FranchiseReplies from "./pages/central/FranchiseReplies";
-import CentralStockMaster from "./pages/central/CentralStockMaster";
-import InvoiceDesign from "./pages/central/InvoiceDesign";
-import PackageBills from "./pages/central/PackageBills";
-import OldQuotations from "./pages/central/OldQuotations";
+const CentralInvoices = lazy(() => import("./pages/central/centralinvoices"));
+const CentralSettings = lazy(() => import("./pages/central/centralsettings"));
+const CentralProfiles = lazy(() => import("./pages/central/centralprofiles"));
+const CentralStaffProfiles = lazy(() => import("./pages/central/CentralStaffProfiles"));
+const CentralStaffLogins = lazy(() => import("./pages/central/CentralStaffLogins"));
+const CentralVendors = lazy(() => import("./pages/central/CentralVendors"));
+const PosManagement = lazy(() => import("./pages/central/posmanagement"));
+const Reports = lazy(() => import("./pages/central/reports"));
+const FranchiseReplies = lazy(() => import("./pages/central/FranchiseReplies"));
+const CentralStockMaster = lazy(() => import("./pages/central/CentralStockMaster"));
+const InvoiceDesign = lazy(() => import("./pages/central/InvoiceDesign"));
+const PackageBills = lazy(() => import("./pages/central/PackageBills"));
+const OldQuotations = lazy(() => import("./pages/central/OldQuotations"));
 
 /* CONTEXTS & COMPONENTS */
 import { AuthProvider } from "./context/AuthContext";
@@ -102,7 +102,15 @@ function App() {
       <AuthProvider>
         <PrinterProvider>
           <BrowserRouter>
-            <Routes>
+            <Suspense fallback={
+              <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+                <div className="flex flex-col items-center">
+                  <div className="h-8 w-8 rounded-full border-4 border-slate-200 border-t-[rgb(0,100,55)] animate-spin mb-4"></div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading JKSH...</div>
+                </div>
+              </div>
+            }>
+              <Routes>
 
               {/* ================= PUBLIC ================= */}
               <Route path="/" element={<Login />} />
@@ -417,7 +425,8 @@ function App() {
                 }
               />
 
-            </Routes>
+              </Routes>
+            </Suspense>
           </BrowserRouter>
         </PrinterProvider>
       </AuthProvider>

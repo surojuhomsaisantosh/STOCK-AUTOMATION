@@ -32,6 +32,9 @@ export default defineConfig({
             if (id.includes('lucide-react') || id.includes('react-icons')) {
               return 'icons-vendor';
             }
+            if (id.includes('recharts') || id.includes('d3') || id.includes('lodash')) {
+              return 'charts-vendor';
+            }
             return 'vendor';
           }
         }
