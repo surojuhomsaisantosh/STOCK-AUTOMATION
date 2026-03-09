@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import {
-    ArrowLeft, Search, X, Calendar, ChevronDown, ChevronUp, FileText, Printer
+    ArrowLeft, Search, X, Calendar, ChevronDown, ChevronUp, FileText, Printer, Trash2
 } from "lucide-react";
 
 const PRIMARY = "rgb(0, 100, 55)";
@@ -341,12 +341,12 @@ export default function OldQuotations() {
     };
 
     const handlePrint = (qt, e) => {
-        e.stopPropagation(); // prevent row expansion toggle
+        if (e) e.stopPropagation(); // prevent row expansion toggle
 
         // Build a complete companyDetails object from:
         // 1. Snapshot data stored directly in the quotation record
         // 2. Live company data (for logo_url which isn't snapshotted)
-        const liveComp = companies.find(c => c.id === qt.company_id);
+        const liveComp = companies.find(c => c.id === qt.company_id) || companies.find(c => c.company_name === qt.snapshot_company_name);
         const bankSnap = qt.snapshot_bank_details || {};
 
         const mergedCompany = {
@@ -372,7 +372,32 @@ export default function OldQuotations() {
             setPrintOrder(null);
             setPrintCompanyDetails(null);
             setPrintItems([]);
-        }, 150);
+        }, 500);
+    };
+
+    const handleDelete = async (id, e) => {
+        if (e) e.stopPropagation();
+        if (!window.confirm("Are you sure you want to delete this quotation? This cannot be undone.")) return;
+        
+        try {
+            // Adding .select() lets us verify if a row was actually deleted or if RLS blocked it silently.
+            const { data, error } = await supabase.from("quotations").delete().eq("id", id).select();
+            if (error) throw error;
+            
+            if (!data || data.length === 0) {
+                alert("Could not delete quotation. This is usually because Row Level Security (RLS) policies for DELETE are missing or restricting your access on the 'quotations' table.");
+                return;
+            }
+
+            // Remove from state only if deletion was successful
+            setQuotations(prev => prev.filter(q => q.id !== id));
+            if (selectedQuotation?.id === id) {
+                setSelectedQuotation(null);
+            }
+        } catch (error) {
+            console.error("Error deleting quotation:", error);
+            alert("Failed to delete quotation: " + error.message);
+        }
     };
 
     const hasActiveFilters = searchQuery || filterCompany || filterMode || filterDateType !== "all" || sortBy !== "newest";
@@ -544,7 +569,7 @@ export default function OldQuotations() {
                 ) : (
                     <div className="divide-y divide-slate-100 pb-20 sm:pb-0">
                         {/* Table Header (Hidden on small screens) */}
-                        <div className="hidden sm:grid grid-cols-[1.5fr_1fr_100px_100px_120px_100px] gap-3 px-4 md:px-6 py-2 bg-slate-100 text-[9px] font-black uppercase tracking-widest text-slate-500 sticky top-0 border-b border-slate-200">
+                        <div className="hidden sm:grid grid-cols-[1.5fr_1fr_100px_100px_120px_120px] gap-3 px-4 md:px-6 py-2 bg-slate-100 text-[9px] font-black uppercase tracking-widest text-slate-500 sticky top-0 border-b border-slate-200">
                             <span>Customer</span>
                             <span>Company</span>
                             <span className="text-center">Mode</span>
@@ -559,7 +584,7 @@ export default function OldQuotations() {
                             return (
                                 <div key={qt.id}>
                                     <div
-                                        className={`flex flex-col sm:grid sm:grid-cols-[1.5fr_1fr_100px_100px_120px_100px] gap-2 sm:gap-3 px-4 md:px-6 py-3 sm:items-center cursor-pointer hover:bg-slate-50 transition border-b sm:border-b-0 border-slate-100 ${isSelected ? 'bg-emerald-50/50' : ''}`}
+                                        className={`flex flex-col sm:grid sm:grid-cols-[1.5fr_1fr_100px_100px_120px_120px] gap-2 sm:gap-3 px-4 md:px-6 py-3 sm:items-center cursor-pointer hover:bg-slate-50 transition border-b sm:border-b-0 border-slate-100 ${isSelected ? 'bg-emerald-50/50' : ''}`}
                                         onClick={() => setSelectedQuotation(qt)}
                                     >
                                         <div className="flex justify-between items-start sm:block min-w-0">
@@ -591,9 +616,16 @@ export default function OldQuotations() {
                                             <p className="text-[10px] font-bold text-slate-500">{formatDate(qt.created_at)}</p>
                                             <p className="text-[9px] font-bold text-slate-400">{formatTime(qt.created_at)}</p>
                                         </div>
-                                        <div className="hidden sm:flex justify-center">
+                                        <div className="hidden sm:flex justify-center items-center gap-2">
                                             <button onClick={(e) => handlePrint(qt, e)} className="px-3 py-1 bg-[rgb(0,100,55)] text-white rounded text-[10px] font-black uppercase tracking-widest hover:opacity-80 transition active:scale-95">
                                                 Print
+                                            </button>
+                                            <button 
+                                                onClick={(e) => handleDelete(qt.id, e)} 
+                                                className="p-1.5 text-red-500 hover:text-white hover:bg-red-500 rounded transition"
+                                                title="Delete Quotation"
+                                            >
+                                                <Trash2 size={16} />
                                             </button>
                                         </div>
                                     </div>
@@ -629,6 +661,13 @@ export default function OldQuotations() {
                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-[rgb(0,100,55)] text-white rounded border-b-[3px] border-[rgb(0,80,44)] text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition active:border-b-0 active:translate-y-[3px]"
                                     >
                                         <Printer size={14} /> Print
+                                    </button>
+                                    <button 
+                                        onClick={(e) => handleDelete(qt.id, e)} 
+                                        className="p-1.5 bg-red-50 text-red-500 hover:text-white hover:bg-red-500 rounded-lg transition"
+                                        title="Delete Quotation"
+                                    >
+                                        <Trash2 size={16} />
                                     </button>
                                     <button 
                                         onClick={() => setSelectedQuotation(null)}
