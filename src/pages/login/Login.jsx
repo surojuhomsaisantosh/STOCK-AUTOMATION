@@ -225,7 +225,7 @@ function Login() {
             <img
               src={dynamicLogo}
               alt="JKSH Logo"
-              fetchpriority="high"
+              fetchPriority="high"
               style={{
                 ...styles.logo,
                 width: isMobile ? "110px" : "140px",

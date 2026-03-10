@@ -45,6 +45,7 @@ const CentralStockMaster = lazy(() => import("./pages/central/CentralStockMaster
 const InvoiceDesign = lazy(() => import("./pages/central/InvoiceDesign"));
 const PackageBills = lazy(() => import("./pages/central/PackageBills"));
 const OldQuotations = lazy(() => import("./pages/central/OldQuotations"));
+const OldTokenBills = lazy(() => import('./pages/central/OldTokenBills'));
 
 /* CONTEXTS & COMPONENTS */
 import { AuthProvider } from "./context/AuthContext";
@@ -203,6 +204,15 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["central"]}>
                     <CentralSettings />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/central/token-bills"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <OldTokenBills />
                   </ProtectedRoute>
                 }
               />

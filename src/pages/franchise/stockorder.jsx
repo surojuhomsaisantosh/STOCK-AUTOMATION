@@ -129,7 +129,6 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
   const taxableAmount = data.subtotal || 0;
   const cgst = (data.totalGst || 0) / 2;
   const sgst = (data.totalGst || 0) / 2;
-  const emptyRowsCount = Math.max(0, ITEMS_PER_INVOICE_PAGE - itemsChunk.length);
 
   return (
     <div className="a4-page flex flex-col bg-white text-black font-sans text-xs leading-normal relative">
@@ -180,7 +179,7 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
           </div>
         </div>
         <div className="flex-1 border-b-2 border-black flex flex-col bg-white">
-          <table className="w-full text-left bg-white border-collapse text-black">
+          <table className="w-full text-left bg-white border-collapse text-black border-b-2 border-black">
             <thead className="bg-slate-100 text-[10px] border-b-2 border-black">
               <tr>
                 <th className="py-1.5 px-2 border-r-2 border-black w-10 text-center">S.No</th>
@@ -202,17 +201,6 @@ const FullPageInvoice = ({ data, profile, orderId, companyDetails, pageIndex, to
                   <td className="py-0.5 px-2 border-r-2 border-black text-center">{item.gst_rate || 0}%</td>
                   <td className="py-0.5 px-2 border-r-2 border-black text-right">{formatCurrency(item.preciseGst || 0)}</td>
                   <td className="py-0.5 px-2 text-right">{formatCurrency(item.preciseSubtotal + (item.preciseGst || 0))}</td>
-                </tr>
-              ))}
-              {Array.from({ length: emptyRowsCount }).map((_, idx) => (
-                <tr key={`empty-${idx}`} className="h-[26px] border-b border-black">
-                  <td className="py-0.5 px-2 border-r-2 border-black text-center text-transparent">-</td>
-                  <td className="py-0.5 px-2 border-r-2 border-black"></td>
-                  <td className="py-0.5 px-2 border-r-2 border-black"></td>
-                  <td className="py-0.5 px-2 border-r-2 border-black"></td>
-                  <td className="py-0.5 px-2 border-r-2 border-black"></td>
-                  <td className="py-0.5 px-2 border-r-2 border-black"></td>
-                  <td className="py-0.5 px-2"></td>
                 </tr>
               ))}
             </tbody>

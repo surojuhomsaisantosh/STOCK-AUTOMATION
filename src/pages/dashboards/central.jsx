@@ -60,6 +60,7 @@ function CentralDashboard() {
     { title: "New Franchise Bills", path: "/central/package-bills", icon: <Receipt size={isMobile ? 20 : 24} />, desc: "Franchise setup billing" },
 
     { title: "Reports", path: "/central/reports", icon: <BarChart3 size={isMobile ? 20 : 24} />, desc: "Performance analytics" },
+    { title: "Registration Bills", path: "/central/token-bills", icon: <FileText size={isMobile ? 20 : 24} />, desc: "Advanced payment registrations" },
 
     { title: "Franchise Profiles", path: "/central/profiles", icon: <Users size={isMobile ? 20 : 24} />, desc: "Franchise network" },
     { title: "Staff Profiles", path: "/central/staff-profiles", icon: <UserCheck size={isMobile ? 20 : 24} />, desc: "Employee management" },

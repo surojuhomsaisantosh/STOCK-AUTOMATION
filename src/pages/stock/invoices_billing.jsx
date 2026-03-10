@@ -138,17 +138,6 @@ const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsCh
                                 );
                             })}
 
-                            {Array.from({ length: emptyRowsCount }).map((_, idx) => (
-                                <tr key={`empty-${idx}`} className="h-[26px]">
-                                    <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-transparent">-</td>
-                                    <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
-                                    <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
-                                    <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
-                                    <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
-                                    <td className="py-0.5 px-2 border-r-2 border-b border-black"></td>
-                                    <td className="py-0.5 px-2 border-b border-black"></td>
-                                </tr>
-                            ))}
                         </tbody>
                     </table>
                 </div>
