@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback, startTransition, useDeferredValue, memo } from "react";
 import { supabase } from "../../supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -194,6 +194,63 @@ const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsCh
   );
 };
 
+// --- SORT ICON (module-level, memoized) ---
+const SortIcon = memo(({ column, sortConfig }) => {
+  if (sortConfig.key !== column) return <span className="inline-flex flex-col items-center ml-1 opacity-20 leading-none" style={{ gap: 0 }}><FiArrowUp size={7} /><FiArrowDown size={7} /></span>;
+  return sortConfig.direction === 'asc'
+    ? <FiArrowUp size={10} className="ml-1 text-black inline-block" />
+    : <FiArrowDown size={10} className="ml-1 text-black inline-block" />;
+});
+SortIcon.displayName = 'SortIcon';
+
+// --- TABLE ROW (module-level, memoized) ---
+const OrderRow = memo(({ order, idx, whatsappSent, onSelect, onWhatsApp }) => (
+  <tr onClick={() => onSelect(order)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
+    <td className="px-4 py-5 text-black/60 w-[60px]">{(idx + 1).toString().padStart(2, '0')}</td>
+    <td className="px-4 py-5 text-black whitespace-nowrap">{formatDateTime(order.created_at, order.order_time_text)}</td>
+    <td className="px-4 py-5 uppercase font-black text-black">{order.franchise_id}</td>
+    <td className="px-4 py-5 uppercase font-black text-black">{order.customer_name}</td>
+    <td className="px-4 py-5 uppercase">
+      <span className={`px-3 py-1 rounded-full text-[9px] font-black border ${order.status === 'dispatched' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-slate-100 text-black/60'}`}>{order.status}</span>
+    </td>
+    <td className="px-2 py-5 text-center w-[56px]">
+      <button
+        onClick={(e) => onWhatsApp(order, e)}
+        className={`p-1.5 rounded-full transition-all ${whatsappSent ? 'bg-green-100 text-green-600' : 'bg-red-50 text-red-400 hover:bg-green-50'}`}
+        title={whatsappSent ? "WhatsApp Sent ✓" : "WhatsApp Not Sent – Click to Send"}
+      >
+        <FaWhatsapp size={14} />
+      </button>
+    </td>
+    <td className="px-4 py-5 text-right font-black text-black">₹{order.total_amount}</td>
+  </tr>
+));
+OrderRow.displayName = 'OrderRow';
+
+// --- MOBILE CARD (module-level, memoized) ---
+const MobileOrderCard = memo(({ order, whatsappSent, onSelect, onWhatsApp }) => (
+  <div onClick={() => onSelect(order)} className="bg-white border border-black/10 p-5 rounded-[2rem] shadow-sm flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer">
+    <div className="space-y-1.5 min-w-0 pr-2">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-black text-black/50 uppercase tracking-widest truncate">{order.franchise_id || "TV-GEN"}</span>
+        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase border ${order.status === 'dispatched' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-slate-100 text-black/60'}`}>{order.status}</span>
+        <button
+          onClick={(e) => onWhatsApp(order, e)}
+          className={`p-1 rounded-full transition-all ${whatsappSent ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400 hover:bg-green-50'}`}
+          title={whatsappSent ? "WhatsApp Sent" : "Mark WhatsApp Sent"}
+        >
+          <FaWhatsapp size={12} />
+        </button>
+      </div>
+      <h3 className="font-black text-sm uppercase leading-none text-black truncate">{order.customer_name}</h3>
+      <p className="text-[10px] font-bold text-black/60 flex items-center gap-1"><FiClock size={10} /> {formatDateTime(order.created_at, order.order_time_text)}</p>
+      <p className="text-[10px] font-bold text-black/60">Total: ₹{order.total_amount}</p>
+    </div>
+    <FiChevronRight size={20} className="text-black/20" />
+  </div>
+));
+MobileOrderCard.displayName = 'MobileOrderCard';
+
 
 // --- MAIN PAGE ---
 function StockOrders() {
@@ -298,28 +355,34 @@ function StockOrders() {
     }
   };
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setSearchTerm("");
     setSingleDate("");
     setStartDate("");
     setEndDate("");
-    setActiveTab("all");
-    setSortConfig({ key: 'created_at', direction: 'desc' });
-  };
+    startTransition(() => {
+      setActiveTab("all");
+      setSortConfig({ key: 'created_at', direction: 'desc' });
+    });
+  }, []);
 
-  const handleSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  };
+  const handleSort = useCallback((key) => {
+    startTransition(() => {
+      setSortConfig(prev => ({
+        key,
+        direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+      }));
+    });
+  }, []);
+
+  // Deferred search value — lets the browser paint immediately on keystroke
+  const deferredSearchTerm = useDeferredValue(searchTerm);
 
   const filteredOrders = useMemo(() => {
     let result = orders.filter((o) => {
       const statusMatch = activeTab === "all" || o.status?.toLowerCase() === activeTab;
-      const searchMatch = (o.customer_name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (o.franchise_id?.toLowerCase().includes(searchTerm.toLowerCase()));
+      const searchMatch = (o.customer_name?.toLowerCase().includes(deferredSearchTerm.toLowerCase())) ||
+        (o.franchise_id?.toLowerCase().includes(deferredSearchTerm.toLowerCase()));
 
       const orderDate = new Date(o.created_at).toISOString().split('T')[0];
       let dateMatch = true;
@@ -355,7 +418,7 @@ function StockOrders() {
     }
 
     return result;
-  }, [orders, activeTab, searchTerm, dateMode, singleDate, startDate, endDate, sortConfig]);
+  }, [orders, activeTab, deferredSearchTerm, dateMode, singleDate, startDate, endDate, sortConfig]);
 
   const stats = useMemo(() => ({
     incoming: orders.filter(o => o.status === 'incoming').length,
@@ -363,13 +426,12 @@ function StockOrders() {
     dispatched: orders.filter(o => o.status === 'dispatched').length,
   }), [orders]);
 
-  const updateStatus = async (orderId, newStatus) => {
+  const updateStatus = useCallback(async (orderId, newStatus) => {
     try {
       const { error } = await supabase.from("invoices").update({ status: newStatus }).eq("id", orderId);
       if (error) throw error;
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-      if (selectedOrder?.id === orderId) setSelectedOrder(prev => ({ ...prev, status: newStatus }));
-      // Reset WhatsApp sent indicator so user knows a new message is needed for the new status
+      setSelectedOrder(prev => prev?.id === orderId ? { ...prev, status: newStatus } : prev);
       setWhatsappSent(prev => {
         const next = { ...prev };
         delete next[orderId];
@@ -379,9 +441,9 @@ function StockOrders() {
     } catch (err) {
       alert("Error: " + err.message);
     }
-  };
+  }, []);
 
-  const handleWhatsApp = (order, e) => {
+  const handleWhatsApp = useCallback((order, e) => {
     if (e) e.stopPropagation();
     const cleanPhone = order.customer_phone?.replace(/\D/g, "");
     if (!cleanPhone) return alert("Missing phone number");
@@ -436,29 +498,31 @@ function StockOrders() {
       try { localStorage.setItem('whatsapp_sent_orders', JSON.stringify(next)); } catch {}
       return next;
     });
-  };
+  }, []);
 
-  const toggleWhatsappSent = (orderId, e) => {
+  const toggleWhatsappSent = useCallback((orderId, e) => {
     if (e) e.stopPropagation();
     setWhatsappSent(prev => {
       const next = { ...prev, [orderId]: !prev[orderId] };
       try { localStorage.setItem('whatsapp_sent_orders', JSON.stringify(next)); } catch {}
       return next;
     });
-  };
+  }, []);
 
-  const getCompanyDetails = (franchiseId) => {
+  const getCompanyDetails = useCallback((franchiseId) => {
     if (!franchiseId) return companies[0] || {};
-    // Match based on the franchise_id field in the companies metadata table
     return companies.find(c => c.franchise_id === franchiseId) || companies[0] || {};
-  };
+  }, [companies]);
 
-  const SortIcon = ({ column }) => {
-    if (sortConfig.key !== column) return <span className="inline-flex flex-col items-center ml-1 opacity-20 leading-none" style={{ gap: 0 }}><FiArrowUp size={7} /><FiArrowDown size={7} /></span>;
-    return sortConfig.direction === 'asc'
-      ? <FiArrowUp size={10} className="ml-1 text-black inline-block" />
-      : <FiArrowDown size={10} className="ml-1 text-black inline-block" />;
-  };
+  const handleSelectOrder = useCallback((order) => {
+    setSelectedOrder(order);
+  }, []);
+
+  const handleTabChange = useCallback((tab) => {
+    startTransition(() => {
+      setActiveTab(tab);
+    });
+  }, []);
 
   return (
     <>
@@ -565,7 +629,7 @@ function StockOrders() {
               {TABS.map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => setActiveTab(tab)}
+                  onClick={() => handleTabChange(tab)}
                   className={`flex-1 py-2.5 px-4 rounded-xl text-[10px] font-black uppercase transition-all
                     ${activeTab === tab ? 'text-white shadow-md' : 'text-black/60 hover:text-black hover:bg-white/50'}`}
                   style={activeTab === tab ? { backgroundColor: BRAND_COLOR } : {}}
@@ -624,25 +688,13 @@ function StockOrders() {
           {isMobileView ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-20">
               {filteredOrders.map(order => (
-                <div key={order.id} onClick={() => setSelectedOrder(order)} className="bg-white border border-black/10 p-5 rounded-[2rem] shadow-sm flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer">
-                  <div className="space-y-1.5 min-w-0 pr-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black text-black/50 uppercase tracking-widest truncate">{order.franchise_id || "TV-GEN"}</span>
-                      <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase border ${order.status === 'dispatched' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-slate-100 text-black/60'}`}>{order.status}</span>
-                      <button
-                        onClick={(e) => handleWhatsApp(order, e)}
-                        className={`p-1 rounded-full transition-all ${whatsappSent[order.id] ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400 hover:bg-green-50'}`}
-                        title={whatsappSent[order.id] ? "WhatsApp Sent" : "Mark WhatsApp Sent"}
-                      >
-                        <FaWhatsapp size={12} />
-                      </button>
-                    </div>
-                    <h3 className="font-black text-sm uppercase leading-none text-black truncate">{order.customer_name}</h3>
-                    <p className="text-[10px] font-bold text-black/60 flex items-center gap-1"><FiClock size={10} /> {formatDateTime(order.created_at, order.order_time_text)}</p>
-                    <p className="text-[10px] font-bold text-black/60">Total: ₹{order.total_amount}</p>
-                  </div>
-                  <FiChevronRight size={20} className="text-black/20" />
-                </div>
+                <MobileOrderCard
+                  key={order.id}
+                  order={order}
+                  whatsappSent={whatsappSent[order.id]}
+                  onSelect={handleSelectOrder}
+                  onWhatsApp={handleWhatsApp}
+                />
               ))}
             </div>
           ) : (
@@ -652,35 +704,24 @@ function StockOrders() {
                   <thead className="sticky top-0 z-20 bg-slate-50 shadow-sm">
                     <tr className="text-black uppercase text-[10px] font-black">
                       <th className="px-4 py-4 w-[60px]">Serial</th>
-                      <th className="px-4 py-4 cursor-pointer whitespace-nowrap" onClick={() => handleSort('created_at')}><span className="inline-flex items-center">Date & Time<SortIcon column="created_at" /></span></th>
-                      <th className="px-4 py-4 cursor-pointer whitespace-nowrap" onClick={() => handleSort('franchise_id')}><span className="inline-flex items-center">Franchise ID<SortIcon column="franchise_id" /></span></th>
-                      <th className="px-4 py-4 cursor-pointer whitespace-nowrap" onClick={() => handleSort('customer_name')}><span className="inline-flex items-center">Customer Name<SortIcon column="customer_name" /></span></th>
-                      <th className="px-4 py-4 cursor-pointer whitespace-nowrap" onClick={() => handleSort('status')}><span className="inline-flex items-center">Status<SortIcon column="status" /></span></th>
+                      <th className="px-4 py-4 cursor-pointer whitespace-nowrap" onClick={() => handleSort('created_at')}><span className="inline-flex items-center">Date & Time<SortIcon column="created_at" sortConfig={sortConfig} /></span></th>
+                      <th className="px-4 py-4 cursor-pointer whitespace-nowrap" onClick={() => handleSort('franchise_id')}><span className="inline-flex items-center">Franchise ID<SortIcon column="franchise_id" sortConfig={sortConfig} /></span></th>
+                      <th className="px-4 py-4 cursor-pointer whitespace-nowrap" onClick={() => handleSort('customer_name')}><span className="inline-flex items-center">Customer Name<SortIcon column="customer_name" sortConfig={sortConfig} /></span></th>
+                      <th className="px-4 py-4 cursor-pointer whitespace-nowrap" onClick={() => handleSort('status')}><span className="inline-flex items-center">Status<SortIcon column="status" sortConfig={sortConfig} /></span></th>
                       <th className="px-2 py-4 text-center w-[56px]">WA</th>
-                      <th className="px-4 py-4 text-right cursor-pointer whitespace-nowrap" onClick={() => handleSort('total_amount')}><span className="inline-flex items-center justify-end">Total<SortIcon column="total_amount" /></span></th>
+                      <th className="px-4 py-4 text-right cursor-pointer whitespace-nowrap" onClick={() => handleSort('total_amount')}><span className="inline-flex items-center justify-end">Total<SortIcon column="total_amount" sortConfig={sortConfig} /></span></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 font-bold text-xs">
                     {filteredOrders.map((order, idx) => (
-                      <tr key={order.id} onClick={() => setSelectedOrder(order)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
-                        <td className="px-4 py-5 text-black/60 w-[60px]">{(idx + 1).toString().padStart(2, '0')}</td>
-                        <td className="px-4 py-5 text-black whitespace-nowrap">{formatDateTime(order.created_at, order.order_time_text)}</td>
-                        <td className="px-4 py-5 uppercase font-black text-black">{order.franchise_id}</td>
-                        <td className="px-4 py-5 uppercase font-black text-black">{order.customer_name}</td>
-                        <td className="px-4 py-5 uppercase">
-                          <span className={`px-3 py-1 rounded-full text-[9px] font-black border ${order.status === 'dispatched' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-slate-100 text-black/60'}`}>{order.status}</span>
-                        </td>
-                        <td className="px-2 py-5 text-center w-[56px]">
-                          <button
-                            onClick={(e) => handleWhatsApp(order, e)}
-                            className={`p-1.5 rounded-full transition-all ${whatsappSent[order.id] ? 'bg-green-100 text-green-600' : 'bg-red-50 text-red-400 hover:bg-green-50'}`}
-                            title={whatsappSent[order.id] ? "WhatsApp Sent ✓" : "WhatsApp Not Sent – Click to Send"}
-                          >
-                            <FaWhatsapp size={14} />
-                          </button>
-                        </td>
-                        <td className="px-4 py-5 text-right font-black text-black">₹{order.total_amount}</td>
-                      </tr>
+                      <OrderRow
+                        key={order.id}
+                        order={order}
+                        idx={idx}
+                        whatsappSent={whatsappSent[order.id]}
+                        onSelect={handleSelectOrder}
+                        onWhatsApp={handleWhatsApp}
+                      />
                     ))}
                   </tbody>
                 </table>
