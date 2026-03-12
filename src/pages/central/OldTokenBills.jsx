@@ -246,8 +246,29 @@ export default function OldTokenBills() {
 
     const [selectedItemObj, setSelectedItemObj] = useState(null);
 
-    const handlePrint = (obj) => {
-        const company = companiesCache[obj.company_id] || { company_name: obj.snapshot_company_name || 'Unknown Company' };
+    const handlePrint = async (obj) => {
+        // Always fetch fresh company data from Supabase so logo_url is always current
+        let company = companiesCache[obj.company_id] || {};
+        try {
+            const { data: freshCompany } = await supabase
+                .from('companies')
+                .select('*')
+                .eq('id', obj.company_id)
+                .single();
+            if (freshCompany) {
+                company = freshCompany;
+                // Also update the cache for future use
+                setCompaniesCache(prev => ({ ...prev, [obj.company_id]: freshCompany }));
+            }
+        } catch (e) {
+            console.warn("Could not fetch fresh company data, using cache", e);
+        }
+
+        // If we still don't have company_name, use the snapshot
+        if (!company.company_name) {
+            company.company_name = obj.snapshot_company_name || 'Unknown Company';
+        }
+
         let items = [];
         try {
             if (Array.isArray(obj.items)) {
@@ -266,7 +287,7 @@ export default function OldTokenBills() {
 
         setTimeout(() => {
             window.print();
-        }, 500);
+        }, 600);
     };
 
     const handleDelete = async (id) => {
@@ -599,16 +620,18 @@ const modalCategories = useMemo(() => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 font-sans text-black relative selection:bg-black selection:text-white print:bg-white print:p-0">
+        <div className="min-h-screen bg-slate-50 font-sans text-black relative selection:bg-black selection:text-white print:bg-white print:p-0 overflow-x-hidden">
             <style>{`
                 @media print {
-                  body { background: white; margin: 0; padding: 0; }
-                  .screen-content { display: none !important; }
-                  .print-content { display: block !important; width: 100%; }
+                  body { background: white !important; margin: 0 !important; padding: 0 !important; }
+                  .screen-content { display: none !important; visibility: hidden !important; height: 0 !important; width: 0 !important; overflow: hidden !important; position: absolute !important; }
+                  .print-content { display: block !important; width: 100% !important; visibility: visible !important; position: static !important; }
                   @page { size: A4; margin: 0; }
                   .a4-page { width: 210mm; height: 296.5mm; padding: 5mm; margin: 0 auto; page-break-after: always; box-sizing: border-box; overflow: hidden; }
                   .a4-page:last-child { page-break-after: auto; }
                   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                  /* Prevent any blank pages from leftover elements */
+                  html, body { height: auto !important; overflow: visible !important; }
                 }
                 .print-content { display: none; }
             `}</style>
@@ -636,128 +659,132 @@ const modalCategories = useMemo(() => {
                 <div className="flex-none bg-white shadow-sm z-30">
                     <div className="border-b border-slate-200 px-4 md:px-6 py-3 md:py-4">
                         <div className="w-full flex items-center justify-between gap-2">
-                            <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-black hover:opacity-70 font-bold transition text-xs md:text-base w-24">
-                                <ArrowLeft size={18} /> <span>Back</span>
+                            <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-black hover:opacity-70 font-bold transition text-xs md:text-base shrink-0">
+                                <ArrowLeft size={18} /> Back
                             </button>
-                            <h1 className="text-base md:text-2xl font-black uppercase text-black text-center flex-1">Quote & Registration Hub</h1>
-                            <div className="w-24"></div>
+                            <h1 className="text-[11px] sm:text-base md:text-2xl font-black uppercase text-black text-center flex-1 truncate">Quote & Registration Hub</h1>
+                            <div className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 shrink-0 flex items-center gap-1.5 whitespace-nowrap">
+                                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-slate-400">ID</span>
+                                <span className="text-[11px] sm:text-xs font-black text-slate-800">{user?.franchise_id ? user.franchise_id.substring(0, 8).toUpperCase() : 'N/A'}</span>
+                            </div>
                         </div>
                     </div>
                     
                     {/* HUB CARDS */}
-                    <div className="bg-slate-50 px-4 md:px-6 py-6 border-b border-slate-200">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto">
+                    <div className="bg-slate-50 px-3 sm:px-4 md:px-6 py-4 sm:py-6 border-b border-slate-200">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 max-w-7xl mx-auto">
                             <div
                                 onClick={openQuoteModal}
-                                className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center justify-center gap-3 active:scale-95 group"
+                                className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center justify-center gap-2 sm:gap-3 active:scale-95 group"
                             >
-                                <div className="h-12 w-12 bg-emerald-50 text-[rgb(0,100,55)] rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <PlusCircle size={24} />
+                                <div className="h-9 w-9 sm:h-12 sm:w-12 bg-emerald-50 text-[rgb(0,100,55)] rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                                    <PlusCircle size={20} className="sm:hidden" />
+                                    <PlusCircle size={24} className="hidden sm:block" />
                                 </div>
-                                <h3 className="font-black uppercase tracking-widest text-slate-800 text-xs text-center">New Quotation</h3>
+                                <h3 className="font-black uppercase tracking-widest text-slate-800 text-[9px] sm:text-xs text-center leading-tight">New Quotation</h3>
                             </div>
 
                             <div
                                 onClick={() => { setActiveTab("quotes"); setSelectedItemObj(null); }}
-                                className={`bg-white p-5 rounded-2xl border-2 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center justify-center gap-3 active:scale-95 group ${activeTab === "quotes" ? "border-slate-800" : "border-slate-200"}`}
+                                className={`bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border-2 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center justify-center gap-2 sm:gap-3 active:scale-95 group ${activeTab === "quotes" ? "border-slate-800" : "border-slate-200"}`}
                             >
-                                <div className={`h-12 w-12 rounded-full flex items-center justify-center font-black text-xl transition-colors ${activeTab === "quotes" ? "bg-slate-800 text-white" : "bg-slate-50 text-slate-600"}`}>
+                                <div className={`h-9 w-9 sm:h-12 sm:w-12 rounded-full flex items-center justify-center font-black text-base sm:text-xl transition-colors ${activeTab === "quotes" ? "bg-slate-800 text-white" : "bg-slate-50 text-slate-600"}`}>
                                     {quotations.length}
                                 </div>
-                                <h3 className={`font-black uppercase tracking-widest text-xs text-center ${activeTab === "quotes" ? "text-slate-800" : "text-slate-500"}`}>Old Quotations Record</h3>
+                                <h3 className={`font-black uppercase tracking-widest text-[9px] sm:text-xs text-center leading-tight ${activeTab === "quotes" ? "text-slate-800" : "text-slate-500"}`}>Old Quotations</h3>
                             </div>
 
                             <div
                                 onClick={openTokenModal}
-                                className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center justify-center gap-3 active:scale-95 group"
+                                className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center justify-center gap-2 sm:gap-3 active:scale-95 group"
                             >
-                                <div className="h-12 w-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <Receipt size={24} />
+                                <div className="h-9 w-9 sm:h-12 sm:w-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                                    <Receipt size={20} className="sm:hidden" />
+                                    <Receipt size={24} className="hidden sm:block" />
                                 </div>
-                                <h3 className="font-black uppercase tracking-widest text-slate-800 text-xs text-center">New Registration Invoice</h3>
+                                <h3 className="font-black uppercase tracking-widest text-slate-800 text-[9px] sm:text-xs text-center leading-tight">New Registration</h3>
                             </div>
 
                             <div
                                 onClick={() => { setActiveTab("tokens"); setSelectedItemObj(null); }}
-                                className={`bg-white p-5 rounded-2xl border-2 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center justify-center gap-3 active:scale-95 group ${activeTab === "tokens" ? "border-blue-600" : "border-slate-200"}`}
+                                className={`bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border-2 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center justify-center gap-2 sm:gap-3 active:scale-95 group ${activeTab === "tokens" ? "border-blue-600" : "border-slate-200"}`}
                             >
-                                <div className={`h-12 w-12 rounded-full flex items-center justify-center font-black text-xl transition-colors ${activeTab === "tokens" ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-600"}`}>
+                                <div className={`h-9 w-9 sm:h-12 sm:w-12 rounded-full flex items-center justify-center font-black text-base sm:text-xl transition-colors ${activeTab === "tokens" ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-600"}`}>
                                     {bills.length}
                                 </div>
-                                <h3 className={`font-black uppercase tracking-widest text-xs text-center ${activeTab === "tokens" ? "text-blue-600" : "text-slate-500"}`}>Old Registration Invoices</h3>
+                                <h3 className={`font-black uppercase tracking-widest text-[9px] sm:text-xs text-center leading-tight ${activeTab === "tokens" ? "text-blue-600" : "text-slate-500"}`}>Old Invoices</h3>
                             </div>
                         </div>
                     </div>
 
-                    <div className="px-4 md:px-6 py-3 border-b border-slate-100 bg-white shrink-0 space-y-3">
-                        <div className="flex flex-col md:flex-row gap-3">
+                    <div className="px-3 sm:px-4 md:px-6 py-3 border-b border-slate-100 bg-white shrink-0 space-y-2 sm:space-y-3 overflow-hidden">
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
                                 <input
                                     value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                                    placeholder={`Search ${activeTab === 'tokens' ? 'Registration Bills' : 'Quotations'} by customer, phone, ID...`}
+                                    placeholder={`Search by customer, phone, ID...`}
                                     className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-bold focus:border-[rgb(0,100,55)] transition"
                                 />
                                 {searchQuery && (
                                     <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={14} /></button>
                                 )}
                             </div>
-                            <div className="relative">
-                                <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="appearance-none pl-4 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-bold cursor-pointer focus:border-[rgb(0,100,55)] w-full">
-                                    <option value="newest">Newest First</option>
-                                    <option value="oldest">Oldest First</option>
-                                    <option value="amount_high">Amount: High to Low</option>
-                                    <option value="amount_low">Amount: Low to High</option>
-                                </select>
-                                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            <div className="flex gap-2">
+                                <div className="relative flex-1 sm:flex-none">
+                                    <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="appearance-none pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-bold cursor-pointer focus:border-[rgb(0,100,55)] w-full">
+                                        <option value="newest">Newest</option>
+                                        <option value="oldest">Oldest</option>
+                                        <option value="amount_high">₹ High</option>
+                                        <option value="amount_low">₹ Low</option>
+                                    </select>
+                                    <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                </div>
+                                <div className="relative flex-1 sm:flex-none">
+                                    <select value={filterCompany} onChange={e => setFilterCompany(e.target.value)} className="appearance-none pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-bold cursor-pointer focus:border-[rgb(0,100,55)] w-full">
+                                        <option value="">All Companies</option>
+                                        {companies.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+                                    </select>
+                                    <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                </div>
                             </div>
                         </div>
                         
                         <div className="flex flex-wrap gap-2 items-center">
-                            <div className="relative">
-                                <select value={filterCompany} onChange={e => setFilterCompany(e.target.value)} className="appearance-none pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none text-xs font-bold cursor-pointer focus:border-[rgb(0,100,55)] w-full">
-                                    <option value="">All Companies</option>
-                                    {companies.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
-                                </select>
-                                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            <div className="flex bg-slate-200 p-[2px] rounded-lg">
+                                {["all", "date", "range"].map(dt => (
+                                    <button key={dt} onClick={() => setFilterDateType(dt)}
+                                        className={`px-2 sm:px-3 py-1.5 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all ${filterDateType === dt ? 'bg-white text-slate-900 shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        {dt === "all" ? "All" : dt === "date" ? "Date" : "Range"}
+                                    </button>
+                                ))}
                             </div>
-
-                            <div className="flex gap-2 items-center">
-                                <div className="flex bg-slate-200 p-[2px] rounded-lg">
-                                    {["all", "date", "range"].map(dt => (
-                                        <button key={dt} onClick={() => setFilterDateType(dt)}
-                                            className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${filterDateType === dt ? 'bg-white text-slate-900 shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
-                                        >
-                                            {dt === "all" ? "All Time" : dt === "date" ? "Date" : "Date Range"}
-                                        </button>
-                                    ))}
+                            {filterDateType !== "all" && (
+                                <div className="flex items-center bg-slate-50 border border-slate-200 px-2 sm:px-3 rounded-lg h-[34px] max-w-full">
+                                    <Calendar size={14} className="mr-1.5 sm:mr-2 text-slate-400 shrink-0" />
+                                    {filterDateType === "date" ? (
+                                        <input type="date" value={singleDate} onChange={e => setSingleDate(e.target.value)} className="bg-transparent text-[11px] sm:text-xs font-bold outline-none text-slate-800 min-w-0" />
+                                    ) : (
+                                        <div className="flex items-center min-w-0">
+                                            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="bg-transparent text-[11px] sm:text-xs font-bold outline-none text-slate-800 min-w-0 w-[105px] sm:w-auto" />
+                                            <span className="mx-1 text-xs font-black text-slate-300 shrink-0">-</span>
+                                            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="bg-transparent text-[11px] sm:text-xs font-bold outline-none text-slate-800 min-w-0 w-[105px] sm:w-auto" />
+                                        </div>
+                                    )}
                                 </div>
-                                {filterDateType !== "all" && (
-                                    <div className="flex items-center bg-slate-50 border border-slate-200 px-3 rounded-lg h-[34px]">
-                                        <Calendar size={14} className="mr-2 text-slate-400" />
-                                        {filterDateType === "date" ? (
-                                            <input type="date" value={singleDate} onChange={e => setSingleDate(e.target.value)} className="bg-transparent text-xs font-bold outline-none text-slate-800" />
-                                        ) : (
-                                            <>
-                                                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="bg-transparent text-xs font-bold outline-none text-slate-800" />
-                                                <span className="mx-2 text-xs font-black text-slate-300">-</span>
-                                                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="bg-transparent text-xs font-bold outline-none text-slate-800" />
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
+                            )}
 
                             {(searchQuery || filterCompany || filterDateType !== "all" || sortBy !== "newest") && (
-                                <button onClick={clearFilters} className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border border-red-200 text-red-500 bg-red-50 hover:bg-red-100 transition">
-                                    Clear Filters
+                                <button onClick={clearFilters} className="px-2 sm:px-3 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-red-200 text-red-500 bg-red-50 hover:bg-red-100 transition">
+                                    Clear
                                 </button>
                             )}
                         </div>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto bg-slate-50 pb-20 sm:pb-0">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50 pb-20 sm:pb-0">
                     <div className="px-4 md:px-6 py-2 bg-slate-100 border-b border-slate-200 sticky top-0 z-10 flex items-center justify-between">
                         <h3 className="text-xs font-black uppercase tracking-widest text-slate-600">{activeTab === 'tokens' ? 'Registration History' : 'Quotation History'}</h3>
                         <div className="bg-white border border-slate-200 rounded-md px-2 py-1 text-slate-600 text-[10px] font-black uppercase tracking-widest">
@@ -771,7 +798,8 @@ const modalCategories = useMemo(() => {
                         <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">No records found.</div>
                     ) : (
                         <div className="divide-y divide-slate-200">
-                            <div className="hidden sm:grid grid-cols-[1.5fr_1fr_100px_100px_120px_120px] gap-3 px-4 md:px-6 py-2 bg-white text-[9px] font-black uppercase tracking-widest text-slate-400 sticky top-10 border-b border-slate-100 z-10">
+                            <div className="hidden md:grid grid-cols-[36px_1.5fr_1fr_80px_90px_90px_100px] gap-2 px-4 md:px-6 py-2 bg-white text-[9px] font-black uppercase tracking-widest text-slate-400 sticky top-10 border-b border-slate-100 z-10">
+                                <span className="text-center">#</span>
                                 <span>Customer</span>
                                 <span>Company</span>
                                 <span className="text-center">ID</span>
@@ -780,7 +808,7 @@ const modalCategories = useMemo(() => {
                                 <span className="text-center">Action</span>
                             </div>
                             
-                            {filteredData.map(record => {
+                            {filteredData.map((record, recordIndex) => {
                                 const isSelected = selectedItemObj?.id === record.id;
                                 const companyName = record.snapshot_company_name || companiesCache[record.company_id]?.company_name || "Unknown Company";
                                 let items = [];
@@ -790,54 +818,86 @@ const modalCategories = useMemo(() => {
 
                                 return (
                                     <div key={record.id} className="bg-white">
+                                        {/* Desktop Row */}
                                         <div
-                                            className={`flex flex-col sm:grid sm:grid-cols-[1.5fr_1fr_100px_100px_120px_120px] gap-2 sm:gap-3 px-4 md:px-6 py-4 sm:items-center cursor-pointer hover:bg-slate-50 transition border-b border-slate-100 ${isSelected ? 'bg-blue-50/50' : ''}`}
+                                            className={`hidden md:grid md:grid-cols-[36px_1.5fr_1fr_80px_90px_90px_100px] gap-2 px-4 md:px-6 py-4 items-center cursor-pointer hover:bg-slate-50 transition border-b border-slate-100 ${isSelected ? 'bg-blue-50/50' : ''}`}
                                             onClick={() => setSelectedItemObj(isSelected ? null : record)}
                                         >
-                                            <div className="flex justify-between items-start sm:block min-w-0">
-                                                <div className="min-w-0">
-                                                    <p className="text-sm font-black text-slate-800 truncate uppercase">{record.customer_name || "N/A"}</p>
-                                                    {record.customer_phone && <p className="text-[10px] font-bold text-slate-400">{record.customer_phone}</p>}
+                                            <div className="text-xs font-black text-slate-400 text-center">{recordIndex + 1}</div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-black text-slate-800 truncate uppercase">{record.customer_name || "N/A"}</p>
+                                                {record.customer_phone && <p className="text-[10px] font-bold text-slate-400">{record.customer_phone}</p>}
+                                            </div>
+                                            <div className="text-[11px] font-bold text-slate-600 truncate flex items-center gap-1.5"><Building2 size={12} className="text-slate-400 shrink-0" /><span className="truncate">{companyName}</span></div>
+                                            <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 text-center truncate">#{record.id.substring(0, 6)}</div>
+                                            <div className="text-xs font-black text-slate-800 text-right">{formatCurrency(record.total_amount)}</div>
+                                            <div className="text-[11px] font-bold text-slate-500 text-right">
+                                                {new Date(record.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                                            </div>
+                                            <div className="flex items-center justify-center gap-1">
+                                                <button onClick={(e) => { e.stopPropagation(); handlePrint(record); }} className="p-1.5 rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition" title="Print">
+                                                    <Printer size={14} />
+                                                </button>
+                                                <button onClick={(e) => { e.stopPropagation(); handleDelete(record.id); }} className="p-1.5 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Delete">
+                                                    <Trash2 size={14} />
+                                                </button>
+                                                <ChevronDown size={14} className={`text-slate-400 transition-transform ${isSelected ? 'rotate-180' : ''}`} />
+                                            </div>
+                                        </div>
+
+                                        {/* Mobile + Tablet Card */}
+                                        <div
+                                            className={`md:hidden px-3 sm:px-4 py-3 cursor-pointer active:bg-slate-50 transition border-b border-slate-100 ${isSelected ? 'bg-blue-50/50' : ''}`}
+                                            onClick={() => setSelectedItemObj(isSelected ? null : record)}
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="flex items-start gap-2 min-w-0 flex-1">
+                                                    <span className="text-[10px] font-black text-slate-400 bg-slate-100 rounded-full w-5 h-5 flex items-center justify-center shrink-0 mt-0.5">{recordIndex + 1}</span>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-[13px] font-black text-slate-800 truncate uppercase">{record.customer_name || "N/A"}</p>
+                                                        <div className="flex items-center gap-1 mt-0.5">
+                                                            <Building2 size={10} className="text-slate-400 shrink-0" />
+                                                            <p className="text-[10px] font-bold text-slate-500 truncate">{companyName}</p>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="sm:hidden text-right shrink-0 ml-2">
-                                                    <p className="text-sm font-black text-slate-800">{formatCurrency(record.total_amount)}</p>
+                                                <div className="text-right shrink-0 ml-1">
+                                                    <p className="text-[13px] font-black text-slate-800">{formatCurrency(record.total_amount)}</p>
                                                     <p className="text-[10px] font-bold text-slate-400">{new Date(record.created_at).toLocaleDateString('en-GB')}</p>
                                                 </div>
                                             </div>
-                                            <div className="text-[11px] font-bold text-slate-600 truncate flex items-center gap-1.5"><Building2 size={12} className="text-slate-400" />{companyName}</div>
-                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 hidden sm:block text-center">#{record.id.substring(0, 8)}</div>
-                                            <div className="text-sm font-black text-slate-800 hidden sm:block text-right">{formatCurrency(record.total_amount)}</div>
-                                            <div className="text-xs font-bold text-slate-500 hidden sm:block text-right">
-                                                {new Date(record.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                            </div>
-                                            <div className="flex items-center justify-center gap-3 pt-2 sm:pt-0 mt-2 sm:mt-0 border-t sm:border-0 border-slate-100">
-                                                <button onClick={(e) => { e.stopPropagation(); handlePrint(record); }} className="p-2 rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition tooltip-trigger" title="Print">
-                                                    <Printer size={16} />
-                                                </button>
-                                                <button onClick={(e) => { e.stopPropagation(); handleDelete(record.id); }} className="p-2 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition tooltip-trigger" title="Delete">
-                                                    <Trash2 size={16} />
-                                                </button>
-                                                <ChevronDown size={16} className={`text-slate-400 transition-transform ${isSelected ? 'rotate-180' : ''}`} />
+                                            <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-slate-100">
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">#{record.id.substring(0, 8)}</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <button onClick={(e) => { e.stopPropagation(); handlePrint(record); }} className="p-1.5 rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition" title="Print">
+                                                        <Printer size={14} />
+                                                    </button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(record.id); }} className="p-1.5 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Delete">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                    <ChevronDown size={14} className={`text-slate-400 transition-transform ${isSelected ? 'rotate-180' : ''}`} />
+                                                </div>
                                             </div>
                                         </div>
 
                                         {isSelected && (
-                                            <div className="bg-slate-50 border-b border-slate-200 p-4 md:px-6 animate-in slide-in-from-top-2 duration-200">
-                                                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm overflow-x-auto">
-                                                    <table className="w-full text-left min-w-[500px]">
-                                                        <thead className="border-b border-slate-200 text-[10px] uppercase font-black tracking-widest text-slate-400">
+                                            <div className="bg-slate-50 border-b border-slate-200 p-3 sm:p-4 md:px-6 animate-in slide-in-from-top-2 duration-200">
+                                                {/* Desktop detail table */}
+                                                <div className="hidden sm:block bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-sm">
+                                                    <table className="w-full text-left">
+                                                        <thead className="border-b border-slate-200 text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-slate-400">
                                                             <tr>
                                                                 <th className="pb-2 font-black">Item</th>
                                                                 {activeTab === 'quotes' && <th className="pb-2 text-center">Qty</th>}
                                                                 <th className="pb-2 text-right">Rate</th>
-                                                                <th className="pb-2 text-center">GST%</th>
+                                                                <th className="pb-2 text-center">GST</th>
                                                                 <th className="pb-2 text-right">Total</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="text-xs font-bold text-slate-700 divide-y divide-slate-100">
                                                             {items.map((it, i) => (
                                                                 <tr key={i}>
-                                                                    <td className="py-2.5 max-w-[200px] truncate">{it.item_name}</td>
+                                                                    <td className="py-2.5 max-w-[180px] truncate">{it.item_name}</td>
                                                                     {activeTab === 'quotes' && <td className="py-2.5 text-center text-slate-500">{it.quantity || 1} {it.unit || "Pcs"}</td>}
                                                                     <td className="py-2.5 text-right">{formatCurrency(it.price)}</td>
                                                                     <td className="py-2.5 text-center text-slate-500">{it.gst_rate || 0}%</td>
@@ -846,6 +906,20 @@ const modalCategories = useMemo(() => {
                                                             ))}
                                                         </tbody>
                                                     </table>
+                                                </div>
+                                                {/* Mobile detail cards */}
+                                                <div className="sm:hidden space-y-2">
+                                                    {items.map((it, i) => (
+                                                        <div key={i} className="bg-white rounded-lg border border-slate-200 p-3 shadow-sm">
+                                                            <p className="text-xs font-black text-slate-800 truncate">{it.item_name}</p>
+                                                            <div className="flex items-center justify-between mt-1.5 text-[11px] font-bold text-slate-500">
+                                                                <span>₹{Number(it.price || 0).toLocaleString('en-IN')}</span>
+                                                                {activeTab === 'quotes' && <span>{it.quantity || 1} {it.unit || "Pcs"}</span>}
+                                                                <span>{it.gst_rate || 0}% GST</span>
+                                                                <span className="font-black text-slate-900">{formatCurrency(it.total)}</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                         )}
