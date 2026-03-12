@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase } from "../../frontend_supabase/supabaseClient";
 import {
   ArrowLeft, Plus, Trash2, Edit2,
   Search, Calendar, X, Filter, ChevronDown, ChevronUp

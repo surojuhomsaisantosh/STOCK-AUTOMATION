@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { supabase, fetchWithRetry, isNetworkError, getProxiedUrl } from "../../supabase/supabaseClient";
+import { supabase, fetchWithRetry, isNetworkError, getProxiedUrl } from "../../frontend_supabase/supabaseClient";
 import { Eye, EyeOff, Loader2, WifiOff } from "lucide-react";
 import { BRAND_GREEN } from "../../utils/theme";
 

@@ -1,51 +1,51 @@
 import { useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
-import { supabase } from "./supabase/supabaseClient";
+import { supabase } from "./frontend_supabase/supabaseClient";
 
 /* AUTH */
 const Login = lazy(() => import("./pages/login/Login"));
 const RegisterUser = lazy(() => import("./pages/register/Registeruser"));
 
 /* STORE */
-const Store = lazy(() => import("./pages/store/store"));
-const BillingHistory = lazy(() => import("./pages/store/BillingHistory"));
+const Store = lazy(() => import("./pages/store/store_new_bills"));
+const BillingHistory = lazy(() => import("./pages/store/store_billing_history"));
 
 /* DASHBOARDS */
-const StockManagerDashboard = lazy(() => import("./pages/dashboards/stockmanager"));
-const CentralDashboard = lazy(() => import("./pages/dashboards/central"));
-const FranchiseOwnerDashboard = lazy(() => import("./pages/dashboards/franchiseowner"));
+const StockManagerDashboard = lazy(() => import("./pages/dashboards/stock_dashboard"));
+const CentralDashboard = lazy(() => import("./pages/dashboards/central_dashboard"));
+const FranchiseOwnerDashboard = lazy(() => import("./pages/dashboards/franchise_dashboard"));
 
 /* STOCK */
-const StockUpdate = lazy(() => import("./pages/stock/StockUpdate"));
-const StockOrders = lazy(() => import("./pages/stock/StockOrders"));
-const InvoicesBilling = lazy(() => import("./pages/stock/invoices_billing"));
-const Settings = lazy(() => import("./pages/stock/settings"));
+const StockUpdate = lazy(() => import("./pages/stock/stock_update"));
+const StockOrders = lazy(() => import("./pages/stock/stock_orders"));
+const InvoicesBilling = lazy(() => import("./pages/stock/stock_invoices"));
+const Settings = lazy(() => import("./pages/stock/stock_settings"));
 
 /* FRANCHISE */
-const StockOrder = lazy(() => import("./pages/franchise/stockorder"));
-const FranchiseInvoices = lazy(() => import("./pages/franchise/franchiseinvoices"));
-const FranchiseAnalytics = lazy(() => import("./pages/franchise/FranchiseAnalytics"));
-const RequestPortal = lazy(() => import("./pages/franchise/RequestPortal"));
-const FranchiseMenu = lazy(() => import("./pages/franchise/FranchiseMenu"));
-const FranchiseSettingsCard = lazy(() => import("./pages/franchise/FranchiseSettingsCard"));
-const FranchiseProfiles = lazy(() => import("./pages/franchise/FranchiseProfiles"));
-const LoginTimings = lazy(() => import("./pages/franchise/LoginTimings"));
+const StockOrder = lazy(() => import("./pages/franchise/central_franchise_stock_order"));
+const FranchiseInvoices = lazy(() => import("./pages/franchise/franchise_invoices"));
+const FranchiseAnalytics = lazy(() => import("./pages/franchise/franchise_reports"));
+const RequestPortal = lazy(() => import("./pages/franchise/franchise_stock_requests"));
+const FranchiseMenu = lazy(() => import("./pages/franchise/franchise_menus"));
+const FranchiseSettingsCard = lazy(() => import("./pages/franchise/franchise_settings"));
+const FranchiseProfiles = lazy(() => import("./pages/franchise/franchise_staff_profiles"));
+const LoginTimings = lazy(() => import("./pages/franchise/franchise_staff_login_timings"));
 
 /* CENTRAL */
-const CentralInvoices = lazy(() => import("./pages/central/centralinvoices"));
-const CentralSettings = lazy(() => import("./pages/central/centralsettings"));
-const CentralProfiles = lazy(() => import("./pages/central/centralprofiles"));
-const CentralStaffProfiles = lazy(() => import("./pages/central/CentralStaffProfiles"));
-const CentralStaffLogins = lazy(() => import("./pages/central/CentralStaffLogins"));
-const CentralVendors = lazy(() => import("./pages/central/CentralVendors"));
-const PosManagement = lazy(() => import("./pages/central/posmanagement"));
-const Reports = lazy(() => import("./pages/central/reports"));
-const FranchiseReplies = lazy(() => import("./pages/central/FranchiseReplies"));
-const CentralStockMaster = lazy(() => import("./pages/central/CentralStockMaster"));
-const InvoiceDesign = lazy(() => import("./pages/central/InvoiceDesign"));
-const PackageBills = lazy(() => import("./pages/central/PackageBills"));
-const OldQuotations = lazy(() => import("./pages/central/OldQuotations"));
-const OldTokenBills = lazy(() => import('./pages/central/OldTokenBills'));
+const CentralInvoices = lazy(() => import("./pages/central/central_invoices"));
+const CentralSettings = lazy(() => import("./pages/central/central_settings"));
+const CentralProfiles = lazy(() => import("./pages/central/central_franchise_profiles"));
+const CentralStaffProfiles = lazy(() => import("./pages/central/central_staff_profiles"));
+const CentralStaffLogins = lazy(() => import("./pages/central/central_staff_logins"));
+const CentralVendors = lazy(() => import("./pages/central/central_vendors"));
+const PosManagement = lazy(() => import("./pages/central/central_master_menu"));
+const Reports = lazy(() => import("./pages/central/central_reports"));
+const FranchiseReplies = lazy(() => import("./pages/central/central_franchise_replies"));
+const CentralStockMaster = lazy(() => import("./pages/central/central_stock_master"));
+const InvoiceDesign = lazy(() => import("./pages/central/central_register_company"));
+const PackageBills = lazy(() => import("./pages/central/central_new_franchise_bills"));
+const OldQuotations = lazy(() => import("./pages/central/central_quotation_bills"));
+const OldTokenBills = lazy(() => import('./pages/central/central_token_bills'));
 
 /* CONTEXTS & COMPONENTS */
 import { AuthProvider } from "./context/AuthContext";
@@ -200,7 +200,7 @@ function App() {
               />
 
               <Route
-                path="/central/settings"
+                path="/central/central_settings"
                 element={
                   <ProtectedRoute allowedRoles={["central"]}>
                     <CentralSettings />
@@ -218,7 +218,7 @@ function App() {
               />
 
               <Route
-                path="/central/invoice-design"
+                path="/central/central_register_company"
                 element={
                   <ProtectedRoute allowedRoles={["central"]}>
                     <InvoiceDesign />
@@ -227,7 +227,7 @@ function App() {
               />
 
               <Route
-                path="/central/profiles"
+                path="/central/central_franchise_profiles"
                 element={
                   <ProtectedRoute allowedRoles={["central"]}>
                     <CentralProfiles />
@@ -236,7 +236,7 @@ function App() {
               />
 
               <Route
-                path="/central/staff-profiles"
+                path="/central/central_staff_profiles"
                 element={
                   <ProtectedRoute allowedRoles={["central"]}>
                     <CentralStaffProfiles />
@@ -245,7 +245,7 @@ function App() {
               />
 
               <Route
-                path="/central/staff-logins"
+                path="/central/central_staff_logins"
                 element={
                   <ProtectedRoute allowedRoles={["central"]}>
                     <CentralStaffLogins />
@@ -263,7 +263,7 @@ function App() {
               />
 
               <Route
-                path="/central/reports"
+                path="/central/central_reports"
                 element={
                   <ProtectedRoute allowedRoles={["central"]}>
                     <Reports />
@@ -281,7 +281,7 @@ function App() {
               />
 
               <Route
-                path="/central/posmanagement"
+                path="/central/central_master_menu"
                 element={
                   <ProtectedRoute allowedRoles={["central"]}>
                     <PosManagement />
@@ -290,7 +290,7 @@ function App() {
               />
 
               <Route
-                path="/central/support"
+                path="/central/central_franchise_replies"
                 element={
                   <ProtectedRoute allowedRoles={["central"]}>
                     <FranchiseReplies />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase } from "../../frontend_supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import {
   FiSearch, FiCalendar, FiPlus, FiSave, FiX, FiTrash2, FiEdit3
@@ -279,7 +279,7 @@ function InvoiceDesign() {
             </div>
           </div>
         </div>
-        <h1 className="text-xl font-black uppercase tracking-widest text-center hidden md:block absolute left-1/2 -translate-x-1/2 text-black">Design Invoice</h1>
+        <h1 className="text-xl font-black uppercase tracking-widest text-center hidden md:block absolute left-1/2 -translate-x-1/2 text-black">Register Company</h1>
         <div className="hidden md:flex items-center gap-3">
           <div className="bg-slate-100 border border-slate-200 rounded-md px-3 py-1.5 flex items-center gap-2">
             <span className="text-[11px] font-black text-slate-700 uppercase tracking-wide">ID :</span>

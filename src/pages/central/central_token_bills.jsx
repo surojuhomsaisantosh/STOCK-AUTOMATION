@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { supabase } from '../../supabase/supabaseClient';
+import { supabase } from '../../frontend_supabase/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { ArrowLeft, Trash2, Printer, X, Search, FileText, Plus, Minus, Building2, PlusCircle, ClipboardList, Receipt, ChevronDown, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';

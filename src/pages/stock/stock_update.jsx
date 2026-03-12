@@ -1,6 +1,6 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase } from "../../frontend_supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import {
     Edit3, Trash2, X, Plus, Search,
@@ -9,8 +9,10 @@ import {
     ShoppingCart
 } from "lucide-react";
 
-// --- HELPER COMPONENTS ---
+// --- CONSTANTS ---
+const BRAND_COLOR = "rgb(0, 100, 55)";
 
+// --- HELPER COMPONENTS ---
 const TaxToggle = ({ value, onSelect, brandColor }) => (
     <div className="flex bg-slate-100 rounded-lg p-1 h-[42px] w-full border border-slate-200">
         {["Exclusive", "Inclusive"].map((mode) => (
@@ -99,13 +101,10 @@ const CompanyBadge = ({ value }) => {
     if (list.length === 1) return <span className="text-blue-600">{list[0]}</span>;
     return <span className="text-blue-600 cursor-help" title={list.join(", ")}>{list.length} Companies</span>;
 };
-
 // --- MAIN COMPONENT ---
-
-function CentralStockMaster() {
+function StockUpdate() {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const BRAND_COLOR = "rgb(0, 100, 55)";
 
     // --- STATE ---
     const [items, setItems] = useState([]);
@@ -126,7 +125,6 @@ function CentralStockMaster() {
     const [showOfflineOnly, setShowOfflineOnly] = useState(false);
 
     const [sortConfig, setSortConfig] = useState({ key: 'item_name', direction: 'ascending' });
-    const [profile, setProfile] = useState({ franchise_id: "Loading..." });
     const [editingId, setEditingId] = useState(null);
     const companyDropdownRef = useRef(null);
 
@@ -181,10 +179,6 @@ function CentralStockMaster() {
 
     const fetchItems = async () => {
         setLoading(true);
-        if (user) {
-            const { data } = await supabase.from('profiles').select('franchise_id').eq('id', user.id).single();
-            if (data) setProfile(data);
-        }
         // Fetch ALL items with pagination (Supabase default limit is 1000)
         let allItems = [];
         let from = 0;
@@ -380,9 +374,9 @@ function CentralStockMaster() {
             } else {
                 setShowModal(false);
                 await fetchItems();
-                alert("Saved Successfully!");
+                // alert("Saved Successfully!");
             }
-        } catch (err) {
+        } catch {
             alert("An unexpected error occurred.");
         } finally {
             setLoading(false);
@@ -391,8 +385,13 @@ function CentralStockMaster() {
 
     const deleteItem = async (id) => {
         if (!window.confirm("Delete item permanently?")) return;
-        await supabase.from("stocks").delete().eq("id", id);
-        fetchItems();
+        try {
+            const { error } = await supabase.from("stocks").delete().eq("id", id);
+            if (error) throw error;
+            fetchItems();
+        } catch (err) {
+            alert("Failed to delete item: " + (err.message || "Unknown error"));
+        }
     };
 
     const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -413,15 +412,15 @@ function CentralStockMaster() {
             <div className="flex-none bg-white shadow-sm z-30 pt-4 md:pt-0">
                 <div className="border-b border-slate-200 px-4 md:px-6 py-3 md:py-4">
                     <div className="w-full flex items-center justify-between gap-2">
-                        <button onClick={() => navigate("/dashboard/central")} className="flex items-center gap-1 text-black hover:opacity-70 font-bold transition text-xs md:text-base flex-shrink-0 z-10">
+                        <button onClick={() => navigate("/dashboard/stockmanager")} className="flex items-center gap-1 text-black hover:opacity-70 font-bold transition text-xs md:text-base flex-shrink-0 z-10">
                             <ArrowLeft size={18} /> <span>Back</span>
                         </button>
                         <h1 className="text-[10px] md:text-2xl font-black uppercase text-black text-center flex-1 leading-tight">
-                            Central <span style={{ color: BRAND_COLOR }}>Stock Management</span>
+                            Update <span style={{ color: BRAND_COLOR }}>Stock</span>
                         </h1>
                         <div className="flex-shrink-0 z-10">
                             <div className="bg-slate-100 border border-slate-200 rounded-md px-3 py-1.5 text-slate-700 text-[10px] md:text-xs font-black uppercase tracking-wide whitespace-nowrap">
-                                ID : {profile.franchise_id || "---"}
+                                ID : {user?.franchise_id || "Global"}
                             </div>
                         </div>
                     </div>
@@ -614,7 +613,6 @@ function CentralStockMaster() {
                         <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-white scrollbar-thin scrollbar-thumb-slate-200">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 md:gap-x-8 gap-y-6">
 
-                                {/* ... (Online Store, Identity, Code, Category, HSN sections unchanged) ... */}
                                 <div className="md:col-span-3 flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100 mb-2">
                                     <input type="checkbox" name="online_store" id="online_store" checked={formData.online_store} onChange={handleInput} className="w-5 h-5 accent-[rgb(0,100,55)] rounded cursor-pointer" />
                                     <label htmlFor="online_store" className="text-xs font-black uppercase tracking-wide text-blue-900 cursor-pointer flex items-center gap-2">
@@ -676,7 +674,6 @@ function CentralStockMaster() {
                                     <p className="text-[9px] text-slate-400 mt-1">{formData.company_availability.length === 0 ? "Available for all companies" : `Selected: ${formData.company_availability.join(", ")}`}</p>
                                 </div>
 
-                                {/* ADDED: Description Field */}
                                 <div className="md:col-span-2">
                                     <label className="text-[10px] font-bold uppercase text-black block mb-1">Description</label>
                                     <textarea
@@ -845,4 +842,4 @@ function CentralStockMaster() {
     );
 }
 
-export default CentralStockMaster;
+export default StockUpdate;

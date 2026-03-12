@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase } from "../../frontend_supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { FiArrowLeft, FiPrinter, FiSearch, FiCalendar, FiX, FiFileText, FiRotateCcw } from "react-icons/fi";
 import { formatCurrency, amountToWords } from "../../utils/formatters";

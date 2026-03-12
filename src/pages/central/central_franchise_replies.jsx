@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase } from "../../frontend_supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import {
   FiCheckCircle, FiClock, FiList, FiX, FiInbox
