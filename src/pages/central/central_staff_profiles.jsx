@@ -4,7 +4,7 @@ import {
   ArrowLeft, Search, Plus, Edit2, Trash2, X, UserPlus, Loader2, Eye, EyeOff, Clock, Building2, ChevronRight, User, Phone, ChevronDown, MapPin, Mail, ShieldCheck, Hash
 } from "lucide-react";
 
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase } from "../../frontend_supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { BRAND_GREEN } from "../../utils/theme";
 
@@ -433,7 +433,7 @@ const CentralStaffProfiles = () => {
                       <div style={styles.cardInfoRow}><MapPin size={14} color={GREEN} /> {p.address || 'No Address'}</div>
                     </div>
                     <div style={styles.cardActions}>
-                      <button onClick={() => navigate('/central/staff-logins', { state: { targetUserId: p.id, targetName: p.name, franchiseId: searchFranchiseId } })} style={{ ...styles.cardActionBtn, color: '#2563eb', background: '#eff6ff' }}><Clock size={16} /> LOGS</button>
+                      <button onClick={() => navigate('/central/central_staff_logins', { state: { targetUserId: p.id, targetName: p.name, franchiseId: searchFranchiseId } })} style={{ ...styles.cardActionBtn, color: '#2563eb', background: '#eff6ff' }}><Clock size={16} /> LOGS</button>
                       {!p.isOwner && <button onClick={() => handleOpenEdit(p)} style={{ ...styles.cardActionBtn, color: GREEN, background: `${GREEN}10` }}><Edit2 size={16} /> EDIT</button>}
                     </div>
                   </div>
@@ -469,7 +469,7 @@ const CentralStaffProfiles = () => {
                     <td style={styles.td}>{profile.staff_id}</td>
                     <td style={styles.td}>{profile.phone}</td>
                     <td style={styles.actionTd}>
-                      <button onClick={() => navigate('/central/staff-logins', { state: { targetUserId: profile.id, targetName: profile.name, franchiseId: searchFranchiseId } })} style={styles.timeBtn} title="View Logs"><Clock size={16} /></button>
+                      <button onClick={() => navigate('/central/central_staff_logins', { state: { targetUserId: profile.id, targetName: profile.name, franchiseId: searchFranchiseId } })} style={styles.timeBtn} title="View Logs"><Clock size={16} /></button>
                       {!profile.isOwner && <button onClick={() => handleOpenEdit(profile)} style={styles.editBtn} title="Edit"><Edit2 size={16} /></button>}
                     </td>
                   </tr>

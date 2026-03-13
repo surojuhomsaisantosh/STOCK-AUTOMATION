@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { supabase, fetchWithRetry, isNetworkError, getProxiedUrl } from "../../supabase/supabaseClient";
-import { Eye, EyeOff, Loader2, WifiOff } from "lucide-react";
+import { supabase, fetchWithRetry, isNetworkError, getProxiedUrl } from "../../frontend_supabase/supabaseClient";
+import { Eye, EyeOff, Loader2, WifiOff, ArrowLeft } from "lucide-react";
 import { BRAND_GREEN } from "../../utils/theme";
 
 const PRIMARY = BRAND_GREEN;
@@ -219,6 +219,14 @@ function Login() {
 
   return (
     <div style={styles.page}>
+      <button 
+        onClick={() => navigate('/')} 
+        style={styles.backButton}
+        aria-label="Go back"
+      >
+        <ArrowLeft size={24} color={BLACK} />
+      </button>
+
       <div style={{ ...styles.card, width: isMobile ? "90%" : "420px", padding: isMobile ? "30px 20px" : "40px" }}>
 
         <div style={styles.logoContainer}>
@@ -315,6 +323,7 @@ function Login() {
 const styles = {
   page: { height: "100vh", width: "100vw", display: "flex", justifyContent: "center", alignItems: "center", background: "#f3f4f6", fontFamily: '"Inter", sans-serif' },
   card: { background: "#fff", borderRadius: "32px", border: `1.5px solid ${BORDER}`, textAlign: "center", boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', display: "flex", flexDirection: "column", alignItems: "center", boxSizing: "border-box" },
+  backButton: { position: "fixed", top: "24px", left: "24px", background: "none", border: "none", cursor: "pointer", padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%", transition: "background-color 0.2s", zIndex: 10 },
   logoContainer: { marginBottom: "16px", display: "flex", justifyContent: "center", width: "100%" },
   logo: { height: "auto", borderRadius: "16px", objectFit: "contain", padding: "8px", background: "#fff", border: `1px solid ${BORDER}` },
   title: { fontWeight: "900", color: BLACK, letterSpacing: '-0.5px' },

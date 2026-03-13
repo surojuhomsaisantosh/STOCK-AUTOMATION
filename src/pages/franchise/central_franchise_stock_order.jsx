@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { supabase, isNetworkError } from "../../supabase/supabaseClient";
+import { supabase, isNetworkError } from "../../frontend_supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { renderToStaticMarkup } from "react-dom/server";
 import jsPDF from "jspdf";

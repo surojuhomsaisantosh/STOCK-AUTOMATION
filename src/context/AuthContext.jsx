@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { supabase, fetchWithRetry } from "../supabase/supabaseClient";
+import { supabase, fetchWithRetry } from "../frontend_supabase/supabaseClient";
 
 const AuthContext = createContext({
   user: null,

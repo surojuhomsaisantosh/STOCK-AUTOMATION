@@ -1,11 +1,11 @@
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase } from "../../frontend_supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { useEffect, useState } from "react";
 import {
   FileText, Users, Settings, LayoutDashboard,
   BarChart3, ChevronRight, Package, ShoppingBag,
-  Headphones, Calendar, Truck, UserCheck, Printer, Receipt
+  Headphones, Calendar, Truck, UserCheck, Printer, Receipt, Ticket
 } from "lucide-react";
 import { BRAND_GREEN } from "../../utils/theme";
 
@@ -49,24 +49,25 @@ function CentralDashboard() {
 
   // Cards arranged logically by industry standards
   const navItems = [
-    { title: "Menu Management", path: "/central/posmanagement", icon: <LayoutDashboard size={isMobile ? 20 : 24} />, desc: "Terminals & layout" },
+    { title: "Menu Management", path: "/central/central_master_menu", icon: <LayoutDashboard size={isMobile ? 20 : 24} />, desc: "Terminals & layout" },
     { title: "Stock Master", path: "/central/stock", icon: <Package size={isMobile ? 20 : 24} />, desc: "Inventory & variants" },
     { title: "Vendors", path: "/central/vendors", icon: <Truck size={isMobile ? 20 : 24} />, desc: "Suppliers & procurement" },
 
     { title: "Internal Order", path: "/central/internal-order", icon: <ShoppingBag size={isMobile ? 20 : 24} />, desc: "Franchise requests" },
-    { title: "Stock Requests", path: "/central/support", icon: <Headphones size={isMobile ? 20 : 24} />, desc: "Help desk tickets" },
+    { title: "Stock Requests", path: "/central/central_franchise_replies", icon: <Headphones size={isMobile ? 20 : 24} />, desc: "Help desk tickets" },
 
     { title: "Invoices", path: "/central/invoices", icon: <FileText size={isMobile ? 20 : 24} />, desc: "Billing & records" },
     { title: "New Franchise Bills", path: "/central/package-bills", icon: <Receipt size={isMobile ? 20 : 24} />, desc: "Franchise setup billing" },
 
-    { title: "Reports", path: "/central/reports", icon: <BarChart3 size={isMobile ? 20 : 24} />, desc: "Performance analytics" },
+    { title: "Reports", path: "/central/central_reports", icon: <BarChart3 size={isMobile ? 20 : 24} />, desc: "Performance analytics" },
     { title: "Registration Bills", path: "/central/token-bills", icon: <FileText size={isMobile ? 20 : 24} />, desc: "Advanced payment registrations" },
 
-    { title: "Franchise Profiles", path: "/central/profiles", icon: <Users size={isMobile ? 20 : 24} />, desc: "Franchise network" },
-    { title: "Staff Profiles", path: "/central/staff-profiles", icon: <UserCheck size={isMobile ? 20 : 24} />, desc: "Employee management" },
+    { title: "Franchise Profiles", path: "/central/central_franchise_profiles", icon: <Users size={isMobile ? 20 : 24} />, desc: "Franchise network" },
+    { title: "Staff Profiles", path: "/central/central_staff_profiles", icon: <UserCheck size={isMobile ? 20 : 24} />, desc: "Employee management" },
 
-    { title: "Register a company", path: "/central/invoice-design", icon: <Printer size={isMobile ? 20 : 24} />, desc: "Add new companies" },
-    { title: "Settings", path: "/central/settings", icon: <Settings size={isMobile ? 20 : 24} />, desc: "System configuration" },
+    { title: "Register a company", path: "/central/central_register_company", icon: <Printer size={isMobile ? 20 : 24} />, desc: "Add new companies" },
+    { title: "Vouchers", path: "/central/central_voucher", icon: <Ticket size={isMobile ? 20 : 24} />, desc: "Manage & print vouchers" },
+    { title: "Settings", path: "/central/central_settings", icon: <Settings size={isMobile ? 20 : 24} />, desc: "System configuration" },
   ];
 
   return (

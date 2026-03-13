@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Search, Plus, Edit2, Trash2, X, Users, RefreshCw, Layers, Filter, AlertCircle, Building2, ChevronDown
 } from "lucide-react";
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase } from "../../frontend_supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext"; // IMPORTED AUTH CONTEXT
 import { BRAND_GREEN } from "../../utils/theme";
 

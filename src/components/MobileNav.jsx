@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Menu, X, ChevronRight, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { supabase } from "../supabase/supabaseClient";
+import { supabase } from "../frontend_supabase/supabaseClient";
 
 /**
  * MobileNav Component

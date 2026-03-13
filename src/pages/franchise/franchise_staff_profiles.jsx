@@ -5,7 +5,7 @@ import {
   Clock, ChevronRight, User, Phone, ChevronDown, MapPin, Mail, ShieldCheck, AlertCircle
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase } from "../../frontend_supabase/supabaseClient";
 import { BRAND_GREEN } from "../../utils/theme";
 
 const PRIMARY = BRAND_GREEN;

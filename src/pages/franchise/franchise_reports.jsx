@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase } from "../../frontend_supabase/supabaseClient";
 import {
   ArrowLeft, Calendar, ChevronRight, ChevronDown,
   Hash, Clock, Download, AlertTriangle, AlertOctagon, CheckCircle2, RefreshCw,

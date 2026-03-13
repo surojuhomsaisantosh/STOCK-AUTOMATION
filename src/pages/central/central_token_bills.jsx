@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { supabase } from '../../supabase/supabaseClient';
+import { supabase } from '../../frontend_supabase/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { ArrowLeft, Trash2, Printer, X, Search, FileText, Plus, Minus, Building2, PlusCircle, ClipboardList, Receipt, ChevronDown, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -33,141 +33,303 @@ const amountToWords = (price) => {
     return inWords(num) + "Rupees Only";
 };
 
-const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsChunk, docTitle = "REGISTRATION RECEIPT" }) => {
+// =====================================================================
+// FullPageInvoice Component
+// =====================================================================
+
+const FullPageInvoice = ({ order, companyDetails, pageIndex, totalPages, itemsChunk, docTitle = "BILL OF SUPPLY" }) => {
     if (!order) return null;
+
     const companyName = order.snapshot_company_name || companyDetails?.company_name || "";
-    const invDate = new Date(order.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata' });
+    const invDate = new Date(order.created_at).toLocaleDateString('en-GB', {
+        day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata'
+    });
+
     const currentLogo = companyDetails?.logo_url || null;
-    
-    // Always calculate from the saved arrays for consistency
     const taxableAmount = Number(order.subtotal) || 0;
     const totalGst = Number(order.tax_amount) || 0;
-    const cgst = totalGst / 2;
-    const sgst = totalGst / 2;
     const roundedBill = Number(order.total_amount) || 0;
+    const receivedAmount = Number(order.received_amount) || 0;
     const orderId = order.id ? order.id.substring(0, 8).toUpperCase() : 'PENDING';
-    const termsList = companyDetails?.terms ? companyDetails.terms.split('\n').filter(t => t.trim() !== '') : ["Goods once sold will not be taken back or exchanged", "Payments terms : 100% advance payments"];
+
+    const termsList = companyDetails?.terms
+        ? companyDetails.terms.split('\n').filter(t => t.trim() !== '')
+        : ["Registration Amount once Received will not be Refundable."];
+
+    // Corner ornament SVG (matches the decorative corners in the PDF)
+    const CornerOrnament = ({ className }) => (
+        <svg className={className} width="54" height="54" viewBox="0 0 54 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="6" cy="6" r="5" stroke="#b5973a" strokeWidth="1.2" fill="none" />
+            <circle cx="6" cy="6" r="2.5" fill="#b5973a" />
+            <line x1="11" y1="6" x2="54" y2="6" stroke="#b5973a" strokeWidth="0.8" />
+            <line x1="6" y1="11" x2="6" y2="54" stroke="#b5973a" strokeWidth="0.8" />
+            <path d="M14 6 Q6 6 6 14" stroke="#b5973a" strokeWidth="1.2" fill="none" />
+        </svg>
+    );
+
+    const CornerOrnamentBR = ({ className }) => (
+        <svg className={className} width="54" height="54" viewBox="0 0 54 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="48" cy="48" r="5" stroke="#b5973a" strokeWidth="1.2" fill="none" />
+            <circle cx="48" cy="48" r="2.5" fill="#b5973a" />
+            <line x1="0" y1="48" x2="43" y2="48" stroke="#b5973a" strokeWidth="0.8" />
+            <line x1="48" y1="0" x2="48" y2="43" stroke="#b5973a" strokeWidth="0.8" />
+            <path d="M40 48 Q48 48 48 40" stroke="#b5973a" strokeWidth="1.2" fill="none" />
+        </svg>
+    );
+
+    const CornerOrnamentTR = ({ className }) => (
+        <svg className={className} width="54" height="54" viewBox="0 0 54 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="48" cy="6" r="5" stroke="#b5973a" strokeWidth="1.2" fill="none" />
+            <circle cx="48" cy="6" r="2.5" fill="#b5973a" />
+            <line x1="0" y1="6" x2="43" y2="6" stroke="#b5973a" strokeWidth="0.8" />
+            <line x1="48" y1="11" x2="48" y2="54" stroke="#b5973a" strokeWidth="0.8" />
+            <path d="M40 6 Q48 6 48 14" stroke="#b5973a" strokeWidth="1.2" fill="none" />
+        </svg>
+    );
+
+    const CornerOrnamentBL = ({ className }) => (
+        <svg className={className} width="54" height="54" viewBox="0 0 54 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="6" cy="48" r="5" stroke="#b5973a" strokeWidth="1.2" fill="none" />
+            <circle cx="6" cy="48" r="2.5" fill="#b5973a" />
+            <line x1="11" y1="48" x2="54" y2="48" stroke="#b5973a" strokeWidth="0.8" />
+            <line x1="6" y1="0" x2="6" y2="43" stroke="#b5973a" strokeWidth="0.8" />
+            <path d="M14 48 Q6 48 6 40" stroke="#b5973a" strokeWidth="1.2" fill="none" />
+        </svg>
+    );
 
     return (
-        <div className="a4-page flex flex-col bg-white text-black font-sans text-xs leading-normal relative">
-            <div className="w-full border-2 border-black flex flex-col relative flex-1">
-                <div className="p-3 border-b-2 border-black relative">
-                    <div className="absolute top-2 left-0 w-full text-center pointer-events-none">
-                        <h1 className="text-xl font-black uppercase tracking-widest bg-white inline-block px-4 underline decoration-2 underline-offset-4 text-black">{docTitle}</h1>
-                    </div>
-                    <div className="flex justify-between items-center mt-5 pt-3">
-                        <div className="text-left z-10 w-[55%]">
-                            <div className="font-bold leading-relaxed text-[10px]">
-                                <span className="uppercase underline mb-1 block text-black font-black">Registered Office:</span>
-                                <p className="whitespace-pre-wrap break-words text-black leading-tight">{companyDetails?.company_address || ""}</p>
-                                <div className="mt-1 space-y-0.5">
-                                    {companyDetails?.company_gst && <p className="text-black">GSTIN: <span className="font-black">{companyDetails.company_gst}</span></p>}
-                                    {companyDetails?.company_email && <p className="text-black">Email: {companyDetails.company_email}</p>}
-                                </div>
+        <div className="a4-page bg-white text-black font-sans relative overflow-hidden" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+            {/* Outer border */}
+            <div className="absolute inset-[6mm] border border-[#c8a951] pointer-events-none" style={{ zIndex: 0 }} />
+
+            {/* Corner ornaments */}
+            <CornerOrnament className="absolute top-0 left-0" style={{ zIndex: 1 }} />
+            <CornerOrnamentTR className="absolute top-0 right-0" style={{ zIndex: 1 }} />
+            <CornerOrnamentBL className="absolute bottom-0 left-0" style={{ zIndex: 1 }} />
+            <CornerOrnamentBR className="absolute bottom-0 right-0" style={{ zIndex: 1 }} />
+
+            {/* Main content */}
+            <div className="relative flex flex-col h-full px-[14mm] pt-[12mm] pb-[10mm]" style={{ zIndex: 2 }}>
+
+                {/* ── HEADER ── */}
+                <div className="flex items-start justify-between mb-3">
+                    {/* Logo */}
+                    <div className="flex-shrink-0 w-[22mm]">
+                        {currentLogo ? (
+                            <img src={currentLogo} alt="Logo" className="h-[18mm] w-auto object-contain" />
+                        ) : (
+                            <div className="h-[18mm] w-[18mm] border border-dashed border-gray-300 flex items-center justify-center text-[7px] text-gray-400 rounded">
+                                LOGO
                             </div>
-                        </div>
-                        <div className="z-10 flex flex-col items-center text-center max-w-[40%]">
-                            {currentLogo ? (
-                                <img src={currentLogo} alt="Logo" crossOrigin="anonymous" className="h-12 w-auto object-contain mb-1" />
-                            ) : (
-                                <div className="h-10 w-24 border border-dashed border-gray-400 flex items-center justify-center text-[9px] text-black mb-1">NO LOGO</div>
+                        )}
+                    </div>
+
+                    {/* Company Name & Details */}
+                    <div className="flex-1 text-center px-3">
+                        <h1 className="text-[22px] font-black tracking-wide text-black leading-tight uppercase">
+                            {companyName}
+                        </h1>
+                        <div className="text-[9px] text-gray-600 mt-0.5 font-semibold space-y-0.5">
+                            {companyDetails?.pan_no && (
+                                <p>Pan No <span className="font-bold text-black">{companyDetails.pan_no}</span>
+                                    {companyDetails?.company_gst && (
+                                        <> &nbsp;&nbsp; GSTIN <span className="font-bold text-black">{companyDetails.company_gst}</span></>
+                                    )}
+                                </p>
                             )}
-                            <h2 className="text-base font-black uppercase text-black break-words text-center leading-tight">{companyName}</h2>
+                            {!companyDetails?.pan_no && companyDetails?.company_gst && (
+                                <p>GSTIN <span className="font-bold text-black">{companyDetails.company_gst}</span></p>
+                            )}
+                            <p className="flex items-center justify-center gap-3">
+                                {companyDetails?.company_phone && (
+                                    <span>📞 {companyDetails.company_phone}</span>
+                                )}
+                                {companyDetails?.company_email && (
+                                    <span>✉ {companyDetails.company_email}</span>
+                                )}
+                            </p>
+                            {companyDetails?.company_address && (
+                                <p className="flex items-start justify-center gap-1">
+                                    <span className="mt-[1px]">📍</span>
+                                    <span className="whitespace-pre-wrap">{companyDetails.company_address}</span>
+                                </p>
+                            )}
                         </div>
                     </div>
-                </div>
 
-                <div className="flex border-b-2 border-black bg-slate-50 print:bg-transparent text-black">
-                    <div className="w-1/2 border-r-2 border-black py-1 px-3">
-                        <span className="font-bold text-black uppercase text-[9px]">Receipt No:</span>
-                        <p className="font-black text-sm text-black">#{orderId}</p>
-                    </div>
-                    <div className="w-1/2 py-1 px-3">
-                        <span className="font-bold text-black uppercase text-[9px]">Receipt Date:</span>
-                        <p className="font-black text-sm text-black">{invDate}</p>
+                    {/* BILL OF SUPPLY badge */}
+                    <div className="flex-shrink-0 text-right">
+                        <span className="text-[11px] font-black uppercase tracking-widest text-black border border-black px-2 py-1 inline-block">
+                            {docTitle}
+                        </span>
                     </div>
                 </div>
 
-                <div className="flex border-b-2 border-black text-black">
-                    <div className="w-[70%] p-2 border-r-2 border-black">
-                        <span className="font-black uppercase underline text-[10px] tracking-widest text-black mb-1 block">Received From:</span>
-                        <h3 className="text-sm font-black uppercase leading-tight text-black">{order?.customer_name || ""}</h3>
-                        <p className="font-bold text-[10px] mt-0.5 uppercase leading-snug whitespace-pre-wrap break-words text-black">{order?.customer_address || "N/A"}</p>
+                {/* Divider */}
+                <hr className="border-t border-gray-300 mb-3" />
+
+                {/* ── INVOICE META ── */}
+                <div className="flex gap-6 mb-3 text-[10px]">
+                    <div>
+                        <p className="font-bold text-gray-500 uppercase tracking-wider text-[8px]">Invoice No.</p>
+                        <p className="font-black text-black text-[11px] mt-0.5">#{orderId}</p>
                     </div>
-                    <div className="w-[30%] p-2 flex flex-col justify-center pl-4 text-black">
-                        {order?.customer_phone && (<div><span className="text-[10px] font-bold block mb-0.5">Ph: </span><span className="text-sm font-black block text-black leading-none">{order.customer_phone}</span></div>)}
+                    <div>
+                        <p className="font-bold text-gray-500 uppercase tracking-wider text-[8px]">Invoice Date</p>
+                        <p className="font-black text-black text-[11px] mt-0.5">{invDate}</p>
                     </div>
                 </div>
 
-                <div className="flex-1 border-b-2 border-black relative">
-                    <table className="w-full text-left border-collapse text-black border-b-2 border-black">
-                        <thead className="bg-slate-100 text-[10px] border-b-2 border-black text-black">
-                            <tr>
-                                <th className="py-1 px-2 border-r-2 border-black w-10 text-center">S.No</th>
-                                <th className="py-1 px-2 border-r-2 border-black">Description of Registration Amount</th>
-                                <th className="py-1 px-2 border-r-2 border-black w-20 text-right">Rate</th>
-                                <th className="py-1 px-2 border-r-2 border-black w-12 text-center">GST%</th>
-                                <th className="py-1 px-2 w-24 text-right">Amount</th>
+                {/* Divider */}
+                <hr className="border-t border-gray-200 mb-3" />
+
+                {/* ── BILL TO ── */}
+                <div className="mb-4 text-[10px]">
+                    <p className="font-bold text-gray-500 uppercase tracking-wider text-[8px] mb-1">Bill To</p>
+                    <p className="font-black text-black text-[13px] leading-tight">{order?.customer_name || ""}</p>
+                    {order?.customer_address && (
+                        <p className="text-[9px] text-gray-700 font-semibold mt-0.5 leading-snug whitespace-pre-wrap">
+                            {order.customer_address}
+                        </p>
+                    )}
+                    <div className="flex flex-wrap gap-4 mt-0.5 text-[9px] text-gray-700 font-semibold">
+                        {order?.customer_phone && (
+                            <p><span className="font-bold text-black">Mobile</span> {order.customer_phone}</p>
+                        )}
+                        {companyDetails?.place_of_supply && (
+                            <p><span className="font-bold text-black">Place of Supply</span> {companyDetails.place_of_supply}</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── ITEMS TABLE ── */}
+                <div className="flex-1">
+                    <table className="w-full text-left border-collapse text-[10px]">
+                        <thead>
+                            <tr className="bg-gray-100">
+                                <th className="py-2 px-3 font-bold text-gray-600 uppercase text-[8px] tracking-wider border border-gray-200 w-10 text-center">No</th>
+                                <th className="py-2 px-3 font-bold text-gray-600 uppercase text-[8px] tracking-wider border border-gray-200">SERVICES</th>
+                                <th className="py-2 px-3 font-bold text-gray-600 uppercase text-[8px] tracking-wider border border-gray-200 text-center w-20">Qty.</th>
+                                <th className="py-2 px-3 font-bold text-gray-600 uppercase text-[8px] tracking-wider border border-gray-200 text-right w-24">Rate</th>
+                                <th className="py-2 px-3 font-bold text-gray-600 uppercase text-[8px] tracking-wider border border-gray-200 text-right w-24">Total</th>
                             </tr>
                         </thead>
-                        <tbody className="text-[10px] font-bold text-black">
+                        <tbody>
                             {itemsChunk.map((item, idx) => {
                                 const rate = Number(item.price) || 0;
+                                const qty = Number(item.quantity) || 1;
+                                const unit = item.unit || "PCS";
                                 const finalAmount = Number(item.total) || 0;
-                                const gstRate = Number(item.gst_rate) || 0;
-
                                 return (
-                                    <tr key={idx} className="h-[26px] overflow-hidden">
-                                        <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-black">{(pageIndex * ITEMS_PER_INVOICE_PAGE) + idx + 1}</td>
-                                        <td className="py-0.5 px-2 border-r-2 border-b border-black uppercase truncate max-w-[200px] text-black overflow-hidden whitespace-nowrap">{item.item_name}</td>
-                                        <td className="py-0.5 px-2 border-r-2 border-b border-black text-right text-black">{formatCurrency(rate)}</td>
-                                        <td className="py-0.5 px-2 border-r-2 border-b border-black text-center text-black">{gstRate}%</td>
-                                        <td className="py-0.5 px-2 border-b border-black text-right text-black">{formatCurrency(finalAmount)}</td>
+                                    <tr key={idx} className="border-b border-gray-100">
+                                        <td className="py-2.5 px-3 border-x border-gray-200 text-center text-gray-700">
+                                            {(pageIndex * ITEMS_PER_INVOICE_PAGE) + idx + 1}
+                                        </td>
+                                        <td className="py-2.5 px-3 border-x border-gray-200 text-gray-800 font-medium">
+                                            {item.item_name}
+                                        </td>
+                                        <td className="py-2.5 px-3 border-x border-gray-200 text-center text-gray-700">
+                                            {qty} {unit}
+                                        </td>
+                                        <td className="py-2.5 px-3 border-x border-gray-200 text-right text-gray-700">
+                                            {new Intl.NumberFormat('en-IN').format(rate)}
+                                        </td>
+                                        <td className="py-2.5 px-3 border-x border-gray-200 text-right text-gray-800 font-semibold">
+                                            {new Intl.NumberFormat('en-IN').format(finalAmount)}
+                                        </td>
                                     </tr>
                                 );
                             })}
+                            {/* Empty filler rows to push subtotal down — gives breathing room */}
+                            {Array.from({ length: Math.max(0, 10 - itemsChunk.length) }).map((_, i) => (
+                                <tr key={`empty-${i}`} className="border-b border-gray-50">
+                                    <td className="py-2 px-3 border-x border-gray-100">&nbsp;</td>
+                                    <td className="py-2 px-3 border-x border-gray-100"></td>
+                                    <td className="py-2 px-3 border-x border-gray-100"></td>
+                                    <td className="py-2 px-3 border-x border-gray-100"></td>
+                                    <td className="py-2 px-3 border-x border-gray-100"></td>
+                                </tr>
+                            ))}
+                            {/* SUBTOTAL ROW */}
+                            <tr className="bg-gray-100 border-t border-gray-300">
+                                <td className="py-2 px-3 border border-gray-200"></td>
+                                <td className="py-2 px-3 border border-gray-200 font-black text-[11px] uppercase tracking-wider text-black">SUBTOTAL</td>
+                                <td className="py-2 px-3 border border-gray-200 text-center font-bold text-gray-700">
+                                    {itemsChunk.reduce((s, i) => s + (Number(i.quantity) || 1), 0)}
+                                </td>
+                                <td className="py-2 px-3 border border-gray-200"></td>
+                                <td className="py-2 px-3 border border-gray-200 text-right font-black text-[11px] text-black">
+                                    ₹ {new Intl.NumberFormat('en-IN').format(taxableAmount)}
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
 
-                <div className="flex mt-auto text-black">
-                    <div className="w-[60%] border-r-2 border-black flex flex-col">
-                        <div className="py-1.5 px-2 border-b-2 border-black min-h-[30px] flex flex-col justify-center bg-slate-50">
-                            <span className="font-bold text-[9px] text-black uppercase">Received Amount in Words:</span>
-                            <p className="font-black italic capitalize text-[10px] mt-0.5 text-black leading-tight">{amountToWords(roundedBill)}</p>
-                        </div>
-                        <div className="p-2 flex-1 flex flex-col justify-between">
-                            <div>
-                                <p className="font-black uppercase underline text-[11px] mb-1.5 text-black">Bank Details</p>
-                                <div className="grid grid-cols-[50px_1fr] gap-y-0.5 text-[10px] font-bold uppercase text-black leading-tight">
-                                    <span>Bank:</span> <span className="text-black">{companyDetails?.bank_name || ""}</span>
-                                    <span>A/c No:</span> <span className="text-black">{companyDetails?.bank_acc_no || ""}</span>
-                                    <span>IFSC:</span> <span className="text-black">{companyDetails?.bank_ifsc || ""}</span>
+                {/* ── FOOTER ── */}
+                <div className="flex gap-6 mt-4 text-[9px]">
+                    {/* Terms & Conditions (left) */}
+                    <div className="flex-1">
+                        <p className="font-black text-[10px] mb-1 text-black">Terms &amp; Conditions</p>
+                        <ol className="list-decimal list-inside space-y-0.5 text-gray-700 font-medium">
+                            {termsList.map((t, i) => <li key={i}>{t}</li>)}
+                        </ol>
+                        {/* Bank details if available */}
+                        {companyDetails?.bank_name && (
+                            <div className="mt-3">
+                                <p className="font-black text-[10px] mb-1 text-black underline">Bank Details</p>
+                                <div className="space-y-0.5 text-gray-700 font-medium">
+                                    {companyDetails.bank_name && <p><span className="font-bold text-black">Bank:</span> {companyDetails.bank_name}</p>}
+                                    {companyDetails.bank_acc_no && <p><span className="font-bold text-black">A/c No:</span> {companyDetails.bank_acc_no}</p>}
+                                    {companyDetails.bank_ifsc && <p><span className="font-bold text-black">IFSC:</span> {companyDetails.bank_ifsc}</p>}
                                 </div>
                             </div>
-                            <div className="mt-2 pt-1.5 border-t border-slate-300">
-                                <p className="font-black uppercase underline text-[10px] mb-1 text-black">Terms & Conditions:</p>
-                                <p className="text-[8px] text-black whitespace-pre-wrap leading-tight">{companyDetails?.terms || termsList.join(' | ')}</p>
+                        )}
+                    </div>
+
+                    {/* Totals & Signature (right) */}
+                    <div className="w-[55mm] flex flex-col">
+                        {/* Divider line at top of totals */}
+                        <hr className="border-t border-gray-400 mb-2" />
+
+                        <div className="space-y-1.5">
+                            <div className="flex justify-between">
+                                <span className="font-black text-black text-[10px]">Total Amount</span>
+                                <span className="font-black text-black text-[10px]">₹ {new Intl.NumberFormat('en-IN').format(roundedBill)}</span>
+                            </div>
+                            <div className="flex justify-between text-gray-600">
+                                <span>Received Amount</span>
+                                <span>₹ {new Intl.NumberFormat('en-IN').format(receivedAmount)}</span>
                             </div>
                         </div>
-                    </div>
-                    <div className="w-[40%] flex flex-col text-[10px] text-black">
-                        <div className="flex justify-between py-1 px-1.5 border-b border-black text-black"><span>Taxable</span><span>{formatCurrency(taxableAmount)}</span></div>
-                        <div className="flex justify-between py-1 px-1.5 border-b border-slate-300 text-black"><span>Total GST</span><span>{formatCurrency(totalGst)}</span></div>
-                        <div className="flex justify-between py-0.5 px-2 border-b border-slate-300 text-black text-[9px] bg-slate-50 pl-4"><span>CGST</span><span>{formatCurrency(cgst)}</span></div>
-                        <div className="flex justify-between py-0.5 px-2 border-b border-black text-black text-[9px] bg-slate-50 pl-4"><span>SGST</span><span>{formatCurrency(sgst)}</span></div>
-                        <div className="flex justify-between py-1.5 px-2 border-b-2 border-black bg-slate-200 text-black"><span className="font-black uppercase text-black">Total Paid</span><span className="font-black text-black">{formatCurrency(roundedBill)}</span></div>
-                        <div className="flex-1 flex flex-col justify-end p-2 text-center">
-                            {pageIndex < totalPages - 1 && <p className="text-[8px] mb-1 font-bold italic text-slate-500">Continued on next page...</p>}
-                            <p className="font-black border-t border-black pt-1 uppercase text-[8px] text-black">Authorized Signature</p>
+
+                        <hr className="border-t border-gray-300 my-2" />
+
+                        <div className="mb-2">
+                            <p className="font-black text-[9px] text-black">Total Amount (in words)</p>
+                            <p className="text-gray-700 font-medium leading-snug capitalize mt-0.5">
+                                {amountToWords(roundedBill)}
+                            </p>
+                        </div>
+
+                        {/* Signature box without logo */}
+                        <div className="mt-auto border border-gray-300 rounded p-2 flex flex-col items-center justify-end min-h-[22mm] pb-2">
+                            <div className="flex-1"></div>
+                            <p className="text-[8px] font-bold text-gray-500 text-center">Signature</p>
+                            <p className="text-[8px] font-black text-black text-center">{companyName}</p>
                         </div>
                     </div>
                 </div>
+
+                {/* Page number - moved to absolute bottom center to avoid signature box */}
+                <p className="absolute bottom-[8mm] left-0 right-0 text-center text-[8px] text-gray-400 font-bold">
+                    Page {pageIndex + 1} of {totalPages}
+                </p>
             </div>
-            <div className="absolute bottom-1 right-2 print:bottom-1.5 print:right-2 text-[9px] font-black text-black">Page {pageIndex + 1} of {totalPages}</div>
         </div>
     );
 };
+
 
 export default function OldTokenBills() {
     const navigate = useNavigate();
@@ -287,7 +449,7 @@ export default function OldTokenBills() {
 
         setTimeout(() => {
             window.print();
-        }, 600);
+        }, 1500); // Wait longer for the logo to load
     };
 
     const handleDelete = async (id) => {
@@ -437,7 +599,7 @@ const handleGenerateQuote = async () => {
     setPrintItems(quoteItems);
     setShowQuoteModal(false);
 
-    setTimeout(() => { window.print(); }, 500);
+    setTimeout(() => { window.print(); }, 1500); // Wait longer for the logo to load
 };
 
 // --- TOKEN BILL LOGIC ---
@@ -531,7 +693,7 @@ const handleGenerateTokenBill = async () => {
 
     setShowTokenModal(false);
 
-    setTimeout(() => { window.print(); }, 500);
+    setTimeout(() => { window.print(); }, 1500); // Wait longer for the logo to load
 };
 
 const quoteFilteredStocks = useMemo(() => {

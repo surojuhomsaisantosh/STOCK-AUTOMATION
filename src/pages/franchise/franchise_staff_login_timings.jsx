@@ -4,7 +4,7 @@ import {
   ArrowLeft, Search, Loader2, RefreshCw, PowerOff,
   Calendar, Timer, LogIn, LogOut, Hourglass
 } from "lucide-react";
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase } from "../../frontend_supabase/supabaseClient";
 
 const THEME_GREEN = "rgb(0, 100, 55)";
 const BG_GRAY = "#f8fafc";
