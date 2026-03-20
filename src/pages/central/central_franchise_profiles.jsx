@@ -127,6 +127,20 @@ function CentralProfiles() {
   const handleDelete = async () => {
     if (!profileToDelete) return;
     setDeleting(true);
+
+    // First, delete associated menus for this franchise_id
+    if (profileToDelete.franchise_id) {
+      const { error: menuError } = await supabase
+        .from("menus")
+        .delete()
+        .eq("franchise_id", profileToDelete.franchise_id);
+      if (menuError) {
+        alert("Error deleting associated menus: " + menuError.message);
+        setDeleting(false);
+        return;
+      }
+    }
+
     const { error } = await supabase.from("profiles").delete().eq("id", profileToDelete.id);
     if (error) {
       alert("Error deleting user: " + error.message);
