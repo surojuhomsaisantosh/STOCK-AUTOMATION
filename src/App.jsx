@@ -48,6 +48,7 @@ const PackageBills = lazy(() => import("./pages/central/central_new_franchise_bi
 const OldQuotations = lazy(() => import("./pages/central/central_quotation_bills"));
 const OldTokenBills = lazy(() => import('./pages/central/central_token_bills'));
 const CentralVoucher = lazy(() => import('./pages/central/central_voucher'));
+const CentralTransportationService = lazy(() => import('./pages/central/central_transportation_service'));
 
 /* CONTEXTS & COMPONENTS */
 import { AuthProvider } from "./context/AuthContext";
@@ -225,6 +226,15 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["central"]}>
                     <CentralVoucher />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/central/transportation-service"
+                element={
+                  <ProtectedRoute allowedRoles={["central"]}>
+                    <CentralTransportationService />
                   </ProtectedRoute>
                 }
               />
