@@ -154,23 +154,10 @@ function PosManagement() {
     setMenus([]);
 
     try {
-      const cacheKey = `pos_menu_${id}`;
-      const cachedMenu = sessionStorage.getItem(cacheKey);
-
-      if (cachedMenu) {
-        setMenus(JSON.parse(cachedMenu));
-        setSelectedCategory("All");
-        setLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase.from("menus").select("*").eq("franchise_id", id).order("category");
       if (error) throw error;
 
-      const fetchedMenu = data || [];
-      setMenus(fetchedMenu);
-      sessionStorage.setItem(cacheKey, JSON.stringify(fetchedMenu));
-
+      setMenus(data || []);
     } catch (err) {
       showToast("Failed to load menu: " + err.message, "error");
     } finally {
@@ -180,7 +167,6 @@ function PosManagement() {
   };
 
   const refreshMenuCache = (id) => {
-    sessionStorage.removeItem(`pos_menu_${id}`);
     getMenu(id);
   };
 
@@ -228,7 +214,6 @@ function PosManagement() {
         if (error) throw error;
 
         showToast(`🗑️ Menu Wiped for ${finalTargetId}`, "success");
-        sessionStorage.removeItem(`pos_menu_${finalTargetId}`);
         if (viewFranchise === finalTargetId) setMenus([]);
         setDeleteTargetId("");
       } catch (err) {

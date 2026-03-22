@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback, startTransition, useDeferredValue, memo } from "react";
+import React, { useEffect, useState, useMemo, useCallback, startTransition, useDeferredValue, memo, useRef } from "react";
 import { supabase } from "../../frontend_supabase/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -9,6 +9,40 @@ import {
 } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa";
 import { formatCurrency, amountToWords } from "../../utils/formatters";
+
+// --- STATIC STYLES (extracted to avoid recreating on every render) ---
+const PRINT_STYLES = `
+  @media print {
+    body { background: white; margin: 0; padding: 0; }
+    .print-only { display: block !important; width: 100%; }
+    @page { size: A4; margin: 0; }
+    .a4-page {
+      width: 210mm;
+      height: 296.5mm;
+      padding: 5mm;
+      margin: 0 auto;
+      page-break-after: always;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .a4-page:last-child {
+      page-break-after: auto;
+    }
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+  }
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  /* INP: reduce rendering cost for off-screen rows */
+  tbody tr { content-visibility: auto; contain-intrinsic-size: auto 56px; }
+`;
+
+// --- STATIC INLINE STYLE OBJECTS (prevent re-creation every render) ---
+const BRAND_RING_STYLE = { '--tw-ring-color': 'rgb(0, 100, 55)' };
+const BRAND_BG_STYLE = { backgroundColor: 'rgb(0, 100, 55)' };
 
 // --- CONSTANTS & HELPERS ---
 const TABS = ["all", "incoming", "packed", "dispatched"];
@@ -204,51 +238,63 @@ const SortIcon = memo(({ column, sortConfig }) => {
 SortIcon.displayName = 'SortIcon';
 
 // --- TABLE ROW (module-level, memoized) ---
-const OrderRow = memo(({ order, idx, whatsappSent, onSelect, onWhatsApp }) => (
-  <tr onClick={() => onSelect(order)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
-    <td className="px-4 py-5 text-black/60 w-[60px]">{(idx + 1).toString().padStart(2, '0')}</td>
-    <td className="px-4 py-5 text-black whitespace-nowrap">{formatDateTime(order.created_at, order.order_time_text)}</td>
-    <td className="px-4 py-5 uppercase font-black text-black">{order.franchise_id}</td>
-    <td className="px-4 py-5 uppercase font-black text-black">{order.customer_name}</td>
-    <td className="px-4 py-5 uppercase">
-      <span className={`px-3 py-1 rounded-full text-[9px] font-black border ${order.status === 'dispatched' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-slate-100 text-black/60'}`}>{order.status}</span>
-    </td>
-    <td className="px-2 py-5 text-center w-[56px]">
-      <button
-        onClick={(e) => onWhatsApp(order, e)}
-        className={`p-1.5 rounded-full transition-all ${whatsappSent ? 'bg-green-100 text-green-600' : 'bg-red-50 text-red-400 hover:bg-green-50'}`}
-        title={whatsappSent ? "WhatsApp Sent ✓" : "WhatsApp Not Sent – Click to Send"}
-      >
-        <FaWhatsapp size={14} />
-      </button>
-    </td>
-    <td className="px-4 py-5 text-right font-black text-black">₹{order.total_amount}</td>
-  </tr>
-));
+const OrderRow = memo(({ order, idx, whatsappSent, onSelect, onWhatsApp }) => {
+  // INP: stable callback refs — avoid creating new arrow functions on every render
+  const handleClick = useCallback(() => onSelect(order), [order, onSelect]);
+  const handleWA = useCallback((e) => onWhatsApp(order, e), [order, onWhatsApp]);
+
+  return (
+    <tr onClick={handleClick} className="hover:bg-slate-50 cursor-pointer transition-colors group">
+      <td className="px-4 py-5 text-black/60 w-[60px]">{(idx + 1).toString().padStart(2, '0')}</td>
+      <td className="px-4 py-5 text-black whitespace-nowrap">{formatDateTime(order.created_at, order.order_time_text)}</td>
+      <td className="px-4 py-5 uppercase font-black text-black">{order.franchise_id}</td>
+      <td className="px-4 py-5 uppercase font-black text-black">{order.customer_name}</td>
+      <td className="px-4 py-5 uppercase">
+        <span className={`px-3 py-1 rounded-full text-[9px] font-black border ${order.status === 'dispatched' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-slate-100 text-black/60'}`}>{order.status}</span>
+      </td>
+      <td className="px-2 py-5 text-center w-[56px]">
+        <button
+          onClick={handleWA}
+          className={`p-1.5 rounded-full transition-all ${whatsappSent ? 'bg-green-100 text-green-600' : 'bg-red-50 text-red-400 hover:bg-green-50'}`}
+          title={whatsappSent ? "WhatsApp Sent ✓" : "WhatsApp Not Sent – Click to Send"}
+        >
+          <FaWhatsapp size={14} />
+        </button>
+      </td>
+      <td className="px-4 py-5 text-right font-black text-black">₹{order.total_amount}</td>
+    </tr>
+  );
+});
 OrderRow.displayName = 'OrderRow';
 
 // --- MOBILE CARD (module-level, memoized) ---
-const MobileOrderCard = memo(({ order, whatsappSent, onSelect, onWhatsApp }) => (
-  <div onClick={() => onSelect(order)} className="bg-white border border-black/10 p-5 rounded-[2rem] shadow-sm flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer">
-    <div className="space-y-1.5 min-w-0 pr-2">
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] font-black text-black/50 uppercase tracking-widest truncate">{order.franchise_id || "TV-GEN"}</span>
-        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase border ${order.status === 'dispatched' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-slate-100 text-black/60'}`}>{order.status}</span>
-        <button
-          onClick={(e) => onWhatsApp(order, e)}
-          className={`p-1 rounded-full transition-all ${whatsappSent ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400 hover:bg-green-50'}`}
-          title={whatsappSent ? "WhatsApp Sent" : "Mark WhatsApp Sent"}
-        >
-          <FaWhatsapp size={12} />
-        </button>
+const MobileOrderCard = memo(({ order, whatsappSent, onSelect, onWhatsApp }) => {
+  // INP: stable callback refs
+  const handleClick = useCallback(() => onSelect(order), [order, onSelect]);
+  const handleWA = useCallback((e) => onWhatsApp(order, e), [order, onWhatsApp]);
+
+  return (
+    <div onClick={handleClick} className="bg-white border border-black/10 p-5 rounded-[2rem] shadow-sm flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer">
+      <div className="space-y-1.5 min-w-0 pr-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-black text-black/50 uppercase tracking-widest truncate">{order.franchise_id || "TV-GEN"}</span>
+          <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase border ${order.status === 'dispatched' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-slate-100 text-black/60'}`}>{order.status}</span>
+          <button
+            onClick={handleWA}
+            className={`p-1 rounded-full transition-all ${whatsappSent ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400 hover:bg-green-50'}`}
+            title={whatsappSent ? "WhatsApp Sent" : "Mark WhatsApp Sent"}
+          >
+            <FaWhatsapp size={12} />
+          </button>
+        </div>
+        <h3 className="font-black text-sm uppercase leading-none text-black truncate">{order.customer_name}</h3>
+        <p className="text-[10px] font-bold text-black/60 flex items-center gap-1"><FiClock size={10} /> {formatDateTime(order.created_at, order.order_time_text)}</p>
+        <p className="text-[10px] font-bold text-black/60">Total: ₹{order.total_amount}</p>
       </div>
-      <h3 className="font-black text-sm uppercase leading-none text-black truncate">{order.customer_name}</h3>
-      <p className="text-[10px] font-bold text-black/60 flex items-center gap-1"><FiClock size={10} /> {formatDateTime(order.created_at, order.order_time_text)}</p>
-      <p className="text-[10px] font-bold text-black/60">Total: ₹{order.total_amount}</p>
+      <FiChevronRight size={20} className="text-black/20" />
     </div>
-    <FiChevronRight size={20} className="text-black/20" />
-  </div>
-));
+  );
+});
 MobileOrderCard.displayName = 'MobileOrderCard';
 
 
@@ -273,7 +319,8 @@ function StockOrders() {
 
   const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
   const [searchTerm, setSearchTerm] = useState("");
-  const [isMobileView, setIsMobileView] = useState(window.innerWidth < 1024);
+  const [isMobileView, setIsMobileView] = useState(() => window.innerWidth < 1024);
+  const resizeTimerRef = useRef(null);
   const [dateMode, setDateMode] = useState("date");
   const [singleDate, setSingleDate] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -284,8 +331,14 @@ function StockOrders() {
   }).toUpperCase();
 
   useEffect(() => {
-    const handleResize = () => setIsMobileView(window.innerWidth < 1024);
-    window.addEventListener('resize', handleResize);
+    // INP: debounce resize handler to avoid layout thrashing
+    const handleResize = () => {
+      clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = setTimeout(() => {
+        setIsMobileView(window.innerWidth < 1024);
+      }, 150);
+    };
+    window.addEventListener('resize', handleResize, { passive: true });
 
     if (!authLoading && authUser) {
       fetchOrders();
@@ -296,9 +349,16 @@ function StockOrders() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => fetchOrders())
         .subscribe();
 
-      return () => { supabase.removeChannel(subscription); };
+      return () => {
+        supabase.removeChannel(subscription);
+        window.removeEventListener('resize', handleResize);
+        clearTimeout(resizeTimerRef.current);
+      };
     }
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(resizeTimerRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, authLoading]);
 
@@ -373,6 +433,11 @@ function StockOrders() {
         direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
       }));
     });
+  }, []);
+
+  // INP: stable search handler — avoids creating a new function on every render
+  const handleSearchChange = useCallback((e) => {
+    setSearchTerm(e.target.value);
   }, []);
 
   // Deferred search value — lets the browser paint immediately on keystroke
@@ -524,59 +589,38 @@ function StockOrders() {
     });
   }, []);
 
+  // INP: memoize the invoice pages for print to avoid recalculating on every render
+  const printInvoicePages = useMemo(() => {
+    if (!selectedOrder) return null;
+    const companyDetails = getCompanyDetails(selectedOrder.franchise_id);
+    const fullItems = selectedOrder.invoice_items || [];
+    const pages = [];
+    if (fullItems.length === 0) pages.push([]);
+    else {
+      for (let i = 0; i < fullItems.length; i += ITEMS_PER_INVOICE_PAGE) {
+        pages.push(fullItems.slice(i, i + ITEMS_PER_INVOICE_PAGE));
+      }
+    }
+    return pages.map((chunk, index) => (
+      <FullPageInvoice
+        key={index}
+        order={selectedOrder}
+        companyDetails={companyDetails}
+        pageIndex={index}
+        totalPages={pages.length}
+        itemsChunk={chunk}
+      />
+    ));
+  }, [selectedOrder, getCompanyDetails]);
+
   return (
     <>
-      <style>{`
-        @media print {
-          body { background: white; margin: 0; padding: 0; }
-          .print-only { display: block !important; width: 100%; }
-          @page { size: A4; margin: 0; }
-          .a4-page {
-            width: 210mm;
-            height: 296.5mm;
-            padding: 5mm;
-            margin: 0 auto;
-            page-break-after: always;
-            box-sizing: border-box;
-            overflow: hidden;
-          }
-          .a4-page:last-child {
-            page-break-after: auto;
-          }
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-        }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-      `}</style>
+      {/* INP: static styles extracted to module-level constant */}
+      <style>{PRINT_STYLES}</style>
 
       {/* --- PRINT ONLY LAYER --- */}
       <div className="print-only hidden print:block bg-white">
-        {selectedOrder && (() => {
-          const companyDetails = getCompanyDetails(selectedOrder.franchise_id);
-          const fullItems = selectedOrder.invoice_items || [];
-          const pages = [];
-          if (fullItems.length === 0) pages.push([]);
-          else {
-            for (let i = 0; i < fullItems.length; i += ITEMS_PER_INVOICE_PAGE) {
-              pages.push(fullItems.slice(i, i + ITEMS_PER_INVOICE_PAGE));
-            }
-          }
-
-          return pages.map((chunk, index) => (
-            <FullPageInvoice
-              key={index}
-              order={selectedOrder}
-              companyDetails={companyDetails}
-              pageIndex={index}
-              totalPages={pages.length}
-              itemsChunk={chunk}
-            />
-          ));
-        })()}
+        {printInvoicePages}
       </div>
 
       <div className="min-h-[100dvh] bg-white text-black pb-12 overflow-x-hidden font-sans selection:bg-black/10 print:hidden">
@@ -619,9 +663,9 @@ function StockOrders() {
               <input
                 placeholder="Search Client or ID..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={handleSearchChange}
                 className="w-full bg-slate-50 border-none rounded-2xl py-3.5 pl-12 pr-4 text-xs font-bold outline-none focus:ring-2 transition-all uppercase"
-                style={{ '--tw-ring-color': BRAND_COLOR }}
+                style={BRAND_RING_STYLE}
               />
             </div>
 
@@ -632,7 +676,7 @@ function StockOrders() {
                   onClick={() => handleTabChange(tab)}
                   className={`flex-1 py-2.5 px-4 rounded-xl text-[10px] font-black uppercase transition-all
                     ${activeTab === tab ? 'text-white shadow-md' : 'text-black/60 hover:text-black hover:bg-white/50'}`}
-                  style={activeTab === tab ? { backgroundColor: BRAND_COLOR } : {}}
+                  style={activeTab === tab ? BRAND_BG_STYLE : undefined}
                 >
                   {tab}
                 </button>
@@ -675,7 +719,7 @@ function StockOrders() {
               </div>
               <button
                 onClick={resetFilters}
-                style={{ backgroundColor: BRAND_COLOR }}
+                style={BRAND_BG_STYLE}
                 className="p-3.5 px-5 w-full md:w-auto flex justify-center items-center gap-2 text-white rounded-2xl shadow-sm hover:opacity-90 active:scale-95 transition-all shrink-0"
               >
                 <FiRotateCcw size={18} />
@@ -791,12 +835,12 @@ function StockOrders() {
                 </div>
                 <div className="flex-1 flex gap-2">
                   {selectedOrder.status === 'incoming' && (
-                    <button onClick={() => updateStatus(selectedOrder.id, "packed")} className="flex-1 py-4 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all" style={{ backgroundColor: BRAND_COLOR }}>Mark Packed</button>
+                    <button onClick={() => updateStatus(selectedOrder.id, "packed")} className="flex-1 py-4 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all" style={BRAND_BG_STYLE}>Mark Packed</button>
                   )}
                   {selectedOrder.status === 'packed' && (
                     <>
                       <button onClick={() => updateStatus(selectedOrder.id, "incoming")} className="px-6 py-4 bg-red-50 text-red-600 border border-red-100 rounded-2xl font-black text-[10px] uppercase transition-all">Undo</button>
-                      <button onClick={() => updateStatus(selectedOrder.id, "dispatched")} style={{ backgroundColor: BRAND_COLOR }} className="flex-1 py-4 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center justify-center gap-2 transition-all"><FiTruck size={16} /> Dispatch</button>
+                      <button onClick={() => updateStatus(selectedOrder.id, "dispatched")} style={BRAND_BG_STYLE} className="flex-1 py-4 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center justify-center gap-2 transition-all"><FiTruck size={16} /> Dispatch</button>
                     </>
                   )}
                   {selectedOrder.status === 'dispatched' && (
