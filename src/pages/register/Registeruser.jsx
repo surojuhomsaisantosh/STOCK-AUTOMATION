@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../../frontend_supabase/supabaseClient";
 import {
   Eye, EyeOff, ArrowLeft, MapPin, Building2, User,
-  Phone, Mail, KeyRound, Sparkles, Map, Loader2
+  Phone, Mail, KeyRound, Sparkles, Map, Loader2, RefreshCw
 } from "lucide-react";
 import { BRAND_GREEN, BRAND_GREEN_LIGHT } from "../../utils/theme";
 
@@ -51,6 +51,7 @@ function RegisterUser() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [companiesList, setCompaniesList] = useState([]);
   const [jkshLogo, setJkshLogo] = useState(null);
+  const [syncMenu, setSyncMenu] = useState(false);
 
   const [formData, setFormData] = useState({
     company: "", franchise_id: "", name: "", phone: "", email: "",
@@ -186,7 +187,26 @@ function RegisterUser() {
         throw new Error(data.error);
       }
 
-      alert(`✅ Franchise Created! A verification email has been sent to ${formData.email}.`);
+      // --- Menu Sync: clone central menu to the new franchise if toggle is ON ---
+      if (syncMenu) {
+        try {
+          const { error: syncError } = await supabase.rpc('clone_franchise_menu', {
+            target_id: formData.franchise_id.trim().toUpperCase(),
+            central_id: 'TV-1'
+          });
+          if (syncError) {
+            console.error('Menu sync error:', syncError);
+            alert(`✅ Franchise Created! But menu sync failed: ${syncError.message}\nYou can sync manually from Menu Management.`);
+            navigate(-1);
+            return;
+          }
+          alert(`✅ Franchise Created & Menu Synced! A verification email has been sent to ${formData.email}.`);
+        } catch (syncErr) {
+          alert(`✅ Franchise Created! But menu sync failed: ${syncErr.message}\nYou can sync manually from Menu Management.`);
+        }
+      } else {
+        alert(`✅ Franchise Created! A verification email has been sent to ${formData.email}.`);
+      }
       navigate(-1);
 
     } catch (err) {
@@ -203,10 +223,7 @@ function RegisterUser() {
           <ArrowLeft size={isMobile ? 22 : 18} />
           <span style={{ marginLeft: "8px" }}>Back</span>
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {jkshLogo && <img loading="lazy"  src={jkshLogo} alt="Logo" style={{ height: '30px', borderRadius: '4px' }} />}
-          <h1 style={{ ...styles.title, fontSize: isMobile ? "17px" : "20px" }}>New Franchise</h1>
-        </div>
+        <h1 style={{ ...styles.title, fontSize: isMobile ? "17px" : "20px" }}>Create a New Franchise</h1>
         <div style={styles.idBoxWrapper}>
           <div style={{ ...styles.idBox, fontSize: isMobile ? "11px" : "13px" }}>
             ID : {adminId}
@@ -321,6 +338,45 @@ function RegisterUser() {
                 <input name="nearestBusStop" required value={formData.nearestBusStop} placeholder="e.g. Jubilee Hills Checkpost" onChange={handleChange} style={styles.cleanInput}
                   onFocus={() => setFocusedField("nearestBusStop")} onBlur={() => setFocusedField(null)} />
               </InputGroup>
+            </div>
+
+            <div style={styles.divider}></div>
+
+            <div style={styles.sectionHeader}>
+              <RefreshCw size={18} color={PRIMARY} />
+              <h2 style={styles.sectionTitle}>Menu Sync</h2>
+            </div>
+
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "16px 20px", borderRadius: "12px", marginBottom: "24px",
+              border: `1.5px solid ${syncMenu ? PRIMARY : BORDER}`,
+              backgroundColor: syncMenu ? "#f0fdf4" : "#fcfcfd",
+              transition: "all 0.25s ease",
+              cursor: "pointer"
+            }} onClick={() => setSyncMenu(!syncMenu)}>
+              <div>
+                <div style={{ fontSize: "15px", fontWeight: "700", color: TEXT_MAIN, marginBottom: "4px" }}>
+                  {syncMenu ? "Sync Menu from Central (TV-1)" : "Don't Sync Menu"}
+                </div>
+                <div style={{ fontSize: "12px", color: TEXT_MUTED }}>
+                  {syncMenu ? "The central menu will be cloned to this branch on creation" : "No menu will be copied — you can sync later from Menu Management"}
+                </div>
+              </div>
+              <div style={{
+                width: "50px", height: "28px", borderRadius: "14px",
+                backgroundColor: syncMenu ? PRIMARY : "#cbd5e1",
+                position: "relative", transition: "background-color 0.25s ease",
+                flexShrink: 0, marginLeft: "16px"
+              }}>
+                <div style={{
+                  width: "22px", height: "22px", borderRadius: "50%",
+                  backgroundColor: "#fff", position: "absolute", top: "3px",
+                  left: syncMenu ? "25px" : "3px",
+                  transition: "left 0.25s ease",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)"
+                }} />
+              </div>
             </div>
 
             <button type="submit" disabled={loading} style={{ ...styles.button, padding: isMobile ? "18px" : "16px" }}>
