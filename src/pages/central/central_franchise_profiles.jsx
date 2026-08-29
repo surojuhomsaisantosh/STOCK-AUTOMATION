@@ -22,14 +22,69 @@ import {
   ToggleLeft,
   Download,
   Truck,
+  ShoppingBag,
+  SendHorizontal,
+  Layers,
 } from "lucide-react";
 import { BRAND_GREEN } from "../../utils/theme";
+import { isOn } from "../../utils/featureFlags";
 
 // Consistency with your existing brand colors
 const PRIMARY = BRAND_GREEN;
 const ACTION_GREEN = BRAND_GREEN;
 const DANGER_RED = "#dc2626";
 const BORDER = "#e5e7eb";
+
+// Per-franchise feature flags rendered as pills next to Edit.
+// `is_active` is deliberately NOT here — it keeps its own confirm modal and is
+// never exposed to the bulk actions (mass-disabling logs every owner out).
+const FEATURE_FIELDS = {
+  order_stock_enabled: { label: "Order Stock", short: "ORDER", Icon: ShoppingBag },
+  stock_request_enabled: { label: "Stock Request", short: "REQUEST", Icon: SendHorizontal },
+};
+const FEATURE_FIELD_KEYS = Object.keys(FEATURE_FIELDS);
+
+// Only franchise outlets get the feature pills. Central/Stock accounts never do.
+const isFranchiseRow = (p) => p?.role === "franchise";
+
+// Fields the edit modal actually edits. saveChanges must send ONLY these —
+// spreading the whole row would write stale is_active / feature flags back.
+const EDITABLE_FIELDS = [
+  "name", "email", "phone", "role", "company", "franchise_id",
+  "branch_location", "nearest_bus_stop", "city", "state", "country",
+  "pincode", "address", "transportation_charge",
+];
+
+function FeaturePill({ profile, field, disabled, onToggle, compact = false }) {
+  const on = isOn(profile[field]);
+  const { label, short, Icon } = FEATURE_FIELDS[field];
+  return (
+    <button
+      onClick={() => onToggle(profile, field)}
+      disabled={disabled}
+      title={`${label}: ${on ? "Enabled" : "Disabled"} — click to ${on ? "disable" : "enable"}`}
+      style={{
+        display: "flex", alignItems: "center", gap: "5px",
+        padding: compact ? "6px 10px" : "4px 10px",
+        borderRadius: "16px", cursor: disabled ? "not-allowed" : "pointer",
+        border: `1px solid ${on ? "#bbf7d0" : "#fca5a5"}`,
+        background: on ? "#dcfce7" : "#fee2e2",
+        opacity: disabled ? 0.5 : 1,
+        whiteSpace: "nowrap",
+        flex: compact ? 1 : "none",
+        justifyContent: "center",
+      }}
+    >
+      <Icon size={13} color={on ? "#166534" : "#dc2626"} />
+      <span style={{ fontSize: "10px", fontWeight: 800, color: on ? "#166534" : "#dc2626" }}>
+        {compact ? short : label}
+      </span>
+      <span style={{ fontSize: "10px", fontWeight: 900, color: on ? "#166534" : "#dc2626" }}>
+        {on ? "ON" : "OFF"}
+      </span>
+    </button>
+  );
+}
 
 function CentralProfiles() {
   const navigate = useNavigate();
@@ -64,9 +119,19 @@ function CentralProfiles() {
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
-  const [togglingId, setTogglingId] = useState(null);
+  // In-flight single-row writes, keyed `${profileId}:${field}`. A set rather
+  // than one id so toggling one flag does not grey out the other pills, and so
+  // two concurrent toggles cannot clear each other's busy state.
+  const [togglingKeys, setTogglingKeys] = useState([]);
+  const isToggling = (key) => togglingKeys.includes(key);
+  const anyToggling = togglingKeys.length > 0;
   const [showToggleModal, setShowToggleModal] = useState(false);
-  const [profileToToggle, setProfileToToggle] = useState(null);
+  const [toggleTarget, setToggleTarget] = useState(null); // { profile, field }
+
+  // Bulk actions
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [showBulkMenu, setShowBulkMenu] = useState(false);
+  const [bulkTarget, setBulkTarget] = useState(null); // { field, value }
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -288,7 +353,16 @@ function CentralProfiles() {
       } catch (_) { /* ignore storage errors */ }
     }
 
-    const { error } = await supabase.from("profiles").update(editForm).eq("id", selectedProfile.id);
+    // Send ONLY the fields this modal edits. `editForm` is a snapshot of the
+    // whole row taken when the modal opened, so spreading it would write stale
+    // is_active / order_stock_enabled / stock_request_enabled values back and
+    // silently undo a toggle made in the meantime.
+    const payload = {};
+    for (const key of EDITABLE_FIELDS) {
+      if (key in editForm) payload[key] = editForm[key];
+    }
+
+    const { error } = await supabase.from("profiles").update(payload).eq("id", selectedProfile.id);
     if (!error) {
       setShowEditModal(false);
       fetchProfiles();
@@ -307,33 +381,116 @@ function CentralProfiles() {
       alert("Stock Manager accounts cannot be disabled.");
       return;
     }
-    setProfileToToggle(profile);
+    setToggleTarget({ profile, field: 'is_active' });
     setShowToggleModal(true);
   };
 
+  /**
+   * Flips one boolean flag on one profile. Optimistic, with a rollback to the
+   * exact previous value if the write is rejected (e.g. by the DB guard) —
+   * otherwise the UI would keep showing a state the database never accepted.
+   */
+  const applyToggle = async (profile, field) => {
+    const key = `${profile.id}:${field}`;
+    if (togglingKeys.includes(key)) return false; // ignore double-clicks
+    const previous = profile[field];
+    const next = previous === false; // NULL/true -> false, false -> true
+
+    setTogglingKeys(prev => [...prev, key]);
+    setProfiles(prev => prev.map(p => (p.id === profile.id ? { ...p, [field]: next } : p)));
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ [field]: next })
+      .eq('id', profile.id);
+
+    if (error) {
+      setProfiles(prev => prev.map(p => (p.id === profile.id ? { ...p, [field]: previous } : p)));
+      const what = field === 'is_active' ? 'account status' : FEATURE_FIELDS[field].label;
+      console.error("Toggle error:", error);
+      alert(`Failed to update ${what}: ${error.message || String(error)}`);
+    }
+
+    setTogglingKeys(prev => prev.filter(k => k !== key));
+    return !error;
+  };
+
   const handleToggleStatus = async () => {
-    if (!profileToToggle) return;
-    setTogglingId(profileToToggle.id);
-    try {
-      const newStatus = profileToToggle.is_active === false ? true : false;
+    if (!toggleTarget) return;
+    // Read the live row rather than the snapshot taken when the modal opened.
+    const fresh = profiles.find(p => p.id === toggleTarget.profile.id) || toggleTarget.profile;
+    const ok = await applyToggle(fresh, toggleTarget.field);
+    if (ok) {
+      setShowToggleModal(false);
+      setToggleTarget(null);
+    }
+  };
+
+  // Feature pills toggle inline (no confirm) — low stakes and instantly reversible.
+  const handleFeatureToggle = (profile, field) => {
+    if (bulkBusy) return; // interlock: never race a bulk run
+    applyToggle(profile, field);
+  };
+
+  /* ================= BULK ACTIONS ================= */
+
+  // "All" means the rows currently VISIBLE after search + company filter, and
+  // only franchise outlets. Never Central/Stock accounts, never off-screen rows.
+  const bulkTargets = useMemo(
+    () => sortedAndFilteredProfiles.filter(isFranchiseRow),
+    [sortedAndFilteredProfiles]
+  );
+
+  const bulkFilterSummary = useMemo(() => {
+    const parts = [];
+    if (companyFilter !== "all") parts.push(`Company = ${companyFilter}`);
+    if (deferredSearchQuery.trim()) parts.push(`Search = "${deferredSearchQuery.trim()}"`);
+    return parts.length ? parts.join(" · ") : "No filter — all franchise outlets";
+  }, [companyFilter, deferredSearchQuery]);
+
+  const openBulk = (field, value) => {
+    setShowBulkMenu(false);
+    if (bulkTargets.length === 0) {
+      alert("No franchise outlets match the current filter.");
+      return;
+    }
+    setBulkTarget({ field, value });
+  };
+
+  const applyBulk = async () => {
+    if (!bulkTarget) return;
+    const { field, value } = bulkTarget;
+    const ids = bulkTargets.map(p => p.id);
+    if (!ids.length) { setBulkTarget(null); return; }
+
+    setBulkBusy(true);
+    const idSet = new Set(ids);
+    setProfiles(prev => prev.map(p => (idSet.has(p.id) ? { ...p, [field]: value } : p)));
+
+    // PostgREST puts `in.(...)` in the query string, so a long id list can blow
+    // the URL length limit. Chunk it.
+    const CHUNK = 200;
+    for (let i = 0; i < ids.length; i += CHUNK) {
       const { error } = await supabase
         .from('profiles')
-        .update({ is_active: newStatus })
-        .eq('id', profileToToggle.id);
+        .update({ [field]: value })
+        .in('id', ids.slice(i, i + CHUNK));
 
-      if (error) throw error;
-
-      setProfiles(prev => prev.map(p => 
-        p.id === profileToToggle.id ? { ...p, is_active: newStatus } : p
-      ));
-      setShowToggleModal(false);
-      setProfileToToggle(null);
-    } catch (err) {
-      console.error("Toggle error:", err);
-      alert("Failed to update status: " + (err.message || String(err)));
-    } finally {
-      setTogglingId(null);
+      if (error) {
+        // A later chunk failed after earlier ones committed: the optimistic
+        // state is now half-wrong and a blanket rollback would also be wrong.
+        // Resync from the server instead of guessing.
+        console.error("Bulk toggle error:", error);
+        await fetchProfiles();
+        alert(`Bulk update failed: ${error.message || String(error)}`);
+        setBulkBusy(false);
+        setBulkTarget(null);
+        return;
+      }
     }
+
+    setBulkBusy(false);
+    setBulkTarget(null);
   };
 
   const handlePasswordChange = async () => {
@@ -405,6 +562,9 @@ function CentralProfiles() {
       "Pincode": p.pincode || "",
       "Address": p.address || "",
       "Transportation Charge": p.transportation_charge != null ? p.transportation_charge : "",
+      "Account Status": p.is_active === false ? "Disabled" : "Active",
+      "Order Stock": isFranchiseRow(p) ? (isOn(p.order_stock_enabled) ? "ON" : "OFF") : "—",
+      "Stock Request": isFranchiseRow(p) ? (isOn(p.stock_request_enabled) ? "ON" : "OFF") : "—",
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -513,6 +673,57 @@ function CentralProfiles() {
 
           {/* Register & Export Buttons Right */}
           <div style={{ display: 'flex', gap: '12px', flexDirection: isMobile ? 'column' : 'row', width: isMobile ? '100%' : 'auto' }}>
+            {/* BULK ACTIONS — applies to the franchise rows currently visible */}
+            <div style={{ position: 'relative', width: isMobile ? '100%' : 'auto' }}>
+              <button
+                onClick={() => setShowBulkMenu(v => !v)}
+                disabled={bulkBusy || anyToggling}
+                style={{
+                  ...styles.registerBtn,
+                  background: '#fff',
+                  color: '#111827',
+                  border: `1.5px solid ${BORDER}`,
+                  width: isMobile ? '100%' : 'auto',
+                  justifyContent: 'center',
+                  height: '42px',
+                  opacity: (bulkBusy || anyToggling) ? 0.5 : 1,
+                  cursor: (bulkBusy || anyToggling) ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <Layers size={16} />
+                <span>{bulkBusy ? 'APPLYING…' : 'BULK ACTIONS'}</span>
+                <ChevronDown size={14} />
+              </button>
+
+              {showBulkMenu && (
+                <>
+                  {/* click-away catcher */}
+                  <div
+                    onClick={() => setShowBulkMenu(false)}
+                    style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                  />
+                  <div style={styles.bulkMenu}>
+                    <div style={styles.bulkMenuHeader}>
+                      Applies to {bulkTargets.length} franchise{bulkTargets.length === 1 ? '' : 's'} in view
+                    </div>
+                    {FEATURE_FIELD_KEYS.map((field) => (
+                      <div key={field}>
+                        <div style={styles.bulkMenuGroup}>{FEATURE_FIELDS[field].label}</div>
+                        <button style={styles.bulkMenuItem} onClick={() => openBulk(field, true)}>
+                          <ToggleRight size={15} color="#166534" />
+                          <span>Enable for all</span>
+                        </button>
+                        <button style={styles.bulkMenuItem} onClick={() => openBulk(field, false)}>
+                          <ToggleLeft size={15} color={DANGER_RED} />
+                          <span>Disable for all</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
             <button onClick={handleExportExcel} style={{
               ...styles.registerBtn,
               background: '#1e293b',
@@ -583,6 +794,24 @@ function CentralProfiles() {
                   <span style={styles.addressText}>{p.address || "No Address Provided"}</span>
                 </div>
 
+                {isFranchiseRow(p) && (
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ ...styles.infoLabel, marginBottom: '6px' }}>Features</div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {FEATURE_FIELD_KEYS.map((field) => (
+                        <FeaturePill
+                          key={field}
+                          profile={p}
+                          field={field}
+                          disabled={bulkBusy || isToggling(`${p.id}:${field}`)}
+                          onToggle={handleFeatureToggle}
+                          compact
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ ...styles.cardActions, flexWrap: 'wrap' }}>
                   <button onClick={() => openEditModal(p)} style={styles.mobileActionBtnUpdate}>
                     <Edit2 size={14} /> UPDATE
@@ -591,7 +820,7 @@ function CentralProfiles() {
                     <Trash2 size={14} /> DELETE
                   </button>
                   {p.id !== currentUserId && p.role !== 'stock' && (
-                  <button onClick={() => confirmToggle(p)} disabled={togglingId === p.id} style={{ ...styles.mobileActionBtnUpdate, background: p.is_active !== false ? '#dcfce7' : '#fee2e2', color: p.is_active !== false ? '#166534' : '#dc2626', borderColor: p.is_active !== false ? '#bbf7d0' : '#fca5a5', opacity: togglingId === p.id ? 0.5 : 1 }}>
+                  <button onClick={() => confirmToggle(p)} disabled={bulkBusy || isToggling(`${p.id}:is_active`)} style={{ ...styles.mobileActionBtnUpdate, background: p.is_active !== false ? '#dcfce7' : '#fee2e2', color: p.is_active !== false ? '#166534' : '#dc2626', borderColor: p.is_active !== false ? '#bbf7d0' : '#fca5a5', opacity: (bulkBusy || isToggling(`${p.id}:is_active`)) ? 0.5 : 1 }}>
                     {p.is_active !== false ? <><ToggleRight size={14} /> ON</> : <><ToggleLeft size={14} /> OFF</>}
                   </button>
                   )}
@@ -643,6 +872,7 @@ function CentralProfiles() {
                       {sortField === 'transportation_charge' ? (sortDirection === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : <ChevronDown size={14} color="#ccc" />}
                     </div>
                   </th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>FEATURES</th>
                   <th style={{ ...styles.th, textAlign: 'center' }}>ACTION</th>
                 </tr>
               </thead>
@@ -668,6 +898,23 @@ function CentralProfiles() {
                       </span>
                     </td>
                     <td style={{ ...styles.td, textAlign: 'center' }}>
+                      {isFranchiseRow(p) ? (
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                          {FEATURE_FIELD_KEYS.map((field) => (
+                            <FeaturePill
+                              key={field}
+                              profile={p}
+                              field={field}
+                              disabled={bulkBusy || isToggling(`${p.id}:${field}`)}
+                              onToggle={handleFeatureToggle}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <span style={{ color: '#d1d5db', fontWeight: 700 }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ ...styles.td, textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
                         <button onClick={() => openEditModal(p)} style={styles.actionIconBtn} title="Edit">
                           <Edit2 size={16} color={ACTION_GREEN} />
@@ -676,7 +923,7 @@ function CentralProfiles() {
                           <Trash2 size={16} color={DANGER_RED} />
                         </button>
                         {p.id !== currentUserId && p.role !== 'stock' && (
-                        <button onClick={() => confirmToggle(p)} disabled={togglingId === p.id} style={{ ...styles.actionIconBtn, opacity: togglingId === p.id ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '16px', border: `1px solid ${p.is_active !== false ? '#bbf7d0' : '#fca5a5'}`, background: p.is_active !== false ? '#dcfce7' : '#fee2e2' }} title={p.is_active !== false ? "Disable" : "Enable"}>
+                        <button onClick={() => confirmToggle(p)} disabled={bulkBusy || isToggling(`${p.id}:is_active`)} style={{ ...styles.actionIconBtn, opacity: (bulkBusy || isToggling(`${p.id}:is_active`)) ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '16px', border: `1px solid ${p.is_active !== false ? '#bbf7d0' : '#fca5a5'}`, background: p.is_active !== false ? '#dcfce7' : '#fee2e2' }} title={p.is_active !== false ? "Disable account" : "Enable account"}>
                           {p.is_active !== false ? <><ToggleRight size={16} color="#166534" /> <span style={{color: '#166534', fontWeight: 'bold', fontSize: '11px'}}>ON</span></> : <><ToggleLeft size={16} color="#dc2626" /> <span style={{color: '#dc2626', fontWeight: 'bold', fontSize: '11px'}}>OFF</span></>}
                         </button>
                         )}
@@ -934,41 +1181,100 @@ function CentralProfiles() {
       {showToggleModal && (
         <div style={styles.modalOverlay} onClick={() => setShowToggleModal(false)}>
           <div style={{ ...styles.modal, width: isMobile ? '90%' : '420px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-            <div style={{ color: profileToToggle?.is_active !== false ? DANGER_RED : ACTION_GREEN, marginBottom: '20px' }}>
-              {profileToToggle?.is_active !== false ? <ToggleLeft size={48} style={{ margin: '0 auto' }} /> : <ToggleRight size={48} style={{ margin: '0 auto' }} />}
+            <div style={{ color: toggleTarget?.profile?.is_active !== false ? DANGER_RED : ACTION_GREEN, marginBottom: '20px' }}>
+              {toggleTarget?.profile?.is_active !== false ? <ToggleLeft size={48} style={{ margin: '0 auto' }} /> : <ToggleRight size={48} style={{ margin: '0 auto' }} />}
             </div>
             <h3 style={{ margin: '0 0 10px 0', fontSize: isMobile ? '16px' : '18px' }}>
-              {profileToToggle?.is_active !== false ? 'Disable Account' : 'Enable Account'}
+              {toggleTarget?.profile?.is_active !== false ? 'Disable Account' : 'Enable Account'}
             </h3>
             <p style={{ color: '#6b7280', fontSize: '13px', lineHeight: '1.6', marginBottom: '8px' }}>
-              {profileToToggle?.is_active !== false ? (
+              {toggleTarget?.profile?.is_active !== false ? (
                 <>
-                  Are you sure you want to disable <strong>{profileToToggle?.name}</strong>
-                  {profileToToggle?.role === 'franchise' && <> ({profileToToggle?.franchise_id})</>}?
-                  {profileToToggle?.role === 'central' && (
+                  Are you sure you want to disable <strong>{toggleTarget?.profile?.name}</strong>
+                  {toggleTarget?.profile?.role === 'franchise' && <> ({toggleTarget?.profile?.franchise_id})</>}?
+                  {toggleTarget?.profile?.role === 'central' && (
                     <><br /><br /><span style={{ color: DANGER_RED, fontWeight: '800' }}>⚠️ WARNING: This is a Central Admin account.</span></>  
                   )}
-                  {profileToToggle?.role === 'franchise' && (
+                  {toggleTarget?.profile?.role === 'franchise' && (
                     <><br /><br /><span style={{ color: DANGER_RED, fontWeight: '700' }}>All store staff under this franchise will also be blocked from logging in.</span></>
                   )}
                 </>
               ) : (
-                <>Are you sure you want to re-enable <strong>{profileToToggle?.name}</strong>?<br />They will be able to log in again.</>
+                <>Are you sure you want to re-enable <strong>{toggleTarget?.profile?.name}</strong>?<br />They will be able to log in again.</>
               )}
             </p>
             <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
               <button
-                onClick={() => { setShowToggleModal(false); setProfileToToggle(null); }}
+                onClick={() => { setShowToggleModal(false); setToggleTarget(null); }}
                 style={{ ...styles.saveBtn, background: '#f3f4f6', color: '#374151', flex: 1, marginTop: 0 }}
               >
                 CANCEL
               </button>
               <button
                 onClick={handleToggleStatus}
-                disabled={togglingId === profileToToggle?.id}
-                style={{ ...styles.saveBtn, background: profileToToggle?.is_active !== false ? DANGER_RED : ACTION_GREEN, flex: 1, marginTop: 0 }}
+                disabled={anyToggling}
+                style={{ ...styles.saveBtn, background: toggleTarget?.profile?.is_active !== false ? DANGER_RED : ACTION_GREEN, flex: 1, marginTop: 0 }}
               >
-                {togglingId === profileToToggle?.id ? '...' : (profileToToggle?.is_active !== false ? 'DISABLE' : 'ENABLE')}
+                {anyToggling ? '...' : (toggleTarget?.profile?.is_active !== false ? 'DISABLE' : 'ENABLE')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BULK ACTION CONFIRMATION MODAL */}
+      {bulkTarget && (
+        <div style={styles.modalOverlay} onClick={() => !bulkBusy && setBulkTarget(null)}>
+          <div style={{ ...styles.modal, width: isMobile ? '90%' : '440px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <div style={{ color: bulkTarget.value ? ACTION_GREEN : DANGER_RED, marginBottom: '20px' }}>
+              {bulkTarget.value
+                ? <ToggleRight size={48} style={{ margin: '0 auto' }} />
+                : <ToggleLeft size={48} style={{ margin: '0 auto' }} />}
+            </div>
+
+            <h3 style={{ margin: '0 0 10px 0', fontSize: isMobile ? '16px' : '18px' }}>
+              {bulkTarget.value ? 'Enable' : 'Disable'} {FEATURE_FIELDS[bulkTarget.field].label} for{' '}
+              {bulkTargets.length} franchise{bulkTargets.length === 1 ? '' : 's'}?
+            </h3>
+
+            <div style={{
+              background: '#f9fafb', border: `1px solid ${BORDER}`, borderRadius: '10px',
+              padding: '10px 14px', margin: '0 0 16px 0', textAlign: 'left'
+            }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#9ca3af', textTransform: 'uppercase', marginBottom: '4px' }}>
+                Applies to
+              </div>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#111827' }}>
+                {bulkFilterSummary}
+              </div>
+            </div>
+
+            <p style={{ color: '#6b7280', fontSize: '13px', lineHeight: '1.6', marginBottom: '20px' }}>
+              {bulkTarget.value ? (
+                <>They will immediately see the <strong>{FEATURE_FIELDS[bulkTarget.field].label}</strong> card on their dashboard.</>
+              ) : (
+                <>The <strong>{FEATURE_FIELDS[bulkTarget.field].label}</strong> card will be greyed out and the page blocked for all of them.</>
+              )}
+              <br /><br />
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>
+                Central and Stock Manager accounts are not affected.
+              </span>
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => setBulkTarget(null)}
+                disabled={bulkBusy}
+                style={{ ...styles.saveBtn, background: '#f3f4f6', color: '#374151', flex: 1, marginTop: 0, opacity: bulkBusy ? 0.5 : 1 }}
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={applyBulk}
+                disabled={bulkBusy}
+                style={{ ...styles.saveBtn, background: bulkTarget.value ? ACTION_GREEN : DANGER_RED, flex: 1, marginTop: 0, opacity: bulkBusy ? 0.6 : 1 }}
+              >
+                {bulkBusy ? 'APPLYING…' : (bulkTarget.value ? 'ENABLE ALL' : 'DISABLE ALL')}
               </button>
             </div>
           </div>
@@ -1009,6 +1315,11 @@ const styles = {
   code: { background: "#f3f4f6", padding: "2px 6px", borderRadius: "4px", fontSize: "11px", color: "#4b5563", fontFamily: "monospace" },
   roleBadge: { padding: "4px 12px", borderRadius: "20px", fontSize: "10px", fontWeight: "800", display: "inline-block" },
   actionIconBtn: { background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: "4px", borderRadius: "4px" },
+
+  bulkMenu: { position: "absolute", top: "48px", right: 0, zIndex: 41, background: "#fff", border: `1.5px solid ${BORDER}`, borderRadius: "14px", boxShadow: "0 12px 28px rgba(0,0,0,0.12)", padding: "6px", minWidth: "230px" },
+  bulkMenuHeader: { fontSize: "10px", fontWeight: 800, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px", padding: "8px 12px 6px", borderBottom: `1px solid ${BORDER}`, marginBottom: "4px" },
+  bulkMenuGroup: { fontSize: "10px", fontWeight: 900, color: "#111827", textTransform: "uppercase", letterSpacing: "0.5px", padding: "8px 12px 4px" },
+  bulkMenuItem: { display: "flex", alignItems: "center", gap: "8px", width: "100%", background: "none", border: "none", cursor: "pointer", padding: "8px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, color: "#374151", textAlign: "left" },
 
   mobileCard: { background: '#fff', borderRadius: '24px', border: `1.5px solid ${BORDER}`, padding: '18px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' },
   cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' },

@@ -233,7 +233,7 @@ function CentralSettings() {
             </div>
 
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed mb-6">
-              Enable or disable the online stock ordering gateway for all franchise outlets.
+              Master switch for the online stock ordering gateway. Individual outlets are controlled per-franchise in Franchise Profiles.
             </p>
 
             <div className="flex-1 flex flex-col justify-center items-center gap-4">
@@ -279,7 +279,7 @@ function CentralSettings() {
             </div>
 
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed mb-6">
-              Enable or disable the stock request portal for all franchise outlets.
+              Master switch for the stock request portal. Individual outlets are controlled per-franchise in Franchise Profiles.
             </p>
 
             <div className="flex-1 flex flex-col justify-center items-center gap-4">

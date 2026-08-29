@@ -18,6 +18,7 @@ import {
 
 import MobileNav from "../../components/MobileNav";
 import { BRAND_GREEN } from "../../utils/theme";
+import { isFeatureEnabled, toSettingsMap } from "../../utils/featureFlags";
 
 const PRIMARY = BRAND_GREEN;
 const BORDER = "#e5e7eb";
@@ -27,9 +28,17 @@ function FranchiseOwnerDashboard() {
   const [franchiseName, setFranchiseName] = useState("");
   const [franchiseId, setFranchiseId] = useState("...");
   const [notifications, setNotifications] = useState([]);
-  const [onlinePaymentsEnabled, setOnlinePaymentsEnabled] = useState(false);
-  const [stockRequestsEnabled, setStockRequestsEnabled] = useState(false);
+  // Global kill-switches from `central_settings`
+  const [globalSettings, setGlobalSettings] = useState({});
+  // Per-franchise flags from this owner's `profiles` row
+  const [featureFlags, setFeatureFlags] = useState({});
+  // Both layers are async. Until BOTH have resolved we must not render the
+  // disabled state, or every load flashes "Coming Soon" before settling.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [flagsLoaded, setFlagsLoaded] = useState(false);
   const navigate = useNavigate();
+
+  const gatesReady = settingsLoaded && flagsLoaded;
 
   useEffect(() => {
     let isMounted = true;
@@ -60,22 +69,25 @@ function FranchiseOwnerDashboard() {
     };
   }, []);
 
-  // Fetch central settings to check if online payments and stock requests are enabled
+  // Fetch the global kill-switches. These are ANDed with the per-franchise
+  // flags below — a card shows only when both layers agree.
   useEffect(() => {
+    let isMounted = true;
     const fetchCentralSettings = async () => {
       const { data, error } = await supabase
         .from("central_settings")
         .select("key, enabled")
         .in("key", ["online_payments", "stock_requests"]);
 
-      if (!error && data) {
-        data.forEach((s) => {
-          if (s.key === "online_payments") setOnlinePaymentsEnabled(s.enabled);
-          if (s.key === "stock_requests") setStockRequestsEnabled(s.enabled);
-        });
-      }
+      if (!isMounted) return;
+      if (!error && data) setGlobalSettings(toSettingsMap(data));
+      // Mark loaded even on error: an absent/failed settings read keeps the
+      // cards disabled (isGloballyOn requires an explicit true), which is the
+      // safe direction, and stops the grid hanging in its loading state.
+      setSettingsLoaded(true);
     };
     fetchCentralSettings();
+    return () => { isMounted = false; };
   }, []);
 
   const fetchProfileAndNotifications = async (isMounted = true) => {
@@ -85,15 +97,18 @@ function FranchiseOwnerDashboard() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('name, franchise_id')
+        .select('name, franchise_id, order_stock_enabled, stock_request_enabled')
         .eq('id', user.id)
         .single();
 
       if (isMounted && profile) {
         setFranchiseName(profile.name);
         setFranchiseId(profile.franchise_id);
+        setFeatureFlags({
+          order_stock_enabled: profile.order_stock_enabled,
+          stock_request_enabled: profile.stock_request_enabled,
+        });
       }
-
       const { data: restockedItems } = await supabase
         .from('stock_requests')
         .select('id, item_name, created_at, status')
@@ -108,6 +123,10 @@ function FranchiseOwnerDashboard() {
 
     } catch (error) {
       console.error("Dashboard Error:", error);
+    } finally {
+      // Must run on every path — including the early `!user` return and the
+      // catch — or the nav grid hangs in its loading state forever.
+      if (isMounted) setFlagsLoaded(true);
     }
   };
 
@@ -122,10 +141,19 @@ function FranchiseOwnerDashboard() {
     }
   };
 
+  // A card is enabled only when the global kill-switch AND this franchise's own
+  // flag both allow it. While either layer is still loading, treat it as neither
+  // enabled nor disabled — `pending` renders a neutral card instead of flashing
+  // "Coming Soon" on every page load.
+  const orderStockOn = isFeatureEnabled(featureFlags, globalSettings, "order_stock");
+  const stockRequestOn = isFeatureEnabled(featureFlags, globalSettings, "stock_request");
+
+  // `disabled` is what MobileNav reads; `comingSoon` is what the card grid reads.
+  // Both must be set or the side menu will happily navigate to a gated page.
   const navItems = [
-    { title: "Order Stock", path: "/stock-orders", icon: <ShoppingBag size={24} />, desc: "Procure inventory", comingSoon: !onlinePaymentsEnabled },
+    { title: "Order Stock", path: "/stock-orders", icon: <ShoppingBag size={24} />, desc: "Procure inventory", comingSoon: gatesReady && !orderStockOn, pending: !gatesReady, disabled: !gatesReady || !orderStockOn },
     { title: "Invoices", path: "/franchise/invoices", icon: <FileText size={24} />, desc: "Billing history" },
-    { title: "Stock Request", path: "/franchise/requestportal", icon: <SendHorizontal size={24} />, desc: "Request stock from central", comingSoon: !stockRequestsEnabled },
+    { title: "Stock Request", path: "/franchise/requestportal", icon: <SendHorizontal size={24} />, desc: "Request stock from central", comingSoon: gatesReady && !stockRequestOn, pending: !gatesReady, disabled: !gatesReady || !stockRequestOn },
     { title: "Analytics", path: "/franchise/analytics", icon: <BarChart3 size={24} />, desc: "Sales performance" },
     { title: "Staff Profiles", path: "/franchise/staff", icon: <Users size={24} />, desc: "Manage employees" },
     { title: "Settings", path: "/franchise/settings", icon: <Settings size={24} />, desc: "Configure store" },
@@ -177,8 +205,8 @@ function FranchiseOwnerDashboard() {
           {navItems.map((item, idx) => (
             <div
               key={idx}
-              onClick={() => !item.comingSoon && navigate(item.path)}
-              className={`nav-card ${item.comingSoon ? 'nav-card-disabled' : ''}`}
+              onClick={() => !item.comingSoon && !item.pending && navigate(item.path)}
+              className={`nav-card ${item.comingSoon ? 'nav-card-disabled' : ''} ${item.pending ? 'nav-card-pending' : ''}`}
             >
               <div className="card-icon-wrapper">
                 {item.icon}
@@ -374,6 +402,13 @@ function FranchiseOwnerDashboard() {
         }
         .nav-card-disabled:hover { border-color: ${BORDER}; transform: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
         .nav-card-disabled:active { transform: none; }
+
+        /* Gate still resolving: neutral, non-clickable, no "Coming Soon" flash. */
+        .nav-card-pending { cursor: default !important; }
+        .nav-card-pending:hover { border-color: ${BORDER}; transform: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
+        .nav-card-pending:active { transform: none; }
+        .nav-card-pending .card-title,
+        .nav-card-pending .card-desc { opacity: 0.45; }
 
         .coming-soon-badge {
           background: #fef3c7;

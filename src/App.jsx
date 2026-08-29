@@ -356,7 +356,7 @@ function App() {
               <Route
                 path="/stock-orders"
                 element={
-                  <ProtectedRoute allowedRoles={["franchise"]}>
+                  <ProtectedRoute allowedRoles={["franchise"]} requiredFeature="order_stock">
                     <StockOrder />
                   </ProtectedRoute>
                 }
@@ -383,7 +383,7 @@ function App() {
               <Route
                 path="/franchise/requestportal"
                 element={
-                  <ProtectedRoute allowedRoles={["franchise"]}>
+                  <ProtectedRoute allowedRoles={["franchise"]} requiredFeature="stock_request">
                     <RequestPortal />
                   </ProtectedRoute>
                 }
