@@ -21,7 +21,7 @@ async function verifySignature(body: string, signature: string, secret: string) 
 }
 
 /**
- * UTILS: Process Refund via Razorpay API
+ * UTILS: Process Refund via Razorpay api
  */
 async function refundPayment(paymentId: string) {
   const keyId = Deno.env.get("RAZORPAY_KEY_ID");
